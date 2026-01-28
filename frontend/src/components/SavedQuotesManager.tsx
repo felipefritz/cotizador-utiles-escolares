@@ -91,11 +91,11 @@ export const SavedQuotesManager: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Recargar datos del dialog cuando se abre
+    // Recargar datos del dialog cuando se abre (solo cuando el ID cambia)
     if (purchasedItemsDialog?.id) {
       handleViewPurchasedItems(purchasedItemsDialog.id);
     }
-  }, [!!purchasedItemsDialog]);
+  }, [purchasedItemsDialog?.id]);
 
   const loadQuotes = async () => {
     try {
@@ -192,35 +192,43 @@ export const SavedQuotesManager: React.FC = () => {
     quantity: number = 1
   ) => {
     try {
-      await api.post(`/user/quotes/${quoteId}/mark-purchased`, {
+      console.log('Marcando item como comprado:', { quoteId, itemName, provider, price, quantity });
+      const markResponse = await api.post(`/user/quotes/${quoteId}/mark-purchased`, {
         item_name: itemName,
         provider,
         price,
         quantity,
       });
+      console.log('Respuesta de marca:', markResponse.data);
 
       // Recargar los detalles completos del dialog
       if (purchasedItemsDialog?.id === quoteId) {
         const updatedResponse = await api.get(`/user/quotes/${quoteId}`);
+        console.log('Dialog actualizado:', updatedResponse.data);
         setPurchasedItemsDialog(updatedResponse.data);
       }
     } catch (err: any) {
+      console.error('Error marcando item:', err);
       setError(err.response?.data?.detail || 'Error marcando item como comprado');
     }
   };
 
   const handleUnmarkItemPurchased = async (quoteId: number, itemName: string) => {
     try {
-      await api.post(`/user/quotes/${quoteId}/unmark-purchased`, {
+      console.log('Desmarcando item:', { quoteId, itemName });
+      const unmarkResponse = await api.post(`/user/quotes/${quoteId}/unmark-purchased`, {
         item_name: itemName,
       });
+      console.log('Respuesta de desmarca:', unmarkResponse.data);
 
       // Recargar los detalles completos del dialog
       if (purchasedItemsDialog?.id === quoteId) {
         const updatedResponse = await api.get(`/user/quotes/${quoteId}`);
+        console.log('Dialog actualizado después de desmarca:', updatedResponse.data);
         setPurchasedItemsDialog(updatedResponse.data);
       }
     } catch (err: any) {
+      console.error('Error desmarcando item:', err);
       setError(err.response?.data?.detail || 'Error desmarcando item');
     }
   };
