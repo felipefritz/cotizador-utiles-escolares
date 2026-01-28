@@ -12,7 +12,8 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq").lower()  # groq (gratis) o open
 # Groq (GRATIS - Recomendado para producción)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Modelo de texto
-GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "llama-3.2-90b-vision-preview")  # Modelo con visión
+# NOTA: llama-3.2-90b-vision-preview fue deprecado, usar modelo de texto alternativo
+GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "llama-3.3-70b-versatile")  # Fallback a texto si visión no disponible
 
 # OpenAI (de pago)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

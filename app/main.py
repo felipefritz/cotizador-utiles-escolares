@@ -936,47 +936,69 @@ async def quote_multi_endpoint(
     Respuesta: Consolidada, ordenada por relevancia y precio.
     Tiempo aproximado: 1-3 segundos (depende de proveedores)
     """
-    query = (payload.get("query") or "").strip()
-    if not query:
-        raise HTTPException(400, "Falta 'query'.")
+    try:
+        query = (payload.get("query") or "").strip()
+        if not query:
+            raise HTTPException(400, "Falta 'query'.")
 
-    providers = payload.get("providers")  # None = dimeiggs + libreria_nacional
-    limit_per_provider = payload.get("limit_per_provider", 5)
+        providers = payload.get("providers")  # None = dimeiggs + libreria_nacional
+        limit_per_provider = payload.get("limit_per_provider", 5)
 
-    # MODO DEMO: Limitar a 2 proveedores si no está autenticado
-    is_demo_mode = current_user is None
-    if is_demo_mode and providers:
-        providers = providers[:2]
-    elif is_demo_mode:
-        providers = ["dimeiggs", "libreria_nacional"]  # Default para demo: solo 2
-    
-    # Validar límites de plan si está autenticado
-    if current_user:
-        from app.payment import validate_quote_limits
-        db = SessionLocal()
-        try:
-            # Validar como si tuviera 1 item y N proveedores
-            num_providers = len(providers) if providers else 2
-            validation = validate_quote_limits(current_user.id, 1, num_providers, db)
-            if not validation["valid"]:
-                raise HTTPException(400, validation["reason"])
-        finally:
-            db.close()
+        # MODO DEMO: Limitar a 2 proveedores si no está autenticado
+        is_demo_mode = current_user is None
+        if is_demo_mode and providers:
+            providers = providers[:2]
+        elif is_demo_mode:
+            providers = ["dimeiggs", "libreria_nacional"]  # Default para demo: solo 2
+        
+        print(f"[DEBUG] quote_multi_endpoint: user={current_user.id if current_user else 'demo'}, query={query}, providers={providers}")
+        
+        # Validar límites de plan si está autenticado
+        if current_user:
+            from app.payment import validate_quote_limits
+            db = SessionLocal()
+            try:
+                # Validar como si tuviera 1 item y N proveedores
+                num_providers = len(providers) if providers else 2
+                print(f"[DEBUG] Validando límites: user={current_user.id}, items=1, providers={num_providers}")
+                validation = validate_quote_limits(current_user.id, 1, num_providers, db)
+                print(f"[DEBUG] Validación resultado: {validation}")
+                if not validation["valid"]:
+                    print(f"[ERROR] Límites excedidos: {validation['reason']}")
+                    raise HTTPException(400, validation["reason"])
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"[ERROR] Error en validación: {e}")
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(500, f"Error validando límites: {str(e)}")
+            finally:
+                db.close()
 
-    # Búsqueda paralela - mucho más rápida
-    result = quote_multi_providers(
-        query,
-        providers=providers,
-        limit_per_provider=limit_per_provider,
-        max_results=15,
-    )
-    
-    # Agregar info de modo demo a la respuesta
-    result["is_demo_mode"] = is_demo_mode
-    if is_demo_mode:
-        result["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
+        # Búsqueda paralela - mucho más rápida
+        print(f"[DEBUG] Iniciando búsqueda: {query} en {providers}")
+        result = quote_multi_providers(
+            query,
+            providers=providers,
+            limit_per_provider=limit_per_provider,
+            max_results=15,
+        )
+        print(f"[DEBUG] Búsqueda completada: {len(result.get('consolidated', []))} resultados")
+        
+        # Agregar info de modo demo a la respuesta
+        result["is_demo_mode"] = is_demo_mode
+        if is_demo_mode:
+            result["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
 
-    return JSONResponse(result)
+        return JSONResponse(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Error inesperado en quote_multi_endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Error en la búsqueda: {str(e)}")
 
 
 @api_router.post("/parse-ai-quote/multi-providers")
