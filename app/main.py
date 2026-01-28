@@ -1331,7 +1331,7 @@ async def mark_items_purchased(
     quote_id: int,
     item_name: str = Body(...),
     provider: str = Body(...),
-    price: float = Body(...),
+    price: float = Body(0),
     quantity: int = Body(1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1352,8 +1352,8 @@ async def mark_items_purchased(
     
     quote.purchased_items[item_name] = {
         "provider": provider,
-        "price": price,
-        "quantity": quantity,
+        "price": float(price) if price is not None else 0,
+        "quantity": int(quantity) if quantity is not None else 1,
         "date": datetime.utcnow().isoformat(),
     }
     

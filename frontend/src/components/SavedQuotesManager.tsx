@@ -68,6 +68,21 @@ export const SavedQuotesManager: React.FC = () => {
     notes: '',
     status: 'draft',
   });
+
+  const getProviderUrl = (provider: string): string => {
+    const urls: Record<string, string> = {
+      dimeiggs: 'https://www.dimeiggs.cl',
+      libreria_nacional: 'https://nacional.cl',
+      jamila: 'https://www.jamila.cl',
+      coloranimal: 'https://www.coloranimal.cl',
+      pronobel: 'https://pronobel.cl',
+      prisa: 'https://www.prisa.cl',
+      lasecretaria: 'https://lasecretaria.cl',
+      jumbo_lider: 'https://www.jumbo.cl',
+      lapiz_lopez: 'https://www.lapizlopez.com'
+    }
+    return urls[provider] || '#'
+  };
   const [viewDialog, setViewDialog] = useState<SavedQuote | null>(null);
   const [purchasedItemsDialog, setPurchasedItemsDialog] = useState<SavedQuote | null>(null);
 
@@ -166,14 +181,15 @@ export const SavedQuotesManager: React.FC = () => {
     quoteId: number,
     itemName: string,
     provider: string,
-    price: number
+    price: number,
+    quantity: number = 1
   ) => {
     try {
       const response = await api.post(`/user/quotes/${quoteId}/mark-purchased`, {
         item_name: itemName,
         provider,
         price,
-        quantity: 1,
+        quantity,
       });
 
       // Actualizar la lista local
@@ -550,33 +566,67 @@ export const SavedQuotesManager: React.FC = () => {
                       <TableRow sx={{ backgroundColor: 'success.light' }}>
                         <TableCell>Item</TableCell>
                         <TableCell>Proveedor</TableCell>
-                        <TableCell align="right">Precio</TableCell>
+                        <TableCell align="right">Precio Unit.</TableCell>
                         <TableCell align="center">Cantidad</TableCell>
+                        <TableCell align="right">Subtotal</TableCell>
                         <TableCell align="center">Acción</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {Object.entries(purchasedItemsDialog.purchased_items!).map(([itemName, data]: any, idx) => (
-                        <TableRow key={idx} sx={{ backgroundColor: 'success.lighter' }}>
-                          <TableCell><strong>{itemName}</strong></TableCell>
-                          <TableCell>{data.provider}</TableCell>
-                          <TableCell align="right">${Number(data.price).toLocaleString('es-CL')}</TableCell>
-                          <TableCell align="center">{data.quantity}</TableCell>
-                          <TableCell align="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleUnmarkItemPurchased(purchasedItemsDialog.id, itemName)}
-                              color="error"
-                              title="Desmarcar como comprado"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {Object.entries(purchasedItemsDialog.purchased_items!).map(([itemName, data]: any, idx) => {
+                        const subtotal = (data.price || 0) * (data.quantity || 1)
+                        return (
+                          <TableRow key={idx} sx={{ backgroundColor: 'success.lighter' }}>
+                            <TableCell><strong>{itemName}</strong></TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {data.provider}
+                                {data.provider !== 'No especificado' && data.provider !== 'Por definir' && (
+                                  <a 
+                                    href={getProviderUrl(data.provider.toLowerCase().replace(/ /g, '_'))}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ fontSize: '12px', color: '#1976d2' }}
+                                  >
+                                    🔗
+                                  </a>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">${Number(data.price || 0).toLocaleString('es-CL')}</TableCell>
+                            <TableCell align="center">{data.quantity || 1}</TableCell>
+                            <TableCell align="right"><strong>${Number(subtotal).toLocaleString('es-CL')}</strong></TableCell>
+                            <TableCell align="center">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleUnmarkItemPurchased(purchasedItemsDialog.id, itemName)}
+                                color="error"
+                                title="Desmarcar como comprado"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+              {Object.keys(purchasedItemsDialog.purchased_items || {}).length > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, pr: 2 }}>
+                  <Box sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" fontWeight={700}>
+                      Total gastado: $
+                      {Number(
+                        Object.values(purchasedItemsDialog.purchased_items || {}).reduce(
+                          (sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)),
+                          0
+                        )
+                      ).toLocaleString('es-CL')}
+                    </Typography>
+                  </Box>
+                </Box>
               )}
 
               {/* Items Disponibles para Marcar como Comprados */}
@@ -615,8 +665,9 @@ export const SavedQuotesManager: React.FC = () => {
                                 onClick={() => handleMarkItemPurchased(
                                   purchasedItemsDialog.id,
                                   itemName,
-                                  'Por definir',
-                                  0
+                                  purchasedItemsDialog.selected_provider || 'No especificado',
+                                  0,
+                                  quantity
                                 )}
                               >
                                 Comprado
