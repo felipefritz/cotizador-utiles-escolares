@@ -20,22 +20,31 @@ export function LoginPage() {
 
   // Flujo OAuth con redirección directa (Google redirige al backend)
   const handleGoogleLogin = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      setError('Error: VITE_GOOGLE_CLIENT_ID no está configurado')
+    console.log('Google Client ID:', GOOGLE_CLIENT_ID)
+    
+    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === '') {
+      setError('Error: Google OAuth no está configurado. Por favor contacta al administrador.')
+      console.error('VITE_GOOGLE_CLIENT_ID no está configurado')
       return
     }
 
     // Redirigir directamente a Google
     // Google redirigirá al backend (http://localhost:8000/api/auth/google/callback)
     // El backend intercambiará el código y redirigirá al frontend con el token
+    const backendUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:8000'
+    const redirectUri = `${backendUrl}/api/auth/google/callback`
     const scope = 'openid email profile'
+    
+    console.log('Redirigiendo a Google con redirect_uri:', redirectUri)
+    
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}&` +
-      `redirect_uri=http://localhost:8000/api/auth/google/callback&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=${encodeURIComponent(scope)}&` +
       `access_type=offline`
 
+    console.log('URL de Google:', googleAuthUrl)
     window.location.href = googleAuthUrl
   }
 
