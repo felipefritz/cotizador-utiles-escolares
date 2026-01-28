@@ -354,3 +354,56 @@ def get_user_limits(user_id: int, db: Session) -> dict:
     except Exception as e:
         print(f"❌ Error getting user limits: {e}")
         return {"max_items": 5, "max_providers": 2, "monthly_limit": None}
+
+
+def validate_quote_limits(user_id: int, items_count: int, providers_count: int, db: Session) -> dict:
+    """
+    Valida que la cotización respete los límites del plan del usuario
+    
+    Retorna:
+        - {"valid": True} si es válida
+        - {"valid": False, "reason": "...", "limit": N} si excede límites
+    """
+    from datetime import datetime, timedelta
+    from app.database import SavedQuote
+    
+    limits = get_user_limits(user_id, db)
+    
+    # Validar cantidad de items
+    if items_count > limits["max_items"]:
+        return {
+            "valid": False,
+            "reason": f"Máximo {limits['max_items']} items permitidos en tu plan",
+            "limit": limits["max_items"],
+            "current": items_count,
+        }
+    
+    # Validar cantidad de proveedores
+    if providers_count > limits["max_providers"]:
+        return {
+            "valid": False,
+            "reason": f"Máximo {limits['max_providers']} proveedores permitidos en tu plan",
+            "limit": limits["max_providers"],
+            "current": providers_count,
+        }
+    
+    # Validar límite mensual de cotizaciones si aplica
+    if limits["monthly_limit"] is not None:
+        # Contar cotizaciones del mes actual
+        now = datetime.utcnow()
+        start_of_month = datetime(now.year, now.month, 1)
+        
+        quotes_this_month = db.query(SavedQuote).filter(
+            SavedQuote.user_id == user_id,
+            SavedQuote.created_at >= start_of_month,
+        ).count()
+        
+        if quotes_this_month >= limits["monthly_limit"]:
+            return {
+                "valid": False,
+                "reason": f"Límite de {limits['monthly_limit']} cotizaciones por mes alcanzado",
+                "limit": limits["monthly_limit"],
+                "current": quotes_this_month,
+            }
+    
+    return {"valid": True}

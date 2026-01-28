@@ -26,7 +26,7 @@ from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.multi_provider import quote_multi_providers
 
 # Autenticación
-from app.database import get_db, init_db, User
+from app.database import get_db, init_db, User, SessionLocal
 from app.auth import get_current_user, get_current_user_optional, create_access_token, get_or_create_user
 from app.oauth_providers import get_google_user_info, get_twitter_user_info, get_github_user_info
 
@@ -949,6 +949,19 @@ async def quote_multi_endpoint(
         providers = providers[:2]
     elif is_demo_mode:
         providers = ["dimeiggs", "libreria_nacional"]  # Default para demo: solo 2
+    
+    # Validar límites de plan si está autenticado
+    if current_user:
+        from app.payment import validate_quote_limits
+        db = SessionLocal()
+        try:
+            # Validar como si tuviera 1 item y N proveedores
+            num_providers = len(providers) if providers else 2
+            validation = validate_quote_limits(current_user.id, 1, num_providers, db)
+            if not validation["valid"]:
+                raise HTTPException(400, validation["reason"])
+        finally:
+            db.close()
 
     # Búsqueda paralela - mucho más rápida
     result = quote_multi_providers(
@@ -1169,6 +1182,48 @@ async def get_subscription(
     return subscription or {"status": "free"}
 
 
+@api_router.get("/user/limits")
+async def get_user_plan_limits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Obtiene los límites del plan del usuario"""
+    from app.payment import get_user_limits, get_user_subscription
+    from app.database import SavedQuote
+    from datetime import datetime
+    
+    limits = get_user_limits(current_user.id, db)
+    subscription = get_user_subscription(current_user.id, db)
+    
+    # Contar cotizaciones del mes actual
+    now = datetime.utcnow()
+    start_of_month = datetime(now.year, now.month, 1)
+    
+    quotes_this_month = db.query(SavedQuote).filter(
+        SavedQuote.user_id == current_user.id,
+        SavedQuote.created_at >= start_of_month,
+    ).count()
+    
+    # Total de cotizaciones del usuario
+    total_quotes = db.query(SavedQuote).filter(
+        SavedQuote.user_id == current_user.id,
+    ).count()
+    
+    return {
+        "plan": subscription.get("plan_name", "free") if subscription else "free",
+        "limits": {
+            "max_items": limits["max_items"],
+            "max_providers": limits["max_providers"],
+            "monthly_limit": limits["monthly_limit"],
+        },
+        "usage": {
+            "quotes_this_month": quotes_this_month,
+            "total_quotes": total_quotes,
+            "monthly_remaining": limits["monthly_limit"] - quotes_this_month if limits["monthly_limit"] else None,
+        },
+    }
+
+
 @api_router.post("/payment/checkout")
 async def create_checkout(
     request: CheckoutRequest,
@@ -1296,8 +1351,24 @@ async def save_quote(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Guarda una cotización"""
+    """Guarda una cotización - Valida límites del plan"""
     from app.database import SavedQuote
+    from app.payment import validate_quote_limits
+    
+    # Validar límites
+    if not items:
+        raise HTTPException(400, "La cotización debe tener al menos 1 item")
+    
+    # Contar providers únicos en los resultados
+    providers_count = 0
+    if results:
+        providers_count = len(set([item.get('provider') for item in results.values() if item.get('provider')]))
+        providers_count = max(1, providers_count)  # Al menos 1 proveedor
+    
+    validation = validate_quote_limits(current_user.id, len(items), providers_count, db)
+    
+    if not validation["valid"]:
+        raise HTTPException(400, validation["reason"])
     
     quote = SavedQuote(
         user_id=current_user.id,
