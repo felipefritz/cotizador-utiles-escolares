@@ -31,9 +31,6 @@ COPY app/ ./app/
 COPY run.py .
 COPY .env.example .env
 
-# Hacer ejecutable el script de inicio
-RUN chmod +x start.sh
-
 # Asegurar que scripts de Python estén en PATH
 ENV PATH=/root/.local/bin:$PATH
 
@@ -43,3 +40,5 @@ RUN mkdir -p uploads
 # Puerto de la aplicación (Railway inyecta $PORT)
 EXPOSE 8000
 
+# Comando de inicio - uvicorn lee PORT directamente
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
