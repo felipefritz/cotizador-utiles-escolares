@@ -8,11 +8,11 @@ from passlib.context import CryptContext
 from app.database import get_db, User
 
 # Configuración para hashing de contraseñas
-# Configurar bcrypt con truncate_error=False para evitar errores con contraseñas largas
+# Configurar bcrypt para truncar automáticamente sin lanzar error
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
-    bcrypt__truncate_error=False  # Permite truncado automático de bcrypt
+    truncate_error=False  # No lanza error si la contraseña es > 72 bytes
 )
 
 # Configuración JWT
