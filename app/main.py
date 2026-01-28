@@ -95,6 +95,9 @@ app.add_middleware(
         # Desarrollo local
         "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000",
         "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175", "http://127.0.0.1:3000",
+        # Railway healthcheck
+        "http://healthcheck.railway.app",
+        "https://healthcheck.railway.app",
         # Agrega tu dominio custom de Vercel aquí si quieres ser específico
         # "https://cotizador-utiles.vercel.app",
     ],
