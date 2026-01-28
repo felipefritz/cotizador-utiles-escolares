@@ -2,19 +2,37 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "FastAPI (uvicorn)",
+      "name": "FastAPI Server (uvicorn)",
       "type": "python",
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "main:app.main",
+        "app.main:app",
         "--host",
         "127.0.0.1",
         "--port",
-        "8000"
+        "8000",
+        "--reload"
       ],
       "jinja": true,
-      "justMyCode": true
+      "justMyCode": true,
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Python: Run Script",
+      "type": "python",
+      "request": "launch",
+      "program": "run.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Test: IA Extraction",
+      "type": "python",
+      "request": "launch",
+      "program": "tests/test_openai_extraction.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
