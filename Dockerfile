@@ -37,12 +37,9 @@ ENV PATH=/root/.local/bin:$PATH
 # Crear directorio para uploads
 RUN mkdir -p uploads
 
-# Puerto de la aplicación
-EXPOSE 8000
+# Puerto de la aplicación (Railway usa $PORT)
+ENV PORT=8000
+EXPOSE $PORT
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
-
-# Comando de inicio
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando de inicio (usa variable de entorno PORT)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
