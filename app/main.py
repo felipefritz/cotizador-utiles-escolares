@@ -269,7 +269,7 @@ async def register(
     db: Session = Depends(get_db)
 ):
     """Registra un nuevo usuario con usuario/contraseña"""
-    from auth import create_user_local
+    from app.auth import create_user_local
     
     # Validaciones
     if len(request.username) < 3 or len(request.username) > 20:
@@ -301,7 +301,7 @@ async def login(
     db: Session = Depends(get_db)
 ):
     """Login con usuario/contraseña"""
-    from auth import get_user_by_username, verify_password
+    from app.auth import get_user_by_username, verify_password
     
     user = get_user_by_username(db, request.username)
     if not user or not user.password_hash:
@@ -702,6 +702,11 @@ async def parse_items_without_quote(
     merged = ok_items + fixed_items
     merged = normalize_items(merged)
 
+    # MODO DEMO: Limitar a 5 productos si no está autenticado
+    is_demo_mode = current_user is None
+    if is_demo_mode and len(merged) > 5:
+        merged = merged[:5]
+
     # 4) salida final validada (SIN cotización)
     final = ParsedList(
         raw_text_preview=raw[:1500],
@@ -715,6 +720,9 @@ async def parse_items_without_quote(
         "lines_count": len(lines),
         "dubious_sent_to_ai": len(dub_lines),
         "items": [it.model_dump() for it in final.items],
+        "is_demo_mode": is_demo_mode,
+        "demo_limit_applied": is_demo_mode and len(ok_items + fixed_items) > 5,
+        "total_items_found": len(ok_items + fixed_items),
     })
 
 
@@ -855,7 +863,9 @@ async def quote_multi_endpoint(
 ):
     """
     Busca un producto en múltiples proveedores (EN PARALELO - MÁS RÁPIDO).
-    Modo demo (sin auth): Funciona normalmente pero el frontend limita a 2 proveedores
+    
+    MODO DEMO (sin auth): Máximo 2 proveedores
+    MODO COMPLETO (con auth): Todos los proveedores disponibles
     
     Payload:
     {
@@ -874,6 +884,13 @@ async def quote_multi_endpoint(
     providers = payload.get("providers")  # None = dimeiggs + libreria_nacional
     limit_per_provider = payload.get("limit_per_provider", 5)
 
+    # MODO DEMO: Limitar a 2 proveedores si no está autenticado
+    is_demo_mode = current_user is None
+    if is_demo_mode and providers:
+        providers = providers[:2]
+    elif is_demo_mode:
+        providers = ["dimeiggs", "libreria_nacional"]  # Default para demo: solo 2
+
     # Búsqueda paralela - mucho más rápida
     result = quote_multi_providers(
         query,
@@ -881,6 +898,11 @@ async def quote_multi_endpoint(
         limit_per_provider=limit_per_provider,
         max_results=15,
     )
+    
+    # Agregar info de modo demo a la respuesta
+    result["is_demo_mode"] = is_demo_mode
+    if is_demo_mode:
+        result["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
 
     return JSONResponse(result)
 
@@ -889,9 +911,13 @@ async def quote_multi_endpoint(
 async def parse_ai_and_quote_multi_providers(
     file: UploadFile = File(...),
     providers: str = "dimeiggs,libreria_nacional,jamila,coloranimal,pronobel,prisa,lasecretaria",  # CSV list
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Parse + AI fix + cotización multi-proveedor en una llamada.
+    
+    MODO DEMO (sin auth): Máximo 5 productos y 2 proveedores
+    MODO COMPLETO (con auth): Sin límites
     
     Query params:
     - providers: CSV de proveedores (e.g., "dimeiggs,libreria_nacional,jamila,coloranimal,pronobel,prisa,lasecretaria")
@@ -922,12 +948,23 @@ async def parse_ai_and_quote_multi_providers(
 
     ok_items = [it for it in parsed["items"] if it.get("cantidad") is not None and it.get("detalle")]
     merged = normalize_items(ok_items + fixed_items)
+    
+    # MODO DEMO: Limitar a 5 productos si no está autenticado
+    is_demo_mode = current_user is None
+    original_item_count = len(merged)
+    if is_demo_mode and len(merged) > 5:
+        merged = merged[:5]
+    
     final_items = [ParsedItem(**x).model_dump() for x in merged]
 
     # Parse providers
     provider_list = [p.strip().lower() for p in providers.split(",") if p.strip()]
     if not provider_list:
         provider_list = ["dimeiggs", "libreria_nacional", "jamila", "coloranimal", "pronobel", "prisa", "lasecretaria"]
+    
+    # MODO DEMO: Limitar a 2 proveedores si no está autenticado
+    if is_demo_mode:
+        provider_list = provider_list[:2]
 
     # ---- COTIZACIÓN MULTI-PROVEEDOR EN PARALELO ----
     # Usa ThreadPoolExecutor para cotizar múltiples items simultáneamente
@@ -966,7 +1003,14 @@ async def parse_ai_and_quote_multi_providers(
         "subtotal": int(round(subtotal)),
         "currency": "CLP",
         "providers_used": provider_list,
+        "is_demo_mode": is_demo_mode,
     }
+    
+    # Agregar mensaje de demo si aplica
+    if is_demo_mode:
+        resume["demo_message"] = "Modo prueba: máximo 5 productos y 2 proveedores. Regístrate para acceso completo."
+        resume["demo_items_limit_applied"] = original_item_count > 5
+        resume["total_items_found"] = original_item_count
 
     return JSONResponse({
         "raw_text_preview": raw[:1500],
