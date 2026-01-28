@@ -2,6 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 import re
 import traceback
+import os
 from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -89,9 +90,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Permite todos los subdominios de Vercel
     allow_origins=[
+        # Desarrollo local
         "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000",
         "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175", "http://127.0.0.1:3000",
+        # Agrega tu dominio custom de Vercel aquí si quieres ser específico
+        # "https://cotizador-utiles.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
