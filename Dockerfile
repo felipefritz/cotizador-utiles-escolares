@@ -29,7 +29,6 @@ COPY --from=builder /root/.local /root/.local
 # Copiar código de la aplicación
 COPY app/ ./app/
 COPY run.py .
-COPY start.sh .
 COPY .env.example .env
 
 # Hacer ejecutable el script de inicio
