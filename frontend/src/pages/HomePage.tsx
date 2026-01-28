@@ -5,7 +5,9 @@ import SaveIcon from '@mui/icons-material/Save'
 import SpeedIcon from '@mui/icons-material/Speed'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
+import DashboardIcon from '@mui/icons-material/Dashboard'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 type Props = {
   onTrialClick: () => void
@@ -48,6 +50,7 @@ const FEATURES = [
 
 export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -69,26 +72,48 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
               Compara precios en las principales tiendas de Chile y ahorra en útiles escolares
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {user ? (
-                // Usuario logueado - mostrar botón para comenzar a cotizar
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={onStartClick}
-                  startIcon={<RocketLaunchIcon />}
-                  sx={{
-                    bgcolor: 'white',
-                    color: 'primary.main',
-                    px: 4,
-                    py: 1.5,
-                    fontSize: '1.1rem',
-                    fontWeight: 600,
-                    '&:hover': {
-                      bgcolor: 'grey.100',
-                    },
-                  }}
-                >
-                  Comenzar a Cotizar
+              {user ? (ones para comenzar a cotizar y ver dashboard
+                <>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={onStartClick}
+                    startIcon={<RocketLaunchIcon />}
+                    sx={{
+                      bgcolor: 'white',
+                      color: 'primary.main',
+                      px: 4,
+                      py: 1.5,
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      '&:hover': {
+                        bgcolor: 'grey.100',
+                      },
+                    }}
+                  >
+                    Comenzar a Cotizar
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    onClick={() => navigate('/dashboard')}
+                    startIcon={<DashboardIcon />}
+                    sx={{
+                      borderColor: 'white',
+                      color: 'white',
+                      px: 4,
+                      py: 1.5,
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      '&:hover': {
+                        borderColor: 'grey.100',
+                        bgcolor: 'rgba(255,255,255,0.1)',
+                      },
+                    }}
+                  >
+                    Mi Cuenta
+                  </Button>
+                </ar a Cotizar
                 </Button>
               ) : (
                 // Usuario no logueado - mostrar opciones de trial y login

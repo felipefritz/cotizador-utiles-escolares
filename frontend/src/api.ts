@@ -253,3 +253,46 @@ export async function parseAiQuoteMultiProviders(
   }
   return res.json()
 }
+
+// API client para requests autenticados
+export const api = {
+  get: async (endpoint: string) => {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!res.ok) throw new Error(`Error ${res.status}`)
+    return { data: await res.json() }
+  },
+  post: async (endpoint: string, data: any) => {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) throw new Error(`Error ${res.status}`)
+    return { data: await res.json() }
+  },
+  put: async (endpoint: string, data: any) => {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) throw new Error(`Error ${res.status}`)
+    return { data: await res.json() }
+  },
+  delete: async (endpoint: string) => {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    if (!res.ok) throw new Error(`Error ${res.status}`)
+    return { data: await res.json() }
+  },
+}

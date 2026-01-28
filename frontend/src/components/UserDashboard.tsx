@@ -74,6 +74,7 @@ interface Subscription {
   expires_at?: string;
   max_items: number;
   max_providers: number;
+  monthly_limit?: number | null;
 }
 
 interface Plan {
@@ -367,7 +368,7 @@ export const UserDashboard: React.FC = () => {
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ flexGrow: 1 }}>
                       <Typography variant="h6" gutterBottom>
-                        {plan.name.toUpperCase()}
+                        {plan.name?.toUpperCase() || 'PLAN'}
                       </Typography>
                       <Typography variant="h4" color="primary" gutterBottom>
                         ${plan.price.toLocaleString()}
@@ -413,7 +414,7 @@ export const UserDashboard: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Plan Actual: <Chip label={subscription.plan_name.toUpperCase()} color="primary" />
+                  Plan Actual: <Chip label={subscription.plan_name?.toUpperCase() || 'FREE'} color="primary" />
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 2 }}>
                   Estado: {subscription.status}
