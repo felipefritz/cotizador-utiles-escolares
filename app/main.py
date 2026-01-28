@@ -946,35 +946,35 @@ async def quote_multi_endpoint(
 
         # MODO DEMO: Limitar a 2 proveedores si no está autenticado
         is_demo_mode = current_user is None
+        providers_limited_by_plan = False
+        
         if is_demo_mode and providers:
             providers = providers[:2]
+            providers_limited_by_plan = True
         elif is_demo_mode:
             providers = ["dimeiggs", "libreria_nacional"]  # Default para demo: solo 2
-        
-        print(f"[DEBUG] quote_multi_endpoint: user={current_user.id if current_user else 'demo'}, query={query}, providers={providers}")
-        
-        # Validar límites de plan si está autenticado
-        if current_user:
-            from app.payment import validate_quote_limits
+        else:
+            # Usuario autenticado: verificar límites y auto-limitar si es necesario
+            from app.payment import get_user_limits
             db = SessionLocal()
             try:
-                # Validar como si tuviera 1 item y N proveedores
-                num_providers = len(providers) if providers else 2
-                print(f"[DEBUG] Validando límites: user={current_user.id}, items=1, providers={num_providers}")
-                validation = validate_quote_limits(current_user.id, 1, num_providers, db)
-                print(f"[DEBUG] Validación resultado: {validation}")
-                if not validation["valid"]:
-                    print(f"[ERROR] Límites excedidos: {validation['reason']}")
-                    raise HTTPException(400, validation["reason"])
-            except HTTPException:
-                raise
-            except Exception as e:
-                print(f"[ERROR] Error en validación: {e}")
-                import traceback
-                traceback.print_exc()
-                raise HTTPException(500, f"Error validando límites: {str(e)}")
+                limits = get_user_limits(current_user.id, db)
+                max_providers = limits["max_providers"]
+                
+                if providers and len(providers) > max_providers:
+                    print(f"[INFO] Usuario {current_user.id} solicitó {len(providers)} proveedores, limitado a {max_providers}")
+                    providers = providers[:max_providers]
+                    providers_limited_by_plan = True
+                elif not providers:
+                    # Si no especificó proveedores, usar default según plan
+                    if max_providers >= 5:
+                        providers = ["dimeiggs", "libreria_nacional", "jamila", "coloranimal", "pronobel"][:max_providers]
+                    else:
+                        providers = ["dimeiggs", "libreria_nacional"][:max_providers]
             finally:
                 db.close()
+        
+        print(f"[DEBUG] quote_multi_endpoint: user={current_user.id if current_user else 'demo'}, query={query}, providers={providers}, limited={providers_limited_by_plan}")
 
         # Búsqueda paralela - mucho más rápida
         print(f"[DEBUG] Iniciando búsqueda: {query} en {providers}")
@@ -986,10 +986,14 @@ async def quote_multi_endpoint(
         )
         print(f"[DEBUG] Búsqueda completada: {len(result.get('consolidated', []))} resultados")
         
-        # Agregar info de modo demo a la respuesta
+        # Agregar info de modo demo y limitación a la respuesta
         result["is_demo_mode"] = is_demo_mode
         if is_demo_mode:
             result["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
+        
+        if providers_limited_by_plan:
+            result["was_limited"] = True
+            result["limited_message"] = f"Se limitó a {len(providers)} proveedores según tu plan. Actualiza tu plan para acceder a más."
 
         return JSONResponse(result)
     except HTTPException:
@@ -1412,13 +1416,26 @@ async def save_quote(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Guarda una cotización - Valida límites del plan"""
+    """Guarda una cotización - Auto-limita según plan del usuario"""
     from app.database import SavedQuote
-    from app.payment import validate_quote_limits
+    from app.payment import get_user_limits
     
-    # Validar límites
+    # Validar que haya al menos 1 item
     if not items:
         raise HTTPException(400, "La cotización debe tener al menos 1 item")
+    
+    # Obtener límites del usuario
+    limits = get_user_limits(current_user.id, db)
+    max_items = limits["max_items"]
+    
+    # Auto-limitar items si es necesario
+    items_original_count = len(items)
+    if len(items) > max_items:
+        print(f"[INFO] Usuario {current_user.id} envió {len(items)} items, limitado a {max_items}")
+        items = items[:max_items]
+        was_limited_items = True
+    else:
+        was_limited_items = False
     
     # Contar providers únicos en los resultados
     providers_count = 0
@@ -1426,10 +1443,33 @@ async def save_quote(
         providers_count = len(set([item.get('provider') for item in results.values() if item.get('provider')]))
         providers_count = max(1, providers_count)  # Al menos 1 proveedor
     
-    validation = validate_quote_limits(current_user.id, len(items), providers_count, db)
+    # Auto-limitar proveedores si es necesario
+    max_providers = limits["max_providers"]
+    was_limited_providers = False
+    if providers_count > max_providers:
+        print(f"[INFO] Usuario {current_user.id} envió {providers_count} proveedores, limitado a {max_providers}")
+        was_limited_providers = True
+        # Truncar results a solo los primeros N proveedores
+        if results:
+            providers_to_keep = list(set([item.get('provider') for item in results.values() if item.get('provider')]))[:max_providers]
+            results = {k: v for k, v in results.items() if v.get('provider') in providers_to_keep}
     
-    if not validation["valid"]:
-        raise HTTPException(400, validation["reason"])
+    # Validar límite mensual
+    if limits["monthly_limit"] is not None:
+        from datetime import datetime
+        now = datetime.utcnow()
+        start_of_month = datetime(now.year, now.month, 1)
+        
+        quotes_this_month = db.query(SavedQuote).filter(
+            SavedQuote.user_id == current_user.id,
+            SavedQuote.created_at >= start_of_month,
+        ).count()
+        
+        if quotes_this_month >= limits["monthly_limit"]:
+            raise HTTPException(
+                429,
+                f"Límite de {limits['monthly_limit']} cotizaciones por mes alcanzado. Intenta el próximo mes o actualiza tu plan."
+            )
     
     quote = SavedQuote(
         user_id=current_user.id,
@@ -1442,10 +1482,21 @@ async def save_quote(
     db.add(quote)
     db.commit()
     
-    return {
+    response = {
         "id": quote.id,
         "message": "Cotización guardada correctamente",
     }
+    
+    if was_limited_items or was_limited_providers:
+        response["was_limited"] = True
+        limitations = []
+        if was_limited_items:
+            limitations.append(f"items ({items_original_count} → {max_items})")
+        if was_limited_providers:
+            limitations.append(f"proveedores (→ {max_providers})")
+        response["limited_message"] = f"Se limitó la cotización por: {', '.join(limitations)}. Actualiza tu plan para sin limitaciones."
+    
+    return response
 
 
 @api_router.put("/user/quotes/{quote_id}")
