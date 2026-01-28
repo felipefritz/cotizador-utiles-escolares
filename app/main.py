@@ -98,6 +98,7 @@ app.add_middleware(
         # Railway healthcheck
         "http://healthcheck.railway.app",
         "https://healthcheck.railway.app",
+        "healthcheck.railway.app"
         # Agrega tu dominio custom de Vercel aquí si quieres ser específico
         # "https://cotizador-utiles.vercel.app",
     ],
