@@ -1264,6 +1264,9 @@ async def update_quote(
     title: str = Body(None),
     notes: str = Body(None),
     is_favorite: bool = Body(None),
+    status: str = Body(None),
+    purchased_items: dict = Body(None),
+    selected_provider: str = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1284,7 +1287,14 @@ async def update_quote(
         quote.notes = notes
     if is_favorite is not None:
         quote.is_favorite = is_favorite
+    if status is not None:
+        quote.status = status
+    if purchased_items is not None:
+        quote.purchased_items = purchased_items
+    if selected_provider is not None:
+        quote.selected_provider = selected_provider
     
+    quote.updated_at = datetime.utcnow()
     db.commit()
     
     return {"message": "Cotización actualizada"}
@@ -1311,6 +1321,76 @@ async def delete_quote(
     db.commit()
     
     return {"message": "Cotización eliminada"}
+
+
+@api_router.post("/user/quotes/{quote_id}/mark-purchased")
+async def mark_items_purchased(
+    quote_id: int,
+    item_name: str = Body(...),
+    provider: str = Body(...),
+    price: float = Body(...),
+    quantity: int = Body(1),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Marca un item como comprado en una cotización"""
+    from app.database import SavedQuote
+    
+    quote = db.query(SavedQuote).filter(
+        SavedQuote.id == quote_id,
+        SavedQuote.user_id == current_user.id,
+    ).first()
+    
+    if not quote:
+        raise HTTPException(404, "Cotización no encontrada")
+    
+    if not quote.purchased_items:
+        quote.purchased_items = {}
+    
+    quote.purchased_items[item_name] = {
+        "provider": provider,
+        "price": price,
+        "quantity": quantity,
+        "date": datetime.utcnow().isoformat(),
+    }
+    
+    quote.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "message": f"Item '{item_name}' marcado como comprado",
+        "purchased_items": quote.purchased_items,
+    }
+
+
+@api_router.post("/user/quotes/{quote_id}/unmark-purchased")
+async def unmark_item_purchased(
+    quote_id: int,
+    item_name: str = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Desmarca un item como comprado en una cotización"""
+    from app.database import SavedQuote
+    
+    quote = db.query(SavedQuote).filter(
+        SavedQuote.id == quote_id,
+        SavedQuote.user_id == current_user.id,
+    ).first()
+    
+    if not quote:
+        raise HTTPException(404, "Cotización no encontrada")
+    
+    if quote.purchased_items and item_name in quote.purchased_items:
+        del quote.purchased_items[item_name]
+    
+    quote.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "message": f"Item '{item_name}' desmarcado",
+        "purchased_items": quote.purchased_items,
+    }
 
 
 # Registrar router con prefijo /api

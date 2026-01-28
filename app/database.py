@@ -116,12 +116,15 @@ class SavedQuote(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    title = Column(String)  # Nombre de la cotización (ej: "Útiles 2026")
+    title = Column(String)  # Nombre de la cotización (ej: "Cotización Colegio 1")
     raw_text = Column(Text)  # Texto original parseado
     items = Column(JSON)  # Lista de items parseados
     results = Column(JSON, nullable=True)  # Resultados de cotización (providers + precios)
     notes = Column(Text, nullable=True)  # Notas del usuario
+    purchased_items = Column(JSON, nullable=True)  # Items que fueron comprados {item_name: {provider, price, quantity, date}}
+    selected_provider = Column(String, nullable=True)  # Proveedor seleccionado para la compra
     is_favorite = Column(Boolean, default=False)
+    status = Column(String, default="draft")  # draft, pending, completed, archived
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

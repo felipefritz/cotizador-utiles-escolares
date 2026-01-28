@@ -55,6 +55,11 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
             return None
         
         # Datos de la preferencia
+        # Asegurar que BASE_URL use HTTPS en producción
+        webhook_url = BASE_URL
+        if not webhook_url.startswith("https://"):
+            webhook_url = webhook_url.replace("http://", "https://")
+        
         preference_data = {
             "items": [
                 {
@@ -74,7 +79,7 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
             },
             "auto_return": "approved",
             "external_reference": f"user_{user_id}_plan_{plan.id}_{int(datetime.utcnow().timestamp())}",
-            "notification_url": f"{BASE_URL.replace('http://', 'https://')}/api/payment/webhook",
+            "notification_url": f"{webhook_url}/api/payment/webhook",
         }
         
         # Crear preferencia (sin request_options que causa error en SDK 2.3.0)

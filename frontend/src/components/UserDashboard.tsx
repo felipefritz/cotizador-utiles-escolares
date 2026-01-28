@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../api';
 import { useNavigate } from 'react-router-dom';
+import { SavedQuotesManager } from './SavedQuotesManager';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -282,6 +283,7 @@ export const UserDashboard: React.FC = () => {
           }}
         >
           <Tab label="Mis Cotizaciones" sx={{ fontWeight: 600 }} />
+          <Tab label="Cotizaciones Guardadas" sx={{ fontWeight: 600 }} />
           <Tab label="Planes" sx={{ fontWeight: 600 }} />
           <Tab label="Suscripción" sx={{ fontWeight: 600 }} />
         </Tabs>
@@ -469,8 +471,13 @@ export const UserDashboard: React.FC = () => {
           </Dialog>
         </TabPanel>
 
-        {/* TAB 2: Planes */}
+        {/* TAB 2: Cotizaciones Guardadas */}
         <TabPanel value={tabValue} index={1}>
+          <SavedQuotesManager />
+        </TabPanel>
+
+        {/* TAB 3: Planes */}
+        <TabPanel value={tabValue} index={2}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
               <CircularProgress size={50} />
@@ -592,8 +599,8 @@ export const UserDashboard: React.FC = () => {
           )}
         </TabPanel>
 
-        {/* TAB 3: Suscripción */}
-        <TabPanel value={tabValue} index={2}>
+        {/* TAB 4: Suscripción */}
+        <TabPanel value={tabValue} index={3}>
           {subscription ? (
             <Card>
               <CardContent>
