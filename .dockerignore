@@ -1,0 +1,55 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+
+# Virtual environments
+venv/
+venv12/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests
+tests/
+*.pytest_cache
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Config
+.env
+.env.local
+*.db
+*.sqlite
+
+# Uploads
+uploads/*
+
+# Frontend
+frontend/
+
+# Scripts
+scripts/
+
+# CI/CD
+.github/

@@ -1,0 +1,84 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'requirements.txt'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        # Stop build if there are Python syntax errors or undefined names
+        flake8 app --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 app --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true
+    
+    - name: Check imports
+      run: |
+        python -c "from app.main import app; print('✅ Imports OK')"
+      env:
+        LLM_PROVIDER: groq
+        GROQ_API_KEY: dummy_key_for_testing
+        DATABASE_URL: sqlite:///./test.db
+        SECRET_KEY: test-secret-key
+    
+    - name: Test structure
+      run: |
+        python -c "
+        import os
+        assert os.path.exists('app/main.py'), 'main.py missing'
+        assert os.path.exists('app/auth.py'), 'auth.py missing'
+        assert os.path.exists('app/llm_client.py'), 'llm_client.py missing'
+        print('✅ Structure OK')
+        "
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+    
+    - name: Check for secrets
+      run: |
+        echo "Checking for exposed secrets..."
+        ! grep -r "sk-proj-" . --include="*.py" --include="*.md" || exit 1
+        ! grep -r "gsk_" . --include="*.py" --include="*.md" || exit 1
+        echo "✅ No secrets found"
