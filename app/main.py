@@ -1119,24 +1119,38 @@ async def create_checkout(
     """
     Crea un checkout en Mercado Pago
     Body: {"plan_id": 2}
+    Retorna: {"preference_id": "...", "checkout_url": "https://checkout.mercadopago.com/..."}
     """
     from app.database import Plan
     from app.payment import create_payment_preference
+    import os
+    
+    # Verificar que Mercado Pago esté configurado
+    if not os.getenv("MERCADO_PAGO_ACCESS_TOKEN"):
+        raise HTTPException(
+            503,
+            "Sistema de pagos no disponible. Por favor contacta a soporte."
+        )
     
     plan = db.query(Plan).filter(Plan.id == plan_id).first()
     if not plan:
-        raise HTTPException(400, "Plan no existe")
+        raise HTTPException(404, "Plan no existe")
     
     if plan.name == "free":
         raise HTTPException(400, "No se puede comprar el plan gratuito")
     
+    # Crear preferencia con email del usuario
     preference = create_payment_preference(plan, current_user.id, db)
     if not preference:
-        raise HTTPException(500, "Error creando checkout. Mercado Pago no configurado.")
+        raise HTTPException(
+            500,
+            "Error creando sesión de pago. Por favor intenta de nuevo o contacta a soporte."
+        )
     
     return {
         "preference_id": preference.get("id"),
         "checkout_url": preference.get("init_point"),
+        "success": True,
     }
 
 

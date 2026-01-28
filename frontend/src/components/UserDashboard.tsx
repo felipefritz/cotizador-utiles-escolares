@@ -11,16 +11,19 @@ import {
   Card,
   CardContent,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Chip,
   Alert,
   CircularProgress,
   Grid,
   CardActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Stack,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -29,8 +32,10 @@ import {
   Star as StarIcon,
   StarBorder as StarBorderIcon,
   Visibility as VisibilityIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { api } from '../api';
+import { useNavigate } from 'react-router-dom';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -88,6 +93,7 @@ interface Plan {
 }
 
 export const UserDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [selectedQuote, setSelectedQuote] = useState<QuoteDetail | null>(null);
@@ -188,11 +194,21 @@ export const UserDashboard: React.FC = () => {
 
   const handleCheckout = async (planId: number) => {
     try {
-      const res = await api.post('/payment/checkout', planId);
+      setMessage('');
+      setMessageType('success');
+      
+      const res = await api.post('/payment/checkout', { plan_id: planId });
+      
+      if (!res.data || !res.data.checkout_url) {
+        throw new Error('URL de pago no disponible');
+      }
+      
       // Redirigir a Mercado Pago
       window.location.href = res.data.checkout_url;
-    } catch (error) {
-      setMessage('Error al iniciar pago');
+    } catch (error: any) {
+      console.error('Error de checkout:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Error al iniciar pago';
+      setMessage(errorMessage);
       setMessageType('error');
     }
   };
@@ -212,85 +228,168 @@ export const UserDashboard: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Mi Cuenta
-      </Typography>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" fontWeight={600}>
+          Mi Cuenta
+        </Typography>
+        {tabValue === 0 && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            size="large"
+            onClick={() => navigate('/')}
+            sx={{ 
+              px: 3,
+              boxShadow: 2,
+              '&:hover': { boxShadow: 4 }
+            }}
+          >
+            Nueva Cotización
+          </Button>
+        )}
+      </Box>
 
       {message && (
-        <Alert severity={messageType} sx={{ mb: 2 }} onClose={() => setMessage('')}>
+        <Alert severity={messageType} sx={{ mb: 3 }} onClose={() => setMessage('')}>
           {message}
         </Alert>
       )}
 
-      <Paper>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-          <Tab label="Mis Cotizaciones" />
-          <Tab label="Planes" />
-          <Tab label="Suscripción" />
+      <Paper elevation={2} sx={{ borderRadius: 2 }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={(_, v) => setTabValue(v)}
+          sx={{ 
+            borderBottom: 1, 
+            borderColor: 'divider',
+            px: 2
+          }}
+        >
+          <Tab label="Mis Cotizaciones" sx={{ fontWeight: 600 }} />
+          <Tab label="Planes" sx={{ fontWeight: 600 }} />
+          <Tab label="Suscripción" sx={{ fontWeight: 600 }} />
         </Tabs>
 
         {/* TAB 1: Cotizaciones */}
         <TabPanel value={tabValue} index={0}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+              <CircularProgress size={50} />
             </Box>
           ) : quotes.length === 0 ? (
-            <Alert severity="info">
-              No tienes cotizaciones guardadas. ¡Crea una nueva!
-            </Alert>
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No tienes cotizaciones guardadas
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                ¡Crea tu primera cotización para comparar precios!
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                size="large"
+                onClick={() => navigate('/')}
+              >
+                Nueva Cotización
+              </Button>
+            </Box>
           ) : (
-            <List>
-              {quotes.map((quote) => (
-                <ListItem key={quote.id} sx={{ mb: 1, border: '1px solid #eee', borderRadius: 1 }}>
-                  <ListItemText
-                    primary={quote.title}
-                    secondary={`${quote.items_count} items • ${new Date(quote.created_at).toLocaleDateString()}`}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleToggleFavorite(quote.id, quote.is_favorite)}
-                      sx={{ mr: 1 }}
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell width="40px"></TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Título</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">Items</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {quotes.map((quote) => (
+                    <TableRow 
+                      key={quote.id}
+                      sx={{ 
+                        '&:hover': { bgcolor: 'grey.50' },
+                        transition: 'background-color 0.2s'
+                      }}
                     >
-                      {quote.is_favorite ? <StarIcon color="warning" /> : <StarBorderIcon />}
-                    </IconButton>
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleViewQuote(quote.id)}
-                      title="Ver detalle"
-                      sx={{ mr: 1 }}
-                    >
-                      <VisibilityIcon />
-                    </IconButton>
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleEditQuote(quote)}
-                      title="Editar"
-                      sx={{ mr: 1 }}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleDownloadQuote(quote)}
-                      title="Descargar"
-                      sx={{ mr: 1 }}
-                    >
-                      <DownloadIcon />
-                    </IconButton>
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleDeleteQuote(quote.id)}
-                      title="Eliminar"
-                    >
-                      <DeleteIcon color="error" />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
+                      <TableCell>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleToggleFavorite(quote.id, quote.is_favorite)}
+                        >
+                          {quote.is_favorite ? (
+                            <StarIcon sx={{ color: 'warning.main' }} />
+                          ) : (
+                            <StarBorderIcon sx={{ color: 'grey.400' }} />
+                          )}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body1" fontWeight={500}>
+                          {quote.title}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip 
+                          label={quote.items_count} 
+                          size="small" 
+                          color="primary"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {new Date(quote.created_at).toLocaleDateString('es-CL', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewQuote(quote.id)}
+                            title="Ver detalle"
+                            color="primary"
+                          >
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditQuote(quote)}
+                            title="Editar"
+                            color="primary"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownloadQuote(quote)}
+                            title="Descargar"
+                            color="primary"
+                          >
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteQuote(quote.id)}
+                            title="Eliminar"
+                            color="error"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
           {/* Dialog para editar */}
@@ -358,46 +457,116 @@ export const UserDashboard: React.FC = () => {
         {/* TAB 2: Planes */}
         <TabPanel value={tabValue} index={1}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+              <CircularProgress size={50} />
             </Box>
           ) : (
-            <Grid container spacing={3}>
+            <Grid container spacing={4}>
               {plans.map((plan) => (
                 <Grid item xs={12} sm={6} md={4} key={plan.id}>
-                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <CardContent sx={{ flexGrow: 1 }}>
-                      <Typography variant="h6" gutterBottom>
+                  <Card 
+                    sx={{ 
+                      height: '100%', 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      borderRadius: 3,
+                      boxShadow: plan.name === 'pro' ? 4 : 2,
+                      border: plan.name === 'pro' ? 2 : 0,
+                      borderColor: plan.name === 'pro' ? 'primary.main' : 'transparent',
+                      position: 'relative',
+                      transition: 'all 0.3s',
+                      '&:hover': {
+                        boxShadow: 6,
+                        transform: 'translateY(-4px)'
+                      }
+                    }}
+                  >
+                    {plan.name === 'pro' && (
+                      <Chip 
+                        label="RECOMENDADO" 
+                        color="primary" 
+                        size="small"
+                        sx={{ 
+                          position: 'absolute', 
+                          top: 16, 
+                          right: 16,
+                          fontWeight: 600
+                        }}
+                      />
+                    )}
+                    <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                      <Typography variant="h5" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase' }}>
                         {plan.name?.toUpperCase() || 'PLAN'}
                       </Typography>
-                      <Typography variant="h4" color="primary" gutterBottom>
-                        ${plan.price.toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary" gutterBottom>
-                        /{plan.billing_cycle}
-                      </Typography>
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2">
-                          ✓ Máx {plan.max_items || '∞'} items
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
+                        <Typography variant="h3" color="primary" fontWeight={700}>
+                          ${(plan.price / 1000).toFixed(0)}K
                         </Typography>
-                        <Typography variant="body2">
-                          ✓ {plan.max_providers} proveedores
-                        </Typography>
-                        <Typography variant="body2">
-                          ✓ {plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Ilimitado'}
+                        <Typography variant="body1" color="text.secondary" sx={{ ml: 1 }}>
+                          /{plan.billing_cycle === 'monthly' ? 'mes' : plan.billing_cycle}
                         </Typography>
                       </Box>
+                      <Box sx={{ mt: 3 }}>
+                        {[
+                          { 
+                            label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
+                            available: true
+                          },
+                          { 
+                            label: `${plan.max_providers} proveedores`,
+                            available: true
+                          },
+                          { 
+                            label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
+                            available: true
+                          }
+                        ].map((feature, idx) => (
+                          <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+                            <Box 
+                              sx={{ 
+                                width: 20, 
+                                height: 20, 
+                                borderRadius: '50%', 
+                                bgcolor: 'success.main',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mr: 1.5
+                              }}
+                            >
+                              <Typography variant="caption" sx={{ color: 'white' }}>✓</Typography>
+                            </Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {feature.label}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
                     </CardContent>
-                    <CardActions>
+                    <CardActions sx={{ p: 3, pt: 0 }}>
                       {plan.name === 'free' ? (
-                        <Chip label="Plan Actual" color="primary" />
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          size="large"
+                          disabled
+                          sx={{ py: 1.5, fontWeight: 600 }}
+                        >
+                          Plan Actual
+                        </Button>
                       ) : (
                         <Button
                           fullWidth
-                          variant="contained"
+                          variant={plan.name === 'pro' ? 'contained' : 'outlined'}
+                          size="large"
                           onClick={() => handleCheckout(plan.id)}
+                          sx={{ 
+                            py: 1.5, 
+                            fontWeight: 600,
+                            boxShadow: plan.name === 'pro' ? 2 : 0
+                          }}
                         >
-                          Contratar
+                          Contratar Ahora
                         </Button>
                       )}
                     </CardActions>

@@ -260,7 +260,10 @@ export const api = {
     const res = await fetch(`${API_BASE}${endpoint}`, {
       headers: getAuthHeaders(),
     })
-    if (!res.ok) throw new Error(`Error ${res.status}`)
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
+      throw { response: { data: error, status: res.status } }
+    }
     return { data: await res.json() }
   },
   post: async (endpoint: string, data: any) => {
@@ -272,7 +275,10 @@ export const api = {
       },
       body: JSON.stringify(data),
     })
-    if (!res.ok) throw new Error(`Error ${res.status}`)
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
+      throw { response: { data: error, status: res.status } }
+    }
     return { data: await res.json() }
   },
   put: async (endpoint: string, data: any) => {
@@ -284,7 +290,10 @@ export const api = {
       },
       body: JSON.stringify(data),
     })
-    if (!res.ok) throw new Error(`Error ${res.status}`)
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
+      throw { response: { data: error, status: res.status } }
+    }
     return { data: await res.json() }
   },
   delete: async (endpoint: string) => {
@@ -292,7 +301,10 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
-    if (!res.ok) throw new Error(`Error ${res.status}`)
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
+      throw { response: { data: error, status: res.status } }
+    }
     return { data: await res.json() }
   },
 }

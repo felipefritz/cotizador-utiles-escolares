@@ -3,31 +3,41 @@ Integración con Mercado Pago para procesar pagos
 """
 import os
 import json
+import requests
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.database import Payment, Subscription, Plan, PaymentStatus, SubscriptionStatus
 
 # Mercado Pago SDK
 try:
-    import mercado_pago
+    from mercadopago import SDK as MercadoPagoSDK
     MP_CONFIGURED = True
 except ImportError:
     MP_CONFIGURED = False
+    MercadoPagoSDK = None
 
 # Configuración
 MERCADO_PAGO_ACCESS_TOKEN = os.getenv("MERCADO_PAGO_ACCESS_TOKEN", "")
 MERCADO_PAGO_PUBLIC_KEY = os.getenv("MERCADO_PAGO_PUBLIC_KEY", "")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
 
+# URLs de Mercado Pago
+MP_API_URL = "https://api.mercadopago.com"
+
 
 def initialize_mercado_pago():
     """Inicializa cliente de Mercado Pago"""
-    if not MP_CONFIGURED or not MERCADO_PAGO_ACCESS_TOKEN:
+    if not MERCADO_PAGO_ACCESS_TOKEN:
+        print("⚠️ MERCADO_PAGO_ACCESS_TOKEN no configurado")
         return None
     
-    sdk = mercado_pago.SDK(MERCADO_PAGO_ACCESS_TOKEN)
-    return sdk
+    try:
+        sdk = MercadoPagoSDK(MERCADO_PAGO_ACCESS_TOKEN)
+        return sdk
+    except Exception as e:
+        print(f"❌ Error inicializando Mercado Pago SDK: {e}")
+        return None
 
 
 def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional[dict]:
@@ -35,40 +45,48 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
     Crea una preferencia de pago en Mercado Pago
     Retorna: {'id': 'preference_id', 'init_point': 'url_checkout'}
     """
-    if not MP_CONFIGURED or not MERCADO_PAGO_ACCESS_TOKEN:
-        return None
-    
-    sdk = initialize_mercado_pago()
-    if not sdk:
+    if not MERCADO_PAGO_ACCESS_TOKEN:
+        print("❌ Mercado Pago no configurado")
         return None
     
     try:
+        sdk = initialize_mercado_pago()
+        if not sdk:
+            return None
+        
+        # Datos de la preferencia
         preference_data = {
             "items": [
                 {
-                    "title": f"Plan {plan.name.upper()} - {plan.billing_cycle}",
+                    "title": f"Plan {plan.name.upper()} - Cotizador Útiles",
                     "quantity": 1,
                     "currency_id": "CLP",
-                    "unit_price": plan.price,
+                    "unit_price": int(plan.price),
                 }
             ],
             "payer": {
                 "email": "",  # Se obtendrá del usuario después
             },
             "back_urls": {
-                "success": f"{BASE_URL}/payment/success",
-                "failure": f"{BASE_URL}/payment/failure",
-                "pending": f"{BASE_URL}/payment/pending",
+                "success": f"{BASE_URL}/#/dashboard?payment=success",
+                "failure": f"{BASE_URL}/#/dashboard?payment=failure",
+                "pending": f"{BASE_URL}/#/dashboard?payment=pending",
             },
             "auto_return": "approved",
-            "external_reference": f"user_{user_id}_plan_{plan.id}_{datetime.utcnow().timestamp()}",
+            "external_reference": f"user_{user_id}_plan_{plan.id}_{int(datetime.utcnow().timestamp())}",
+            "notification_url": f"{BASE_URL.replace('http://', 'https://')}/api/payment/webhook",
         }
         
-        preference_response = sdk.preference().create(preference_data)
+        # Crear preferencia
+        request_options = {"headers": {"X-Idempotency-Key": f"user_{user_id}_{plan.id}_{datetime.utcnow()}"}}
+        preference_response = sdk.preference().create(preference_data, request_options)
         
         if preference_response.get("status") == 201:
-            preference_id = preference_response["response"]["id"]
-            init_point = preference_response["response"]["init_point"]
+            preference = preference_response["response"]
+            preference_id = preference.get("id")
+            init_point = preference.get("init_point")
+            
+            print(f"✅ Preferencia creada: {preference_id}")
             
             # Guardar pago en base de datos como pendiente
             payment = Payment(
@@ -77,7 +95,7 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
                 amount=plan.price,
                 status=PaymentStatus.pending,
                 mercado_pago_id=preference_id,
-                reference=preference_response["response"].get("external_reference"),
+                reference=preference.get("external_reference"),
             )
             db.add(payment)
             db.commit()
@@ -88,11 +106,42 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
                 "checkout_pro_url": init_point,
             }
         else:
-            print(f"Error creating preference: {preference_response}")
+            print(f"❌ Error creando preferencia: {preference_response}")
             return None
             
     except Exception as e:
-        print(f"Error en create_payment_preference: {e}")
+        print(f"❌ Error en create_payment_preference: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def get_payment_status(payment_id: str) -> Optional[str]:
+    """
+    Obtiene el estado de un pago desde Mercado Pago
+    Retorna: 'pending', 'approved', 'rejected', etc.
+    """
+    if not MERCADO_PAGO_ACCESS_TOKEN:
+        return None
+    
+    try:
+        headers = {
+            "Authorization": f"Bearer {MERCADO_PAGO_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(
+            f"{MP_API_URL}/v1/payments/{payment_id}",
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            return response.json().get("status")
+        else:
+            print(f"❌ Error obteniendo pago: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Error en get_payment_status: {e}")
         return None
 
 
@@ -101,36 +150,27 @@ def verify_payment(mercado_pago_id: str, db: Session) -> bool:
     Verifica el estado de un pago en Mercado Pago
     Retorna True si fue aprobado
     """
-    if not MP_CONFIGURED or not MERCADO_PAGO_ACCESS_TOKEN:
-        return False
-    
-    sdk = initialize_mercado_pago()
-    if not sdk:
+    if not MERCADO_PAGO_ACCESS_TOKEN:
         return False
     
     try:
-        payment_info = sdk.payment().get(mercado_pago_id)
+        status = get_payment_status(mercado_pago_id)
+        print(f"📊 Estado del pago {mercado_pago_id}: {status}")
         
-        if payment_info.get("status") == 200:
-            status = payment_info["response"].get("status")
-            
-            # Estados de Mercado Pago:
-            # pending - Pago en proceso
-            # approved - Pago aprobado
-            # authorized - Pago autorizado
-            # in_process - Pago en revisión
-            # in_mediation - Disputa
-            # rejected - Rechazado
-            # cancelled - Cancelado
-            # refunded - Reembolsado
-            # charged_back - Contracargo
-            
-            if status == "approved":
-                return True
+        # Estados de Mercado Pago:
+        # pending - Pago en proceso
+        # approved - Pago aprobado ✅
+        # authorized - Pago autorizado
+        # in_process - Pago en revisión
+        # in_mediation - Disputa
+        # rejected - Rechazado
+        # cancelled - Cancelado
+        # refunded - Reembolsado
+        # charged_back - Contracargo
         
-        return False
+        return status == "approved"
     except Exception as e:
-        print(f"Error verifying payment: {e}")
+        print(f"❌ Error verificando pago: {e}")
         return False
 
 
@@ -140,72 +180,85 @@ def process_webhook(data: dict, db: Session) -> bool:
     Se llama cuando hay cambios de estado en los pagos
     """
     try:
-        topic = data.get("topic")
-        resource_id = data.get("resource")
+        print(f"🔔 Webhook recibido: {data}")
         
-        if topic == "payment":
-            # Obtener info del pago de Mercado Pago
-            sdk = initialize_mercado_pago()
-            if not sdk:
+        action = data.get("action")
+        data_obj = data.get("data", {})
+        payment_id = data_obj.get("id")
+        
+        if not payment_id:
+            print("⚠️ No hay payment_id en el webhook")
+            return False
+        
+        # Obtener info del pago desde Mercado Pago
+        status = get_payment_status(str(payment_id))
+        
+        if not status:
+            print("❌ No se pudo obtener el estado del pago")
+            return False
+        
+        # Buscar pago en base de datos
+        payment = db.query(Payment).filter(
+            Payment.mercado_pago_id == str(payment_id)
+        ).first()
+        
+        if not payment:
+            print(f"⚠️ Pago {payment_id} no encontrado en BD")
+            return False
+        
+        print(f"💾 Pago encontrado en BD: {payment.id}")
+        
+        # Actualizar estado del pago
+        if status == "approved":
+            print(f"✅ Pago {payment_id} APROBADO")
+            payment.status = PaymentStatus.completed
+            
+            # Crear o actualizar suscripción
+            subscription = db.query(Subscription).filter(
+                Subscription.user_id == payment.user_id
+            ).first()
+            
+            plan = db.query(Plan).filter(Plan.id == payment.plan_id).first()
+            if not plan:
+                print(f"❌ Plan {payment.plan_id} no encontrado")
                 return False
             
-            payment_info = sdk.payment().get(resource_id)
+            now = datetime.utcnow()
+            expires_at = now + timedelta(days=30) if plan.billing_cycle == "monthly" else None
             
-            if payment_info.get("status") == 200:
-                mp_payment = payment_info["response"]
-                status = mp_payment.get("status")
-                external_reference = mp_payment.get("external_reference")
-                
-                # Buscar pago en base de datos
-                payment = db.query(Payment).filter(
-                    Payment.mercado_pago_id == str(resource_id)
-                ).first()
-                
-                if not payment:
-                    return False
-                
-                # Actualizar estado del pago
-                if status == "approved":
-                    payment.status = PaymentStatus.completed
-                    
-                    # Crear o actualizar suscripción
-                    subscription = db.query(Subscription).filter(
-                        Subscription.user_id == payment.user_id
-                    ).first()
-                    
-                    plan = db.query(Plan).filter(Plan.id == payment.plan_id).first()
-                    if not plan:
-                        return False
-                    
-                    now = datetime.utcnow()
-                    expires_at = now + timedelta(days=30) if plan.billing_cycle == "monthly" else None
-                    
-                    if subscription:
-                        subscription.plan_id = plan.id
-                        subscription.status = SubscriptionStatus.active
-                        subscription.started_at = now
-                        subscription.expires_at = expires_at
-                        subscription.updated_at = now
-                    else:
-                        subscription = Subscription(
-                            user_id=payment.user_id,
-                            plan_id=plan.id,
-                            status=SubscriptionStatus.active,
-                            started_at=now,
-                            expires_at=expires_at,
-                        )
-                        db.add(subscription)
-                    
-                elif status in ["rejected", "cancelled"]:
-                    payment.status = PaymentStatus.failed
-                
-                db.commit()
-                return True
+            if subscription:
+                subscription.plan_id = plan.id
+                subscription.status = SubscriptionStatus.active
+                subscription.started_at = now
+                subscription.expires_at = expires_at
+                subscription.updated_at = now
+                print(f"🔄 Suscripción actualizada para usuario {payment.user_id}")
+            else:
+                subscription = Subscription(
+                    user_id=payment.user_id,
+                    plan_id=plan.id,
+                    status=SubscriptionStatus.active,
+                    started_at=now,
+                    expires_at=expires_at,
+                )
+                db.add(subscription)
+                print(f"✨ Suscripción creada para usuario {payment.user_id}")
+            
+        elif status in ["rejected", "cancelled"]:
+            print(f"❌ Pago {payment_id} RECHAZADO")
+            payment.status = PaymentStatus.failed
+        elif status == "pending":
+            print(f"⏳ Pago {payment_id} PENDIENTE")
+            payment.status = PaymentStatus.pending
         
-        return False
+        db.commit()
+        print(f"✅ Webhook procesado exitosamente")
+        return True
     
     except Exception as e:
-        print(f"Error processing webhook: {e}")
+        print(f"❌ Error procesando webhook: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
@@ -239,7 +292,7 @@ def get_user_subscription(user_id: int, db: Session) -> Optional[dict]:
             "monthly_limit": plan.monthly_limit,
         }
     except Exception as e:
-        print(f"Error getting user subscription: {e}")
+        print(f"❌ Error getting user subscription: {e}")
         return None
 
 
@@ -262,7 +315,7 @@ def has_active_subscription(user_id: int, db: Session) -> bool:
         
         return True
     except Exception as e:
-        print(f"Error checking subscription: {e}")
+        print(f"❌ Error checking subscription: {e}")
         return False
 
 
@@ -295,5 +348,5 @@ def get_user_limits(user_id: int, db: Session) -> dict:
         return {"max_items": 5, "max_providers": 2, "monthly_limit": None}
     
     except Exception as e:
-        print(f"Error getting user limits: {e}")
+        print(f"❌ Error getting user limits: {e}")
         return {"max_items": 5, "max_providers": 2, "monthly_limit": None}

@@ -72,7 +72,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
               Compara precios en las principales tiendas de Chile y ahorra en útiles escolares
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {user ? (ones para comenzar a cotizar y ver dashboard
+              {user ? (
                 <>
                   <Button
                     variant="contained"
@@ -113,8 +113,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
                   >
                     Mi Cuenta
                   </Button>
-                </ar a Cotizar
-                </Button>
+                </>
               ) : (
                 // Usuario no logueado - mostrar opciones de trial y login
                 <>
