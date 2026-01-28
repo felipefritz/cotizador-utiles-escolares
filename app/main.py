@@ -352,27 +352,82 @@ async def google_login():
 
 @api_router.get("/auth/google/callback")
 async def google_callback(code: str, db: Session = Depends(get_db)):
-    """Callback de Google OAuth"""
+    """Callback de Google OAuth (GET) - Google redirige aquí con el código"""
     try:
-        user_info = await get_google_user_info(code)
+        print(f"[DEBUG] Google callback GET recibido con código: {code[:20]}...")
+        
+        # El redirect_uri debe ser EXACTAMENTE el mismo que se usó en el GET a Google
+        redirect_uri = "http://localhost:8000/api/auth/google/callback"
+        
+        print(f"[DEBUG] Intercambiando código con redirect_uri: {redirect_uri}")
+        
+        # Intercambiar código por token
+        import httpx
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+            )
+            print(f"[DEBUG] Token response status: {token_response.status_code}")
+            if token_response.status_code != 200:
+                print(f"[DEBUG] Error response: {token_response.text}")
+                raise Exception(f"Google token error: {token_response.text}")
+            
+            token_data = token_response.json()
+            access_token = token_data["access_token"]
+            print(f"[DEBUG] Token obtenido exitosamente")
+
+            # Obtener información del usuario
+            user_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            user_response.raise_for_status()
+            user_data = user_response.json()
+        
+        print(f"[DEBUG] Datos del usuario obtenidos: {user_data.get('email')}")
+        
+        # Procesar datos del usuario
+        email = user_data.get("email")
+        name = user_data.get("name")
+        picture = user_data.get("picture")
+        provider_id = user_data.get("id")
+        
         user = get_or_create_user(
             db=db,
-            email=user_info.email,
+            email=email,
             provider="google",
-            provider_id=user_info.provider_id,
-            name=user_info.name,
-            avatar_url=user_info.avatar_url,
+            provider_id=provider_id,
+            name=name,
+            avatar_url=picture,
         )
         
-        token = create_access_token(data={"sub": str(user.id)})
+        from datetime import datetime
+        user.last_login = datetime.utcnow()
+        db.commit()
+        
+        jwt_token = create_access_token(data={"sub": str(user.id)})
+        print(f"[DEBUG] Usuario autenticado: {user.id}, token JWT creado")
         
         # Redirigir al frontend con el token
-        frontend_url = "http://localhost:5173"
-        return RedirectResponse(url=f"{frontend_url}/auth/callback?token={token}")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5174")
+        redirect_url = f"{frontend_url}/auth/callback?token={jwt_token}"
+        print(f"[DEBUG] Redirigiendo a: {redirect_url}")
+        return RedirectResponse(url=redirect_url)
+        
     except Exception as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": str(e)}
+        print(f"[ERROR] En Google callback: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5174")
+        return RedirectResponse(
+            url=f"{frontend_url}/login?error=google_auth_failed"
         )
 
 
@@ -1350,12 +1405,15 @@ async def mark_items_purchased(
     if not quote.purchased_items:
         quote.purchased_items = {}
     
-    quote.purchased_items[item_name] = {
+    # Crear una copia del diccionario para que SQLAlchemy lo detecte como cambio
+    updated_items = quote.purchased_items.copy()
+    updated_items[item_name] = {
         "provider": provider,
         "price": float(price) if price is not None else 0,
         "quantity": int(quantity) if quantity is not None else 1,
         "date": datetime.utcnow().isoformat(),
     }
+    quote.purchased_items = updated_items
     
     quote.updated_at = datetime.utcnow()
     db.commit()
@@ -1385,7 +1443,9 @@ async def unmark_item_purchased(
         raise HTTPException(404, "Cotización no encontrada")
     
     if quote.purchased_items and item_name in quote.purchased_items:
-        del quote.purchased_items[item_name]
+        # Crear un nuevo diccionario sin el item para que SQLAlchemy lo detecte
+        updated_items = {k: v for k, v in quote.purchased_items.items() if k != item_name}
+        quote.purchased_items = updated_items
     
     quote.updated_at = datetime.utcnow()
     db.commit()

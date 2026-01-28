@@ -1,28 +1,71 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Box, CircularProgress, Typography } from '@mui/material'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Box, CircularProgress, Typography, Alert } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 
 export function AuthCallbackPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Obtener el token de la URL
-      const params = new URLSearchParams(window.location.search)
-      const token = params.get('token')
+      try {
+        // Obtener parámetros de la URL
+        const token = searchParams.get('token')
+        const errorParam = searchParams.get('error')
 
-      if (token) {
-        await login(token)
-        navigate('/')
-      } else {
-        navigate('/login')
+        console.log('AuthCallback - token:', !!token, 'error:', errorParam)
+
+        if (errorParam) {
+          setError('Error en la autenticación con Google. Por favor intenta de nuevo.')
+          setTimeout(() => navigate('/login'), 3000)
+          return
+        }
+
+        if (token) {
+          console.log('Token recibido, iniciando sesión...')
+          await login(token)
+          console.log('Sesión iniciada, redirigiendo...')
+          navigate('/')
+        } else {
+          setError('No se recibió token de autenticación')
+          setTimeout(() => navigate('/login'), 2000)
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error desconocido'
+        console.error('Error en callback:', message, err)
+        setError(message)
+        setTimeout(() => navigate('/login'), 3000)
       }
     }
 
     handleCallback()
-  }, [login, navigate])
+  }, [searchParams, login, navigate])
+
+  if (error) {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default',
+          p: 2,
+        }}
+      >
+        <Alert severity="error" sx={{ maxWidth: 400, mb: 2 }}>
+          {error}
+        </Alert>
+        <Typography variant="body2" color="text.secondary">
+          Redirigiendo a login...
+        </Typography>
+      </Box>
+    )
+  }
 
   return (
     <Box
@@ -32,12 +75,12 @@ export function AuthCallbackPage() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 2,
+        bgcolor: 'background.default',
       }}
     >
-      <CircularProgress size={60} />
-      <Typography variant="h6" color="text.secondary">
-        Iniciando sesión...
+      <CircularProgress sx={{ mb: 2 }} />
+      <Typography color="text.secondary">
+        Procesando autenticación...
       </Typography>
     </Box>
   )

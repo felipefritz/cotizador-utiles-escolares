@@ -109,13 +109,30 @@ def get_or_create_user(
     avatar_url: Optional[str] = None
 ) -> User:
     """Obtiene o crea un usuario basado en el proveedor OAuth"""
+    # Primero buscar por provider + provider_id
     user = db.query(User).filter(
         User.provider == provider,
         User.provider_id == provider_id
     ).first()
     
     if user:
-        # Actualizar último login
+        # Actualizar información
+        user.last_login = datetime.utcnow()
+        if name:
+            user.name = name
+        if avatar_url:
+            user.avatar_url = avatar_url
+        db.commit()
+        db.refresh(user)
+        return user
+    
+    # Si no existe por provider_id, buscar por email
+    user = db.query(User).filter(User.email == email).first()
+    
+    if user:
+        # Usuario ya existe con este email, actualizar provider info
+        user.provider = provider
+        user.provider_id = provider_id
         user.last_login = datetime.utcnow()
         if name:
             user.name = name

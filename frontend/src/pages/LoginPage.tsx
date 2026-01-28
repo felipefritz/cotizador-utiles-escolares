@@ -1,12 +1,11 @@
 import { Box, Container, Paper, Typography, Button, Stack, Divider, TextField, Alert } from '@mui/material'
 import GoogleIcon from '@mui/icons-material/Google'
-import GitHubIcon from '@mui/icons-material/GitHub'
-import TwitterIcon from '@mui/icons-material/Twitter'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -19,34 +18,25 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleGoogleLogin = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/auth/google`)
-      const data = await response.json()
-      window.location.href = data.url
-    } catch (error) {
-      console.error('Error al iniciar sesión con Google:', error)
+  // Flujo OAuth con redirección directa (Google redirige al backend)
+  const handleGoogleLogin = () => {
+    if (!GOOGLE_CLIENT_ID) {
+      setError('Error: VITE_GOOGLE_CLIENT_ID no está configurado')
+      return
     }
-  }
 
-  const handleGitHubLogin = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/auth/github`)
-      const data = await response.json()
-      window.location.href = data.url
-    } catch (error) {
-      console.error('Error al iniciar sesión con GitHub:', error)
-    }
-  }
+    // Redirigir directamente a Google
+    // Google redirigirá al backend (http://localhost:8000/api/auth/google/callback)
+    // El backend intercambiará el código y redirigirá al frontend con el token
+    const scope = 'openid email profile'
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=http://localhost:8000/api/auth/google/callback&` +
+      `response_type=code&` +
+      `scope=${encodeURIComponent(scope)}&` +
+      `access_type=offline`
 
-  const handleTwitterLogin = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/auth/twitter`)
-      const data = await response.json()
-      window.location.href = data.url
-    } catch (error) {
-      console.error('Error al iniciar sesión con Twitter:', error)
-    }
+    window.location.href = googleAuthUrl
   }
 
   const handleLocalLogin = async (e: React.FormEvent) => {
@@ -153,36 +143,6 @@ export function LoginPage() {
                   }}
                 >
                   Continuar con Google
-                </Button>
-
-                <Button
-                  variant="contained"
-                  size="large"
-                  fullWidth
-                  startIcon={<GitHubIcon />}
-                  onClick={handleGitHubLogin}
-                  sx={{
-                    bgcolor: '#24292e',
-                    '&:hover': { bgcolor: '#1b1f23' },
-                    py: 1.5,
-                  }}
-                >
-                  Continuar con GitHub
-                </Button>
-
-                <Button
-                  variant="contained"
-                  size="large"
-                  fullWidth
-                  startIcon={<TwitterIcon />}
-                  onClick={handleTwitterLogin}
-                  sx={{
-                    bgcolor: '#1DA1F2',
-                    '&:hover': { bgcolor: '#1a91da' },
-                    py: 1.5,
-                  }}
-                >
-                  Continuar con X (Twitter)
                 </Button>
               </Stack>
 

@@ -1,11 +1,12 @@
 import httpx
+import os
 from typing import Optional
 from pydantic import BaseModel
 
 # Configuración OAuth (estos valores deben estar en variables de entorno en producción)
-GOOGLE_CLIENT_ID = "TU_GOOGLE_CLIENT_ID"
-GOOGLE_CLIENT_SECRET = "TU_GOOGLE_CLIENT_SECRET"
-GOOGLE_REDIRECT_URI = "http://localhost:8000/api/auth/google/callback"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "TU_GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "TU_GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
 
 TWITTER_CLIENT_ID = "TU_TWITTER_CLIENT_ID"
 TWITTER_CLIENT_SECRET = "TU_TWITTER_CLIENT_SECRET"
@@ -27,17 +28,29 @@ async def get_google_user_info(code: str) -> OAuthUserInfo:
     """Obtiene información del usuario de Google OAuth"""
     async with httpx.AsyncClient() as client:
         # Intercambiar código por token
-        token_response = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-        )
-        token_response.raise_for_status()
+        print(f"[DEBUG] Intentando intercambiar código...")
+        print(f"[DEBUG] Code: {code[:20]}...")
+        print(f"[DEBUG] Client ID: {GOOGLE_CLIENT_ID}")
+        print(f"[DEBUG] Redirect URI: {GOOGLE_REDIRECT_URI}")
+        
+        try:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": GOOGLE_REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+            )
+            print(f"[DEBUG] Token response status: {token_response.status_code}")
+            print(f"[DEBUG] Token response: {token_response.text}")
+            token_response.raise_for_status()
+        except Exception as e:
+            print(f"[DEBUG] Error intercambiando código: {str(e)}")
+            raise
+        
         token_data = token_response.json()
         access_token = token_data["access_token"]
 
