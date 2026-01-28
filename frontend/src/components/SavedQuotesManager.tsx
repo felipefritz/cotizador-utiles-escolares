@@ -90,6 +90,13 @@ export const SavedQuotesManager: React.FC = () => {
     loadQuotes();
   }, []);
 
+  useEffect(() => {
+    // Recargar datos del dialog cuando se abre
+    if (purchasedItemsDialog?.id) {
+      handleViewPurchasedItems(purchasedItemsDialog.id);
+    }
+  }, [!!purchasedItemsDialog]);
+
   const loadQuotes = async () => {
     try {
       setLoading(true);
@@ -197,10 +204,6 @@ export const SavedQuotesManager: React.FC = () => {
         const updatedResponse = await api.get(`/user/quotes/${quoteId}`);
         setPurchasedItemsDialog(updatedResponse.data);
       }
-
-      // Actualizar la lista principal
-      const updatedListResponse = await api.get('/user/quotes');
-      setQuotes(updatedListResponse.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error marcando item como comprado');
     }
@@ -217,10 +220,6 @@ export const SavedQuotesManager: React.FC = () => {
         const updatedResponse = await api.get(`/user/quotes/${quoteId}`);
         setPurchasedItemsDialog(updatedResponse.data);
       }
-
-      // Actualizar la lista principal
-      const updatedListResponse = await api.get('/user/quotes');
-      setQuotes(updatedListResponse.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error desmarcando item');
     }
@@ -550,7 +549,12 @@ export const SavedQuotesManager: React.FC = () => {
       </Dialog>
 
       {/* Purchased Items Dialog */}
-      <Dialog open={!!purchasedItemsDialog} onClose={() => setPurchasedItemsDialog(null)} maxWidth="md" fullWidth>
+      <Dialog 
+        open={!!purchasedItemsDialog} 
+        onClose={() => setPurchasedItemsDialog(null)} 
+        maxWidth="md" 
+        fullWidth
+      >
         <DialogTitle>
           Rastreo de compras: {purchasedItemsDialog?.title}
           <IconButton
