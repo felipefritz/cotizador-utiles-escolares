@@ -4,6 +4,7 @@ import { Box, Container, Paper, Stepper, Step, StepLabel, Typography, CircularPr
 import LogoutIcon from '@mui/icons-material/Logout'
 import HomeIcon from '@mui/icons-material/Home'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import { Navbar } from './components/Navbar'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
@@ -247,9 +248,19 @@ export default function App() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route path="/dashboard" element={<DashboardPage />} />
-      <Route path="/contact" element={<ContactPage />} />
-      <Route path="/" element={<MainApp />} />
+      <Route
+        path="/*"
+        element={
+          <>
+            <Navbar />
+            <Routes>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/" element={<MainApp />} />
+            </Routes>
+          </>
+        }
+      />
     </Routes>
   )
 }
