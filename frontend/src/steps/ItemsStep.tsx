@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import {
   Box,
   Button,
@@ -13,8 +13,17 @@ import {
   TextField,
   Typography,
   TableFooter,
+  Alert,
+  CircularProgress,
 } from '@mui/material'
+import { api } from '../api'
 import type { SelectedItem } from '../types'
+
+interface UserLimits {
+  limits: {
+    max_items: number
+  }
+}
 
 type Props = {
   items: SelectedItem[]
@@ -24,7 +33,31 @@ type Props = {
 }
 
 export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
+  const [limits, setLimits] = useState<UserLimits | null>(null)
+  const [loadingLimits, setLoadingLimits] = useState(true)
+
+  // Cargar límites del usuario
+  useEffect(() => {
+    const fetchLimits = async () => {
+      try {
+        const response = await api.get('/user/limits')
+        setLimits(response.data)
+      } catch (error) {
+        console.log('No se pudieron cargar límites:', error)
+      } finally {
+        setLoadingLimits(false)
+      }
+    }
+    fetchLimits()
+  }, [])
+
+  const maxItems = limits?.limits.max_items || items.length
+  const exceededItems = items.length > maxItems
   const selectedCount = useMemo(() => items.filter((i) => i.selected).length, [items])
+  
+  // Limitar items que se pueden cotizar
+  const itemsToShow = items.slice(0, maxItems)
+  const itemsExceeded = items.slice(maxItems)
 
   const toggle = (index: number) => {
     const next = [...items]
@@ -40,8 +73,15 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   }
 
   const toggleAll = () => {
-    const all = selectedCount === items.length
-    onItemsChange(items.map((i) => ({ ...i, selected: !all })))
+    const all = selectedCount === itemsToShow.length
+    const next = items.map((i, idx) => {
+      // Solo permite seleccionar items dentro del límite
+      if (idx < itemsToShow.length) {
+        return { ...i, selected: !all }
+      }
+      return i
+    })
+    onItemsChange(next)
   }
 
   const canProceed = selectedCount > 0
@@ -56,19 +96,34 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
     )
   }
 
+  if (loadingLimits) {
+    return (
+      <Box sx={{ maxWidth: 560, mx: 'auto', textAlign: 'center', py: 4 }}>
+        <CircularProgress size={40} />
+      </Box>
+    )
+  }
+
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto' }}>
       <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
         Marca los útiles que quieres cotizar y ajusta la cantidad
       </Typography>
+
+      {exceededItems && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Tu plan permite cotizar máximo <strong>{maxItems} items</strong>. Se detectaron {items.length} items. Solo se cotizarán los primeros {maxItems}.
+        </Alert>
+      )}
+
       <TableContainer component={Paper} variant="outlined">
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedCount > 0 && selectedCount < items.length}
-                  checked={items.length > 0 && selectedCount === items.length}
+                  indeterminate={selectedCount > 0 && selectedCount < itemsToShow.length}
+                  checked={itemsToShow.length > 0 && selectedCount === itemsToShow.length}
                   onChange={toggleAll}
                 />
               </TableCell>
@@ -79,7 +134,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {items.map((row, idx) => (
+            {itemsToShow.map((row, idx) => (
               <TableRow key={idx} hover selected={row.selected}>
                 <TableCell padding="checkbox">
                   <Checkbox

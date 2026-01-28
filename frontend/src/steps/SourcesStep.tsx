@@ -42,12 +42,19 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
   const [limits, setLimits] = useState<UserLimits | null>(null)
   const [loadingLimits, setLoadingLimits] = useState(true)
 
-  // Cargar límites del usuario
+  // Cargar límites del usuario y auto-limitar selección
   useEffect(() => {
     const fetchLimits = async () => {
       try {
         const response = await api.get('/user/limits')
         setLimits(response.data)
+        
+        // Auto-limitar proveedores si exceden el límite del plan
+        const maxProviders = response.data.limits.max_providers
+        if (selected.length > maxProviders) {
+          const limited = selected.slice(0, maxProviders)
+          onSelectionChange(limited)
+        }
       } catch (error) {
         // Si no está autenticado o hay error, permitir todos los proveedores
         console.log('No se pudieron cargar límites:', error)

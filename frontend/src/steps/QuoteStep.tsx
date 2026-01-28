@@ -91,20 +91,26 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     return sources.slice(0, limits.limits.max_providers)
   }, [sources, limits])
 
+  // Limitar items según el plan
+  const allowedResults = useMemo(() => {
+    if (!limits) return results
+    return results.slice(0, limits.limits.max_items)
+  }, [results, limits])
+
   const handleQuote = useCallback(async () => {
-    if (!results.length) return
+    if (!allowedResults.length) return
     
     setLoading(true)
     setError(null)
     setShowProgress(true)
     setQuotedCount(0)
-    setWorkingItems(results)
+    setWorkingItems(allowedResults)
     
     try {
       const updated: ItemQuote[] = []
       let count = 0
       
-      for (const item of results) {
+      for (const item of allowedResults) {
         try {
           const query = item.item.detalle || item.item.item_original
           const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
@@ -131,7 +137,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [results, allowedSources])
+  }, [allowedResults, allowedSources])
 
   const handleEditItem = (index: number, newName: string) => {
     const newItems = [...workingItems]
