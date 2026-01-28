@@ -1456,28 +1456,5 @@ async def unmark_item_purchased(
     }
 
 
-# ============ ENDPOINT DE MIGRACIÓN (TEMPORAL) ============
-@api_router.post("/admin/migrate")
-async def run_migration():
-    """Ejecutar migraciones de base de datos - SOLO PRODUCCIÓN"""
-    try:
-        from sqlalchemy import text
-        db_session = next(get_db())
-        
-        migrations = [
-            "ALTER TABLE saved_quotes ADD COLUMN IF NOT EXISTS purchased_items JSON DEFAULT '{}';",
-            "ALTER TABLE saved_quotes ADD COLUMN IF NOT EXISTS selected_provider VARCHAR(100);",
-            "ALTER TABLE saved_quotes ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft';",
-        ]
-        
-        for i, migration in enumerate(migrations, 1):
-            db_session.execute(text(migration))
-            db_session.commit()
-        
-        return {"status": "success", "message": "✅ Migraciones completadas"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
 # Registrar router con prefijo /api
 app.include_router(api_router)
