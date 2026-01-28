@@ -1078,5 +1078,222 @@ async def get_cart_urls(
     }
 
 
+# ============ ENDPOINTS DE PLANES Y PAGOS ============
+
+@api_router.get("/plans")
+async def get_plans(db: Session = Depends(get_db)):
+    """Obtiene lista de planes disponibles"""
+    from app.database import Plan
+    plans = db.query(Plan).all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "billing_cycle": p.billing_cycle,
+            "max_items": p.max_items,
+            "max_providers": p.max_providers,
+            "monthly_limit": p.monthly_limit,
+        }
+        for p in plans
+    ]
+
+
+@api_router.get("/user/subscription")
+async def get_subscription(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Obtiene suscripción actual del usuario"""
+    from app.payment import get_user_subscription
+    subscription = get_user_subscription(current_user.id, db)
+    return subscription or {"status": "free"}
+
+
+@api_router.post("/payment/checkout")
+async def create_checkout(
+    plan_id: int = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Crea un checkout en Mercado Pago
+    Body: {"plan_id": 2}
+    """
+    from app.database import Plan
+    from app.payment import create_payment_preference
+    
+    plan = db.query(Plan).filter(Plan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(400, "Plan no existe")
+    
+    if plan.name == "free":
+        raise HTTPException(400, "No se puede comprar el plan gratuito")
+    
+    preference = create_payment_preference(plan, current_user.id, db)
+    if not preference:
+        raise HTTPException(500, "Error creando checkout. Mercado Pago no configurado.")
+    
+    return {
+        "preference_id": preference.get("id"),
+        "checkout_url": preference.get("init_point"),
+    }
+
+
+@api_router.post("/payment/webhook")
+async def payment_webhook(body: dict = Body(...), db: Session = Depends(get_db)):
+    """
+    Webhook de Mercado Pago
+    Se llama cuando hay cambios en los pagos
+    """
+    from app.payment import process_webhook
+    
+    success = process_webhook(body, db)
+    return {"success": success}
+
+
+@api_router.get("/user/quotes")
+async def get_user_quotes(
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Obtiene historial de cotizaciones del usuario"""
+    from app.database import SavedQuote
+    
+    quotes = db.query(SavedQuote).filter(
+        SavedQuote.user_id == current_user.id
+    ).order_by(SavedQuote.created_at.desc()).offset(skip).limit(limit).all()
+    
+    return [
+        {
+            "id": q.id,
+            "title": q.title,
+            "raw_text": q.raw_text[:200],  # Preview
+            "items_count": len(q.items) if q.items else 0,
+            "is_favorite": q.is_favorite,
+            "created_at": q.created_at.isoformat(),
+            "updated_at": q.updated_at.isoformat(),
+        }
+        for q in quotes
+    ]
+
+
+@api_router.get("/user/quotes/{quote_id}")
+async def get_quote_detail(
+    quote_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Obtiene detalle de una cotización guardada"""
+    from app.database import SavedQuote
+    
+    quote = db.query(SavedQuote).filter(
+        SavedQuote.id == quote_id,
+        SavedQuote.user_id == current_user.id,
+    ).first()
+    
+    if not quote:
+        raise HTTPException(404, "Cotización no encontrada")
+    
+    return {
+        "id": quote.id,
+        "title": quote.title,
+        "raw_text": quote.raw_text,
+        "items": quote.items,
+        "results": quote.results,
+        "notes": quote.notes,
+        "is_favorite": quote.is_favorite,
+        "created_at": quote.created_at.isoformat(),
+        "updated_at": quote.updated_at.isoformat(),
+    }
+
+
+@api_router.post("/user/quotes")
+async def save_quote(
+    title: str = Body(...),
+    raw_text: str = Body(...),
+    items: list = Body(...),
+    results: dict = Body(None),
+    notes: str = Body(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Guarda una cotización"""
+    from app.database import SavedQuote
+    
+    quote = SavedQuote(
+        user_id=current_user.id,
+        title=title,
+        raw_text=raw_text,
+        items=items,
+        results=results,
+        notes=notes,
+    )
+    db.add(quote)
+    db.commit()
+    
+    return {
+        "id": quote.id,
+        "message": "Cotización guardada correctamente",
+    }
+
+
+@api_router.put("/user/quotes/{quote_id}")
+async def update_quote(
+    quote_id: int,
+    title: str = Body(None),
+    notes: str = Body(None),
+    is_favorite: bool = Body(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Actualiza una cotización guardada"""
+    from app.database import SavedQuote
+    
+    quote = db.query(SavedQuote).filter(
+        SavedQuote.id == quote_id,
+        SavedQuote.user_id == current_user.id,
+    ).first()
+    
+    if not quote:
+        raise HTTPException(404, "Cotización no encontrada")
+    
+    if title is not None:
+        quote.title = title
+    if notes is not None:
+        quote.notes = notes
+    if is_favorite is not None:
+        quote.is_favorite = is_favorite
+    
+    db.commit()
+    
+    return {"message": "Cotización actualizada"}
+
+
+@api_router.delete("/user/quotes/{quote_id}")
+async def delete_quote(
+    quote_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Elimina una cotización"""
+    from app.database import SavedQuote
+    
+    quote = db.query(SavedQuote).filter(
+        SavedQuote.id == quote_id,
+        SavedQuote.user_id == current_user.id,
+    ).first()
+    
+    if not quote:
+        raise HTTPException(404, "Cotización no encontrada")
+    
+    db.delete(quote)
+    db.commit()
+    
+    return {"message": "Cotización eliminada"}
+
+
 # Registrar router con prefijo /api
 app.include_router(api_router)
