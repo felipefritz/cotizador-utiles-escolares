@@ -1665,6 +1665,7 @@ async def send_contact_email(request: ContactRequest):
         
         # Enviar correo
         email = resend.Emails.send({
+            "from": "onboarding@resend.dev",
             "to": "felipedelfierro@gmail.com",
             "subject": f"Nuevo mensaje de contacto de {request.name}",
             "html": f"""
