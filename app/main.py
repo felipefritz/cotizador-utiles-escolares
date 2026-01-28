@@ -663,11 +663,12 @@ async def parse_with_ai_only(
 @api_router.post("/parse-ai-items-only")
 async def parse_items_without_quote(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Parsea el archivo y devuelve items para que el usuario los edite/seleccione.
     NO hace cotización. El usuario decide qué cotizar después.
+    Permite uso sin autenticación (modo demo/gratis).
     """
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx", ".xlsx", ".xls"):
