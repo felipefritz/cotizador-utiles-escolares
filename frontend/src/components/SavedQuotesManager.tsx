@@ -419,25 +419,87 @@ export const SavedQuotesManager: React.FC = () => {
 
               {viewDialog.results && Object.keys(viewDialog.results).length > 0 && (
                 <>
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Cotizaciones por proveedor:</Typography>
-                  <TableContainer component={Paper}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                          <TableCell>Proveedor</TableCell>
-                          <TableCell align="right">Precio Total</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {Object.entries(viewDialog.results).map(([provider, data]: any, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{provider}</TableCell>
-                            <TableCell align="right">${Number(data.total_price || 0).toLocaleString('es-CL')}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', mt: 3 }}>📦 Resumen por Proveedor</Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                    {Object.entries(viewDialog.results).map(([provider, data]: any, idx) => {
+                      const totalPrice = Number(data.total_price || 0)
+                      const itemCount = data.items ? data.items.length : 0
+                      
+                      return (
+                        <Paper 
+                          key={idx}
+                          variant="outlined" 
+                          sx={{ 
+                            p: 2, 
+                            bgcolor: '#f5f5f5',
+                            borderLeft: '4px solid #1976d2',
+                          }}
+                        >
+                          <Typography 
+                            variant="subtitle1" 
+                            fontWeight={700} 
+                            sx={{ mb: 1.5, color: '#1976d2' }}
+                          >
+                            {provider}
+                          </Typography>
+                          
+                          {/* Items list */}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1.5 }}>
+                            {data.items && data.items.map((itemName: string, itemIdx: number) => {
+                              const itemPrice = data.item_prices?.[itemName] || 0
+                              // Encontrar la cantidad del item
+                              const itemObj = viewDialog.items?.find((it: any) => 
+                                (typeof it === 'string' ? it : it.detalle || it.name) === itemName
+                              )
+                              const quantity = itemObj ? (itemObj.cantidad || itemObj.quantity || 1) : 1
+                              const subtotal = itemPrice * quantity
+                              
+                              return (
+                                <Box key={itemIdx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 1 }}>
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant="body2" sx={{ fontSize: '0.875rem', mb: 0.5 }}>
+                                      {itemName}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      × {quantity}
+                                    </Typography>
+                                  </Box>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    ${Number(subtotal).toLocaleString('es-CL')}
+                                  </Typography>
+                                </Box>
+                              )
+                            })}
+                          </Box>
+                          
+                          <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                              <Typography variant="body2" fontWeight={700}>
+                                Subtotal:
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                fontWeight={700} 
+                                sx={{ fontSize: '1.1rem', color: '#1976d2' }}
+                              >
+                                ${Number(totalPrice).toLocaleString('es-CL')}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 2 }}>
+                              <Box sx={{ flex: 1, textAlign: 'center', p: 1, bgcolor: 'success.light', borderRadius: 1 }}>
+                                <Typography variant="body2" fontWeight={600} color="success.dark">
+                                  {itemCount}
+                                </Typography>
+                                <Typography variant="caption" color="success.dark">
+                                  Cotizados
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Paper>
+                      )
+                    })}
+                  </Box>
                 </>
               )}
             </Box>
