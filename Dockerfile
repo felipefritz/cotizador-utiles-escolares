@@ -44,5 +44,5 @@ RUN mkdir -p uploads
 # Puerto de la aplicación (Railway inyecta $PORT)
 EXPOSE 8000
 
-# Comando de inicio usando script bash
-CMD ["./start.sh"]
+# Comando de inicio usando bash explícitamente
+CMD ["/bin/bash", "-c", "exec ./start.sh"]
