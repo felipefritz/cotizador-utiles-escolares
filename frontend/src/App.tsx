@@ -3,9 +3,11 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { Box, Container, Paper, Stepper, Step, StepLabel, Typography, CircularProgress, Button, Avatar } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
 import HomeIcon from '@mui/icons-material/Home'
+import DashboardIcon from '@mui/icons-material/Dashboard'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { DemoQuoteModal } from './components/DemoQuoteModal'
 import { UploadStep } from './steps/UploadStep'
 import { ItemsStep } from './steps/ItemsStep'
@@ -157,6 +159,14 @@ function MainApp() {
             >
               Inicio
             </Button>
+            <Button
+              size="small"
+              startIcon={<DashboardIcon />}
+              onClick={() => navigate('/dashboard')}
+              variant="outlined"
+            >
+              Mi Cuenta
+            </Button>
             <Avatar src={user?.avatar_url || undefined} sx={{ width: 32, height: 32 }}>
               {user?.name?.[0] || user?.email[0]}
             </Avatar>
@@ -236,6 +246,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/" element={<MainApp />} />
     </Routes>
   )
