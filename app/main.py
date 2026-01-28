@@ -31,7 +31,7 @@ from app.auth import get_current_user, get_current_user_optional, create_access_
 from app.oauth_providers import get_google_user_info, get_twitter_user_info, get_github_user_info
 
 # Resend para envío de correos
-from resend import Resend
+import resend
 
 
 # ============ MODELOS PYDANTIC ============
@@ -1660,22 +1660,21 @@ async def send_contact_email(request: ContactRequest):
         if not resend_api_key:
             raise HTTPException(500, "RESEND_API_KEY no configurada en variables de entorno")
         
-        client = Resend(api_key=resend_api_key)
+        # Configurar la API key de Resend
+        resend.api_key = resend_api_key
         
         # Enviar correo
-        email = client.emails.send(
-            from_="onboarding@resend.dev",  # O tu dominio verificado en Resend
-            to="felipedelfierro@gmail.com",
-            reply_to=request.email,
-            subject=f"Nuevo mensaje de contacto de {request.name}",
-            html=f"""
+        email = resend.Emails.send({
+            "to": "felipedelfierro@gmail.com",
+            "subject": f"Nuevo mensaje de contacto de {request.name}",
+            "html": f"""
             <h2>Nuevo mensaje de contacto</h2>
             <p><strong>Nombre:</strong> {request.name}</p>
             <p><strong>Email:</strong> {request.email}</p>
             <h3>Mensaje:</h3>
             <p>{request.message.replace(chr(10), '<br>')}</p>
             """,
-        )
+        })
         
         return {
             "success": True,
