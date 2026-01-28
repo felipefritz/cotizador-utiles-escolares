@@ -45,11 +45,19 @@ class RegisterRequest(BaseModel):
 
 app = FastAPI(title="Parser Útiles (Reglas + IA + Cotización)")
 
-# Inicializar base de datos
-init_db()
-
 # Crear router con prefijo /api
 api_router = APIRouter(prefix="/api")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Inicializar base de datos al iniciar la aplicación"""
+    try:
+        init_db()
+        print("✅ Database initialized successfully")
+    except Exception as e:
+        print(f"❌ Error initializing database: {e}")
+        raise
 
 
 

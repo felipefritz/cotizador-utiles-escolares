@@ -68,9 +68,15 @@ GROQ_API_KEY=gsk_tu_api_key_aqui
 ### 3. Inicializar base de datos
 
 ```bash
-# Crear usuario administrador
+# Las tablas se crean automáticamente al iniciar el servidor
+# Si quieres verificar, ejecuta:
+python scripts/init_db.py
+
+# Crear usuario administrador (opcional)
 python scripts/create_admin.py
 ```
+
+📖 **Más información**: [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md)
 
 ### 4. Iniciar servidor
 
@@ -102,7 +108,8 @@ LLM_PROVIDER=groq                    # "groq" (gratis) o "openai"
 GROQ_API_KEY=gsk_...                 # API key de Groq (gratis)
 
 # Base de datos
-DATABASE_URL=sqlite:///./cotizador.db
+DATABASE_URL=sqlite:///./cotizador.db  # SQLite local (default)
+# DATABASE_URL=postgresql://...        # PostgreSQL en Railway/Render
 
 # Autenticación
 SECRET_KEY=tu-secreto-muy-seguro
@@ -209,6 +216,21 @@ playwright>=1.57.0
 ```
 
 ## 🚢 Despliegue
+
+### Railway (Backend + PostgreSQL)
+
+1. **Agregar PostgreSQL en Railway**: New → Database → Add PostgreSQL
+2. **Variables de entorno** en Railway:
+   ```bash
+   # Railway inyecta DATABASE_URL automáticamente
+   LLM_PROVIDER=groq
+   GROQ_API_KEY=gsk_...
+   SECRET_KEY=tu-secreto-muy-seguro
+   ```
+3. **Las tablas se crean automáticamente** al hacer deploy
+4. **Verifica logs**: "✅ Database initialized successfully"
+
+📖 **Guía completa**: [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ### Railway / Render
 
