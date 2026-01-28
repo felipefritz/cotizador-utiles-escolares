@@ -69,8 +69,11 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint para Railway/Render"""
-    return {"status": "healthy", "service": "cotizador-utiles"}
+    """Health check endpoint para Railway/Render - Responde con 200 OK"""
+    return JSONResponse(
+        status_code=200,
+        content={"status": "healthy", "service": "cotizador-utiles"}
+    )
 
 
 @app.exception_handler(Exception)

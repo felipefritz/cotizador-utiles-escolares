@@ -4,5 +4,9 @@
 
 PORT=${PORT:-8000}
 echo "🚀 Starting server on port $PORT"
+echo "📍 Hostname: $(hostname)"
+echo "🌐 URL: http://0.0.0.0:$PORT"
+echo "💚 Healthcheck will be available at: http://0.0.0.0:$PORT/health"
 
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Iniciar uvicorn
+exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
