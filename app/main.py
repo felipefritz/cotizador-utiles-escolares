@@ -60,6 +60,17 @@ async def startup_event():
         raise
 
 
+@app.get("/")
+async def root():
+    """Endpoint raíz"""
+    return {"message": "Cotizador Útiles API", "status": "online"}
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint para Railway/Render"""
+    return {"status": "healthy", "service": "cotizador-utiles"}
+
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
