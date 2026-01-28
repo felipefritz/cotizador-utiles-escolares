@@ -6,7 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
-
+from datetime import datetime
 # Cargar variables de entorno
 load_dotenv()
 
@@ -1275,7 +1275,7 @@ async def update_quote(
 ):
     """Actualiza una cotización guardada"""
     from app.database import SavedQuote
-    
+    from datetime import datetime
     quote = db.query(SavedQuote).filter(
         SavedQuote.id == quote_id,
         SavedQuote.user_id == current_user.id,
@@ -1369,7 +1369,7 @@ async def mark_items_purchased(
 @api_router.post("/user/quotes/{quote_id}/unmark-purchased")
 async def unmark_item_purchased(
     quote_id: int,
-    item_name: str = Body(...),
+    item_name: str = Body(..., embed=True),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

@@ -185,26 +185,22 @@ export const SavedQuotesManager: React.FC = () => {
     quantity: number = 1
   ) => {
     try {
-      const response = await api.post(`/user/quotes/${quoteId}/mark-purchased`, {
+      await api.post(`/user/quotes/${quoteId}/mark-purchased`, {
         item_name: itemName,
         provider,
         price,
         quantity,
       });
 
-      // Actualizar la lista local
-      setQuotes(quotes.map(q =>
-        q.id === quoteId
-          ? { ...q, purchased_items: response.data.purchased_items }
-          : q
-      ));
-
+      // Recargar los detalles completos del dialog
       if (purchasedItemsDialog?.id === quoteId) {
-        setPurchasedItemsDialog({
-          ...purchasedItemsDialog,
-          purchased_items: response.data.purchased_items,
-        });
+        const updatedResponse = await api.get(`/user/quotes/${quoteId}`);
+        setPurchasedItemsDialog(updatedResponse.data);
       }
+
+      // Actualizar la lista principal
+      const updatedListResponse = await api.get('/user/quotes');
+      setQuotes(updatedListResponse.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error marcando item como comprado');
     }
@@ -212,22 +208,19 @@ export const SavedQuotesManager: React.FC = () => {
 
   const handleUnmarkItemPurchased = async (quoteId: number, itemName: string) => {
     try {
-      const response = await api.post(`/user/quotes/${quoteId}/unmark-purchased`, {
+      await api.post(`/user/quotes/${quoteId}/unmark-purchased`, {
         item_name: itemName,
       });
 
-      setQuotes(quotes.map(q =>
-        q.id === quoteId
-          ? { ...q, purchased_items: response.data.purchased_items }
-          : q
-      ));
-
+      // Recargar los detalles completos del dialog
       if (purchasedItemsDialog?.id === quoteId) {
-        setPurchasedItemsDialog({
-          ...purchasedItemsDialog,
-          purchased_items: response.data.purchased_items,
-        });
+        const updatedResponse = await api.get(`/user/quotes/${quoteId}`);
+        setPurchasedItemsDialog(updatedResponse.data);
       }
+
+      // Actualizar la lista principal
+      const updatedListResponse = await api.get('/user/quotes');
+      setQuotes(updatedListResponse.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error desmarcando item');
     }
