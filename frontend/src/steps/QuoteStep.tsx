@@ -148,22 +148,26 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
       const itemsData = quotedResults.map(r => {
         const q = r.multi
-        const bestHit = q && (q as any).best_hit
+        // El backend devuelve hits[], no best_hit
+        const firstHit = q && (q as any).hits && (q as any).hits.length > 0 ? (q as any).hits[0] : null
         
         return {
           detalle: r.item.detalle || r.item.item_original,
           cantidad: r.quantity,
-          provider: bestHit ? bestHit.provider : null,
-          price: bestHit ? (bestHit.price || 0) : 0,
-          url: bestHit ? (bestHit.url || null) : null,
+          provider: firstHit ? firstHit.provider : null,
+          price: firstHit ? (firstHit.price || 0) : 0,
+          url: firstHit ? (firstHit.url || null) : null,
         }
       })
 
       const resultsData: Record<string, any> = {}
       quotedResults.forEach(r => {
         const q = r.multi
-        if (q && (q as any).best_hit) {
-          const provider = (q as any).best_hit.provider
+        // El backend devuelve hits[], no best_hit
+        const firstHit = q && (q as any).hits && (q as any).hits.length > 0 ? (q as any).hits[0] : null
+        
+        if (firstHit) {
+          const provider = firstHit.provider
           if (!resultsData[provider]) {
             resultsData[provider] = {
               items: [],
@@ -174,8 +178,8 @@ export function QuoteStep({ results, onReset, sources }: Props) {
           }
           const itemName = r.item.detalle || r.item.item_original
           resultsData[provider].items.push(itemName)
-          const price = (q as any).best_hit.price || 0
-          const url = (q as any).best_hit.url || null
+          const price = firstHit.price || 0
+          const url = firstHit.url || null
           resultsData[provider].item_prices[itemName] = price
           if (url) {
             resultsData[provider].item_urls[itemName] = url
