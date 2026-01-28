@@ -408,7 +408,9 @@ export const SavedQuotesManager: React.FC = () => {
                     <TableHead>
                       <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                         <TableCell>Item</TableCell>
-                        <TableCell align="right">Cantidad</TableCell>
+                        <TableCell>Proveedor</TableCell>
+                        <TableCell align="right">Precio</TableCell>
+                        <TableCell align="center">Cantidad</TableCell>
                         <TableCell align="center">Comprado</TableCell>
                       </TableRow>
                     </TableHead>
@@ -417,11 +419,24 @@ export const SavedQuotesManager: React.FC = () => {
                         viewDialog.items.map((item: any, idx: number) => {
                           const itemName = typeof item === 'string' ? item : (item.detalle || item.name || JSON.stringify(item))
                           const quantity = item.cantidad || item.quantity || 1
+                          const provider = item.provider || '-'
+                          const price = item.price || 0
+                          const url = item.url || null
                           const isPurchased = viewDialog.purchased_items && viewDialog.purchased_items[itemName]
                           return (
                             <TableRow key={idx} sx={{ backgroundColor: isPurchased ? 'success.light' : 'transparent' }}>
-                              <TableCell>{itemName}</TableCell>
-                              <TableCell align="right">{quantity}</TableCell>
+                              <TableCell>
+                                {url ? (
+                                  <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1976d2', textDecoration: 'none' }}>
+                                    {itemName} 🔗
+                                  </a>
+                                ) : (
+                                  itemName
+                                )}
+                              </TableCell>
+                              <TableCell>{provider}</TableCell>
+                              <TableCell align="right">${Number(price).toLocaleString('es-CL')}</TableCell>
+                              <TableCell align="center">{quantity}</TableCell>
                               <TableCell align="center">
                                 {isPurchased ? (
                                   <Chip label="✓ Comprado" size="small" color="success" />
@@ -646,6 +661,8 @@ export const SavedQuotesManager: React.FC = () => {
                       {purchasedItemsDialog.items.map((item: any, itemIdx: number) => {
                         const itemName = typeof item === 'string' ? item : (item.detalle || item.name)
                         const quantity = item.cantidad || item.quantity || 1
+                        const provider = item.provider || purchasedItemsDialog.selected_provider || 'No especificado'
+                        const price = item.price || 0
                         const isPurchased = purchasedItemsDialog.purchased_items?.[itemName]
                         
                         if (isPurchased) return null
@@ -665,8 +682,8 @@ export const SavedQuotesManager: React.FC = () => {
                                 onClick={() => handleMarkItemPurchased(
                                   purchasedItemsDialog.id,
                                   itemName,
-                                  purchasedItemsDialog.selected_provider || 'No especificado',
-                                  0,
+                                  provider,
+                                  price,
                                   quantity
                                 )}
                               >

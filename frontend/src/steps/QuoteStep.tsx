@@ -146,10 +146,18 @@ export function QuoteStep({ results, onReset, sources }: Props) {
         .map(r => `${r.item.detalle || r.item.item_original} (x${r.quantity})`)
         .join('\n')
 
-      const itemsData = quotedResults.map(r => ({
-        detalle: r.item.detalle || r.item.item_original,
-        cantidad: r.quantity,
-      }))
+      const itemsData = quotedResults.map(r => {
+        const q = r.multi
+        const bestHit = q && (q as any).best_hit
+        
+        return {
+          detalle: r.item.detalle || r.item.item_original,
+          cantidad: r.quantity,
+          provider: bestHit ? bestHit.provider : null,
+          price: bestHit ? (bestHit.price || 0) : 0,
+          url: bestHit ? (bestHit.url || null) : null,
+        }
+      })
 
       const resultsData: Record<string, any> = {}
       quotedResults.forEach(r => {
@@ -160,12 +168,18 @@ export function QuoteStep({ results, onReset, sources }: Props) {
             resultsData[provider] = {
               items: [],
               item_prices: {},
+              item_urls: {},
               total_price: 0,
             }
           }
-          resultsData[provider].items.push(r.item.detalle || r.item.item_original)
+          const itemName = r.item.detalle || r.item.item_original
+          resultsData[provider].items.push(itemName)
           const price = (q as any).best_hit.price || 0
-          resultsData[provider].item_prices[r.item.detalle || r.item.item_original] = price
+          const url = (q as any).best_hit.url || null
+          resultsData[provider].item_prices[itemName] = price
+          if (url) {
+            resultsData[provider].item_urls[itemName] = url
+          }
           resultsData[provider].total_price += price * r.quantity
         }
       })
