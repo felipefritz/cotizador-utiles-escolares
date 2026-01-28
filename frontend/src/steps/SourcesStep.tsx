@@ -62,16 +62,20 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
     const s = SOURCES.find((x) => x.id === id)
     if (!s?.available) return
     
-    // Verificar si puede agregar más proveedores
-    if (!selected.includes(id) && limits && selected.length >= limits.limits.max_providers) {
-      // Ya alcanzó el límite, no permitir agregar más
-      return
-    }
+    const isCurrentlySelected = selected.includes(id)
     
-    const next = selected.includes(id)
-      ? selected.filter((x) => x !== id)
-      : [...selected, id]
-    onSelectionChange(next)
+    if (isCurrentlySelected) {
+      // Siempre permitir deseleccionar
+      const next = selected.filter((x) => x !== id)
+      onSelectionChange(next)
+    } else {
+      // Solo agregar si no se alcanzó el límite
+      if (limits && selected.length >= limits.limits.max_providers) {
+        return
+      }
+      const next = [...selected, id]
+      onSelectionChange(next)
+    }
   }
 
   const canSelectMore = !limits || selected.length < limits.limits.max_providers

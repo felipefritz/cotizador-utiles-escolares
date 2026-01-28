@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from 'react'
+import { useCallback, useState, useMemo, useEffect } from 'react'
 import {
   Accordion,
   AccordionDetails,
@@ -43,6 +43,15 @@ type Props = {
   sources: SourceId[]
 }
 
+interface UserLimits {
+  plan: string
+  limits: {
+    max_items: number
+    max_providers: number
+    monthly_limit: number | null
+  }
+}
+
 const FOUND_STATUSES = ['ok', 'ok_with_price']
 
 function isFound(q: { status?: string } | undefined): boolean {
@@ -61,6 +70,26 @@ export function QuoteStep({ results, onReset, sources }: Props) {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [quoteTitle, setQuoteTitle] = useState('')
   const [saving, setSaving] = useState(false)
+  const [limits, setLimits] = useState<UserLimits | null>(null)
+
+  // Cargar límites del usuario
+  useEffect(() => {
+    const fetchLimits = async () => {
+      try {
+        const response = await api.get('/user/limits')
+        setLimits(response.data)
+      } catch (error) {
+        console.log('No se pudieron cargar límites:', error)
+      }
+    }
+    fetchLimits()
+  }, [])
+
+  // Limitar proveedores según el plan
+  const allowedSources = useMemo(() => {
+    if (!limits) return sources
+    return sources.slice(0, limits.limits.max_providers)
+  }, [sources, limits])
 
   const handleQuote = useCallback(async () => {
     if (!results.length) return
@@ -78,7 +107,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       for (const item of results) {
         try {
           const query = item.item.detalle || item.item.item_original
-          const quote = await quoteMultiProviders(query, sources, item.quantity)
+          const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
           updated.push({
             item: item.item,
             quantity: item.quantity,
@@ -102,7 +131,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [results, sources])
+  }, [results, allowedSources])
 
   const handleEditItem = (index: number, newName: string) => {
     const newItems = [...workingItems]
@@ -120,7 +149,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     try {
       const item = workingItems[index]
       const query = item.item.detalle || item.item.item_original
-      const quote = await quoteMultiProviders(query, sources, item.quantity)
+      const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
       
       const newResults = [...quotedResults]
       newResults[index] = {
