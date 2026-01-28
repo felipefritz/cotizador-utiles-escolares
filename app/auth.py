@@ -4,16 +4,8 @@ from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
 from app.database import get_db, User
-
-# Configuración para hashing de contraseñas
-# Configurar bcrypt para truncar automáticamente sin lanzar error
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    truncate_error=False  # No lanza error si la contraseña es > 72 bytes
-)
 
 # Configuración JWT
 SECRET_KEY = "tu-clave-secreta-super-segura-cambiar-en-produccion"
@@ -152,15 +144,15 @@ def get_or_create_user(
 
 # Funciones para autenticación con contraseña
 def hash_password(password: str) -> str:
-    """Hashea una contraseña usando bcrypt. Trunca a 72 caracteres por limitación de bcrypt."""
-    # bcrypt tiene límite de 72 bytes, truncar a 72 caracteres para estar seguros
-    return pwd_context.hash(password[:72])
+    """Hashea una contraseña usando bcrypt"""
+    # bcrypt.hashpw automáticamente trunca a 72 bytes
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode(), salt).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña contra su hash. Trunca a 72 caracteres por limitación de bcrypt."""
-    # Truncar la contraseña de la misma manera que al hashear
-    return pwd_context.verify(plain_password[:72], hashed_password)
+    """Verifica una contraseña contra su hash"""
+    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
