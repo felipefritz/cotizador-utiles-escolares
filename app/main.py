@@ -30,6 +30,9 @@ from app.database import get_db, init_db, User, SessionLocal
 from app.auth import get_current_user, get_current_user_optional, create_access_token, get_or_create_user
 from app.oauth_providers import get_google_user_info, get_twitter_user_info, get_github_user_info
 
+# Resend para envío de correos
+from resend import Resend
+
 
 # ============ MODELOS PYDANTIC ============
 
@@ -1637,6 +1640,51 @@ async def unmark_item_purchased(
         "message": f"Item '{item_name}' desmarcado",
         "purchased_items": quote.purchased_items,
     }
+
+
+# ============ CONTACTO ============
+
+class ContactRequest(BaseModel):
+    name: str
+    email: str
+    message: str
+
+
+@app.post("/api/contact")
+async def send_contact_email(request: ContactRequest):
+    """
+    Envía un correo de contacto a felipedelfierro@gmail.com usando Resend
+    """
+    try:
+        resend_api_key = os.getenv("RESEND_API_KEY")
+        if not resend_api_key:
+            raise HTTPException(500, "RESEND_API_KEY no configurada en variables de entorno")
+        
+        client = Resend(api_key=resend_api_key)
+        
+        # Enviar correo
+        email = client.emails.send(
+            from_="onboarding@resend.dev",  # O tu dominio verificado en Resend
+            to="felipedelfierro@gmail.com",
+            reply_to=request.email,
+            subject=f"Nuevo mensaje de contacto de {request.name}",
+            html=f"""
+            <h2>Nuevo mensaje de contacto</h2>
+            <p><strong>Nombre:</strong> {request.name}</p>
+            <p><strong>Email:</strong> {request.email}</p>
+            <h3>Mensaje:</h3>
+            <p>{request.message.replace(chr(10), '<br>')}</p>
+            """,
+        )
+        
+        return {
+            "success": True,
+            "message": "Correo enviado exitosamente. Nos pondremos en contacto pronto.",
+            "email_id": email.get("id") if isinstance(email, dict) else str(email),
+        }
+    except Exception as e:
+        print(f"Error enviando correo: {e}")
+        raise HTTPException(500, f"Error enviando correo: {str(e)}")
 
 
 # Registrar router con prefijo /api

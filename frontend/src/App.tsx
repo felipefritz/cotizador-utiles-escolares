@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { ContactPage } from './pages/Contact'
 import { DemoQuoteModal } from './components/DemoQuoteModal'
 import { UploadStep } from './steps/UploadStep'
 import { ItemsStep } from './steps/ItemsStep'
@@ -247,6 +248,7 @@ export default function App() {
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/contact" element={<ContactPage />} />
       <Route path="/" element={<MainApp />} />
     </Routes>
   )

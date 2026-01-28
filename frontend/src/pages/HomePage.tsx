@@ -1,4 +1,4 @@
-import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper } from '@mui/material'
+import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper, Link } from '@mui/material'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import SaveIcon from '@mui/icons-material/Save'
@@ -6,6 +6,7 @@ import SpeedIcon from '@mui/icons-material/Speed'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import MailIcon from '@mui/icons-material/Mail'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
@@ -383,6 +384,39 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
             >
               Registrarse
             </Button>
+          </Box>
+        </Container>
+      </Box>
+
+      {/* FOOTER */}
+      <Box
+        sx={{
+          bgcolor: 'grey.900',
+          color: 'white',
+          py: 4,
+          textAlign: 'center',
+        }}
+      >
+        <Container maxWidth="sm">
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            © 2025 Cotizador de Útiles Escolares. Todos los derechos reservados.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link
+              component="button"
+              onClick={() => navigate('/contact')}
+              sx={{ color: 'inherit', textDecoration: 'none', fontSize: '0.9rem', cursor: 'pointer' }}
+            >
+              Contacto
+            </Link>
+            <Typography variant="body2">•</Typography>
+            <Link
+              href="https://github.com"
+              target="_blank"
+              sx={{ color: 'inherit', textDecoration: 'none', fontSize: '0.9rem' }}
+            >
+              GitHub
+            </Link>
           </Box>
         </Container>
       </Box>
