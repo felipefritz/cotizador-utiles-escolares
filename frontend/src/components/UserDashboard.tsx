@@ -35,7 +35,7 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import { api } from '../api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { SavedQuotesManager } from './SavedQuotesManager';
 
 interface TabPanelProps {
@@ -95,6 +95,7 @@ interface Plan {
 
 export const UserDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tabValue, setTabValue] = useState(0);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [selectedQuote, setSelectedQuote] = useState<QuoteDetail | null>(null);
@@ -107,10 +108,47 @@ export const UserDashboard: React.FC = () => {
   const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
 
+  // Cargar datos al montar el componente
   useEffect(() => {
     loadData();
   }, []);
+
+  // Detectar si volvemos de Mercado Pago
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const paymentParam = params.get('payment');
+    
+    if (paymentParam) {
+      console.log('🔍 Detectado parámetro de pago:', paymentParam);
+      setPaymentStatus(paymentParam);
+      
+      // Esperar un poco para que el webhook procese
+      setTimeout(() => {
+        console.log('🔄 Recargando datos después del pago...');
+        loadData();
+      }, 2000);
+      
+      // Limpiar URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location.search]);
+
+  // Mostrar notificación de pago
+  useEffect(() => {
+    if (paymentStatus === 'success') {
+      setMessage('✅ ¡Pago completado! Tu plan ha sido actualizado.');
+      setMessageType('success');
+      setTimeout(() => setPaymentStatus(null), 5000);
+    } else if (paymentStatus === 'failure') {
+      setMessage('❌ El pago fue rechazado. Por favor intenta de nuevo.');
+      setMessageType('error');
+    } else if (paymentStatus === 'pending') {
+      setMessage('⏳ Pago pendiente. Mercado Pago está procesando tu transacción.');
+      setMessageType('success');
+    }
+  }, [paymentStatus]);
 
   const loadData = async () => {
     setLoading(true);

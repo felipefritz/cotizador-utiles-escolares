@@ -1268,6 +1268,45 @@ async def create_checkout(
     }
 
 
+@api_router.get("/payment/status")
+async def check_payment_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Verifica el estado del último pago del usuario
+    Útil para saber si el pago fue completado después de volver de Mercado Pago
+    """
+    from app.database import Payment, PaymentStatus
+    
+    # Obtener último pago del usuario
+    latest_payment = db.query(Payment).filter(
+        Payment.user_id == current_user.id
+    ).order_by(Payment.created_at.desc()).first()
+    
+    if not latest_payment:
+        return {
+            "has_payment": False,
+            "status": "no_payment",
+            "message": "No hay pagos registrados"
+        }
+    
+    return {
+        "has_payment": True,
+        "status": latest_payment.status.value,
+        "plan_id": latest_payment.plan_id,
+        "amount": latest_payment.amount,
+        "created_at": latest_payment.created_at.isoformat(),
+        "is_completed": latest_payment.status == PaymentStatus.completed,
+        "message": {
+            PaymentStatus.pending: "Pago pendiente - Mercado Pago está procesando",
+            PaymentStatus.completed: "✅ Pago completado! Tu plan ha sido actualizado",
+            PaymentStatus.failed: "❌ Pago rechazado - Intenta de nuevo",
+            PaymentStatus.cancelled: "Pago cancelado",
+        }.get(latest_payment.status, "Estado desconocido")
+    }
+
+
 @api_router.post("/payment/webhook")
 async def payment_webhook(body: dict = Body(...), db: Session = Depends(get_db)):
     """
