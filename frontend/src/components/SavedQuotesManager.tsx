@@ -370,25 +370,48 @@ export const SavedQuotesManager: React.FC = () => {
         <DialogContent sx={{ pt: 2 }}>
           {viewDialog && (
             <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Items:</Typography>
-              <TableContainer component={Paper} sx={{ mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell>Item</TableCell>
-                      <TableCell>Cantidad</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {viewDialog.items?.map((item, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{typeof item === 'string' ? item : item.name || item}</TableCell>
-                        <TableCell align="right">{item.quantity || 1}</TableCell>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Items:</Typography>
+                <TableContainer component={Paper} sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell>Item</TableCell>
+                        <TableCell align="right">Cantidad</TableCell>
+                        <TableCell align="center">Comprado</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {viewDialog.items && Array.isArray(viewDialog.items) && viewDialog.items.length > 0 ? (
+                        viewDialog.items.map((item: any, idx: number) => {
+                          const itemName = typeof item === 'string' ? item : (item.detalle || item.name || JSON.stringify(item))
+                          const quantity = item.cantidad || item.quantity || 1
+                          const isPurchased = viewDialog.purchased_items && viewDialog.purchased_items[itemName]
+                          return (
+                            <TableRow key={idx} sx={{ backgroundColor: isPurchased ? 'success.light' : 'transparent' }}>
+                              <TableCell>{itemName}</TableCell>
+                              <TableCell align="right">{quantity}</TableCell>
+                              <TableCell align="center">
+                                {isPurchased ? (
+                                  <Chip label="✓ Comprado" size="small" color="success" />
+                                ) : (
+                                  <Chip label="Pendiente" size="small" variant="outlined" />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center" sx={{ py: 2 }}>
+                            No hay items registrados
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
 
               {viewDialog.notes && (
                 <>
@@ -428,7 +451,7 @@ export const SavedQuotesManager: React.FC = () => {
       {/* Purchased Items Dialog */}
       <Dialog open={!!purchasedItemsDialog} onClose={() => setPurchasedItemsDialog(null)} maxWidth="md" fullWidth>
         <DialogTitle>
-          Items comprados: {purchasedItemsDialog?.title}
+          Rastreo de compras: {purchasedItemsDialog?.title}
           <IconButton
             onClick={() => setPurchasedItemsDialog(null)}
             sx={{ float: 'right' }}
@@ -439,13 +462,15 @@ export const SavedQuotesManager: React.FC = () => {
         <DialogContent sx={{ pt: 2 }}>
           {purchasedItemsDialog && (
             <Box>
+              {/* Items Comprados */}
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>✓ Items Comprados</Typography>
               {!purchasedItemsDialog.purchased_items || Object.keys(purchasedItemsDialog.purchased_items).length === 0 ? (
-                <Alert severity="info">No hay items marcados como comprados</Alert>
+                <Alert severity="info" sx={{ mb: 3 }}>No hay items marcados como comprados aún</Alert>
               ) : (
-                <TableContainer component={Paper}>
+                <TableContainer component={Paper} sx={{ mb: 3 }}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableRow sx={{ backgroundColor: 'success.light' }}>
                         <TableCell>Item</TableCell>
                         <TableCell>Proveedor</TableCell>
                         <TableCell align="right">Precio</TableCell>
@@ -455,8 +480,8 @@ export const SavedQuotesManager: React.FC = () => {
                     </TableHead>
                     <TableBody>
                       {Object.entries(purchasedItemsDialog.purchased_items!).map(([itemName, data]: any, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{itemName}</TableCell>
+                        <TableRow key={idx} sx={{ backgroundColor: 'success.lighter' }}>
+                          <TableCell><strong>{itemName}</strong></TableCell>
                           <TableCell>{data.provider}</TableCell>
                           <TableCell align="right">${Number(data.price).toLocaleString('es-CL')}</TableCell>
                           <TableCell align="center">{data.quantity}</TableCell>
@@ -465,6 +490,7 @@ export const SavedQuotesManager: React.FC = () => {
                               size="small"
                               onClick={() => handleUnmarkItemPurchased(purchasedItemsDialog.id, itemName)}
                               color="error"
+                              title="Desmarcar como comprado"
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -476,33 +502,58 @@ export const SavedQuotesManager: React.FC = () => {
                 </TableContainer>
               )}
 
-              <Typography variant="subtitle2" sx={{ mt: 3, mb: 1, fontWeight: 'bold' }}>Marcar más items como comprados:</Typography>
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell>Item</TableCell>
-                      <TableCell>Acción</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {purchasedItemsDialog.results && Object.entries(purchasedItemsDialog.results).map(([provider, data]: any, idx) => (
-                      <React.Fragment key={idx}>
-                        {data.items?.map((item: any, itemIdx: number) => {
-                          const itemName = typeof item === 'string' ? item : item.name;
-                          const isAlreadyPurchased = purchasedItemsDialog.purchased_items?.[itemName];
-                          return (
-                            !isAlreadyPurchased && (
-                              <TableRow key={`${idx}-${itemIdx}`}>
-                                <TableCell>{itemName}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => handleMarkItemPurchased(
-                                      purchasedItemsDialog.id,
-                                      itemName,
-                                      provider,
+              {/* Items Disponibles para Marcar como Comprados */}
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>📋 Otros Items de la Cotización</Typography>
+              {purchasedItemsDialog.items && Array.isArray(purchasedItemsDialog.items) && purchasedItemsDialog.items.length > 0 ? (
+                <TableContainer component={Paper}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell>Item</TableCell>
+                        <TableCell align="right">Cantidad</TableCell>
+                        <TableCell align="center">Estado</TableCell>
+                        <TableCell align="center">Acción</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {purchasedItemsDialog.items.map((item: any, itemIdx: number) => {
+                        const itemName = typeof item === 'string' ? item : (item.detalle || item.name)
+                        const quantity = item.cantidad || item.quantity || 1
+                        const isPurchased = purchasedItemsDialog.purchased_items?.[itemName]
+                        
+                        return (
+                          !isPurchased && (
+                            <TableRow key={itemIdx}>
+                              <TableCell>{itemName}</TableCell>
+                              <TableCell align="right">{quantity}</TableCell>
+                              <TableCell align="center">
+                                <Chip label="Pendiente" size="small" variant="outlined" color="warning" />
+                              </TableCell>
+                              <TableCell align="center">
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="success"
+                                  onClick={() => handleMarkItemPurchased(
+                                    purchasedItemsDialog.id,
+                                    itemName,
+                                    'Por definir',
+                                    0
+                                  )}
+                                >
+                                  Comprado
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="warning">No hay items registrados en esta cotización</Alert>
+              )}
                                       data.item_prices?.[itemName] || 0
                                     )}
                                   >
