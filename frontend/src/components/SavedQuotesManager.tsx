@@ -23,9 +23,6 @@ import {
   Alert,
   CircularProgress,
   Grid,
-  Stack,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -521,31 +518,31 @@ export const SavedQuotesManager: React.FC = () => {
                         const quantity = item.cantidad || item.quantity || 1
                         const isPurchased = purchasedItemsDialog.purchased_items?.[itemName]
                         
+                        if (isPurchased) return null
+                        
                         return (
-                          !isPurchased && (
-                            <TableRow key={itemIdx}>
-                              <TableCell>{itemName}</TableCell>
-                              <TableCell align="right">{quantity}</TableCell>
-                              <TableCell align="center">
-                                <Chip label="Pendiente" size="small" variant="outlined" color="warning" />
-                              </TableCell>
-                              <TableCell align="center">
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  color="success"
-                                  onClick={() => handleMarkItemPurchased(
-                                    purchasedItemsDialog.id,
-                                    itemName,
-                                    'Por definir',
-                                    0
-                                  )}
-                                >
-                                  Comprado
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          )
+                          <TableRow key={itemIdx}>
+                            <TableCell>{itemName}</TableCell>
+                            <TableCell align="right">{quantity}</TableCell>
+                            <TableCell align="center">
+                              <Chip label="Pendiente" size="small" variant="outlined" color="warning" />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="success"
+                                onClick={() => handleMarkItemPurchased(
+                                  purchasedItemsDialog.id,
+                                  itemName,
+                                  'Por definir',
+                                  0
+                                )}
+                              >
+                                Comprado
+                              </Button>
+                            </TableCell>
+                          </TableRow>
                         )
                       })}
                     </TableBody>
@@ -554,21 +551,6 @@ export const SavedQuotesManager: React.FC = () => {
               ) : (
                 <Alert severity="warning">No hay items registrados en esta cotización</Alert>
               )}
-                                      data.item_prices?.[itemName] || 0
-                                    )}
-                                  >
-                                    Marcar comprado
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            )
-                          );
-                        })}
-                      </React.Fragment>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
             </Box>
           )}
         </DialogContent>

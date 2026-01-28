@@ -1222,7 +1222,10 @@ async def get_quote_detail(
         "items": quote.items,
         "results": quote.results,
         "notes": quote.notes,
+        "purchased_items": quote.purchased_items,
+        "selected_provider": quote.selected_provider,
         "is_favorite": quote.is_favorite,
+        "status": quote.status,
         "created_at": quote.created_at.isoformat(),
         "updated_at": quote.updated_at.isoformat(),
     }
