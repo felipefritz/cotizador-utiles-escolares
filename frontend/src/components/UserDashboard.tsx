@@ -28,7 +28,7 @@ import {
   Download as DownloadIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
-  Eye as EyeIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { api } from '../api';
 
@@ -261,7 +261,7 @@ export const UserDashboard: React.FC = () => {
                       title="Ver detalle"
                       sx={{ mr: 1 }}
                     >
-                      <EyeIcon />
+                      <VisibilityIcon />
                     </IconButton>
                     <IconButton
                       edge="end"
