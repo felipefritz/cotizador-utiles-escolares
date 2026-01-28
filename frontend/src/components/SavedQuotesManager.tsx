@@ -122,6 +122,24 @@ export const SavedQuotesManager: React.FC = () => {
     });
   };
 
+  const handleViewDetails = async (quoteId: number) => {
+    try {
+      const response = await api.get(`/user/quotes/${quoteId}`);
+      setViewDialog(response.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error cargando detalles de cotización');
+    }
+  };
+
+  const handleViewPurchasedItems = async (quoteId: number) => {
+    try {
+      const response = await api.get(`/user/quotes/${quoteId}`);
+      setPurchasedItemsDialog(response.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error cargando items comprados');
+    }
+  };
+
   const handleUpdateQuote = async () => {
     if (!editDialog.quote) return;
 
@@ -282,14 +300,14 @@ export const SavedQuotesManager: React.FC = () => {
                   </IconButton>
                   <IconButton
                     size="small"
-                    onClick={() => setViewDialog(quote)}
+                    onClick={() => handleViewDetails(quote.id)}
                     title="Ver detalles"
                   >
                     <VisibilityIcon fontSize="small" />
                   </IconButton>
                   <IconButton
                     size="small"
-                    onClick={() => setPurchasedItemsDialog(quote)}
+                    onClick={() => handleViewPurchasedItems(quote.id)}
                     title="Items comprados"
                   >
                     <ShoppingCartIcon fontSize="small" />
