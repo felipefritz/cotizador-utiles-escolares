@@ -54,8 +54,11 @@ api_router = APIRouter(prefix="/api")
 async def startup_event():
     """Inicializar base de datos al iniciar la aplicación"""
     try:
+        print("🔧 Initializing database...")
         init_db()
         print("✅ Database initialized successfully")
+        print(f"🌐 Server ready to accept connections")
+        print(f"💚 Health endpoint available at /health")
     except Exception as e:
         print(f"❌ Error initializing database: {e}")
         raise
@@ -64,12 +67,14 @@ async def startup_event():
 @app.get("/")
 async def root():
     """Endpoint raíz"""
+    print("📍 Root endpoint called")
     return {"message": "Cotizador Útiles API", "status": "online"}
 
 
 @app.get("/health")
 async def health():
     """Health check endpoint para Railway/Render - Responde con 200 OK"""
+    print("💚 Health check called")
     return JSONResponse(
         status_code=200,
         content={"status": "healthy", "service": "cotizador-utiles"}
