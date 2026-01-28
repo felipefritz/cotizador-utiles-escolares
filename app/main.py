@@ -44,6 +44,10 @@ class RegisterRequest(BaseModel):
     password: str
 
 
+class CheckoutRequest(BaseModel):
+    plan_id: int
+
+
 app = FastAPI(title="Parser Útiles (Reglas + IA + Cotización)")
 
 # Crear router con prefijo /api
@@ -1112,7 +1116,7 @@ async def get_subscription(
 
 @api_router.post("/payment/checkout")
 async def create_checkout(
-    plan_id: int = Body(...),
+    request: CheckoutRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1132,7 +1136,7 @@ async def create_checkout(
             "Sistema de pagos no disponible. Por favor contacta a soporte."
         )
     
-    plan = db.query(Plan).filter(Plan.id == plan_id).first()
+    plan = db.query(Plan).filter(Plan.id == request.plan_id).first()
     if not plan:
         raise HTTPException(404, "Plan no existe")
     

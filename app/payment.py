@@ -11,11 +11,11 @@ from app.database import Payment, Subscription, Plan, PaymentStatus, Subscriptio
 
 # Mercado Pago SDK
 try:
-    from mercadopago import SDK as MercadoPagoSDK
+    import mercadopago
     MP_CONFIGURED = True
 except ImportError:
     MP_CONFIGURED = False
-    MercadoPagoSDK = None
+    mercadopago = None
 
 # Configuración
 MERCADO_PAGO_ACCESS_TOKEN = os.getenv("MERCADO_PAGO_ACCESS_TOKEN", "")
@@ -33,7 +33,7 @@ def initialize_mercado_pago():
         return None
     
     try:
-        sdk = MercadoPagoSDK(MERCADO_PAGO_ACCESS_TOKEN)
+        sdk = mercadopago.SDK(MERCADO_PAGO_ACCESS_TOKEN)
         return sdk
     except Exception as e:
         print(f"❌ Error inicializando Mercado Pago SDK: {e}")
@@ -77,9 +77,8 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
             "notification_url": f"{BASE_URL.replace('http://', 'https://')}/api/payment/webhook",
         }
         
-        # Crear preferencia
-        request_options = {"headers": {"X-Idempotency-Key": f"user_{user_id}_{plan.id}_{datetime.utcnow()}"}}
-        preference_response = sdk.preference().create(preference_data, request_options)
+        # Crear preferencia (sin request_options que causa error en SDK 2.3.0)
+        preference_response = sdk.preference().create(preference_data)
         
         if preference_response.get("status") == 201:
             preference = preference_response["response"]

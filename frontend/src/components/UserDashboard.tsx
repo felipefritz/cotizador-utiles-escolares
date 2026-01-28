@@ -207,7 +207,22 @@ export const UserDashboard: React.FC = () => {
       window.location.href = res.data.checkout_url;
     } catch (error: any) {
       console.error('Error de checkout:', error);
-      const errorMessage = error?.response?.data?.detail || error?.message || 'Error al iniciar pago';
+      
+      let errorMessage = 'Error al iniciar pago';
+      
+      // Manejar errores de validación de FastAPI (422)
+      if (error?.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Error de validación de pydantic
+          errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+        } else if (typeof detail === 'string') {
+          errorMessage = detail;
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       setMessage(errorMessage);
       setMessageType('error');
     }
