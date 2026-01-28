@@ -7,7 +7,7 @@
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "main:app",
+        "main:app.main",
         "--host",
         "127.0.0.1",
         "--port",
