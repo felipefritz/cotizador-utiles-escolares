@@ -19,6 +19,11 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -26,9 +31,10 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ShoppingBasketIcon from '@mui/icons-material/ShoppingBasket'
+import SaveIcon from '@mui/icons-material/Save'
 import type { ItemQuote, SourceId } from '../types'
 import { formatCLP } from '../utils/format'
-import { quoteMultiProviders } from '../api'
+import { quoteMultiProviders, api } from '../api'
 import { QuoteProgressModal } from '../components/QuoteProgressModal'
 
 type Props = {
@@ -52,6 +58,9 @@ export function QuoteStep({ results, onReset, sources }: Props) {
   const [showProgress, setShowProgress] = useState(false)
   const [quotedCount, setQuotedCount] = useState(0)
   const [workingItems, setWorkingItems] = useState<ItemQuote[]>([])
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [quoteTitle, setQuoteTitle] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const handleQuote = useCallback(async () => {
     if (!results.length) return
@@ -122,6 +131,62 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       setQuotedResults(newResults)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al re-cotizar')
+    }
+  }
+
+  const handleSaveQuote = async () => {
+    if (!quoteTitle.trim()) {
+      alert('Por favor ingresa un nombre para la cotización')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const rawText = quotedResults
+        .map(r => `${r.item.detalle || r.item.item_original} (x${r.quantity})`)
+        .join('\n')
+
+      const itemsData = quotedResults.map(r => ({
+        detalle: r.item.detalle || r.item.item_original,
+        cantidad: r.quantity,
+      }))
+
+      const resultsData: Record<string, any> = {}
+      quotedResults.forEach(r => {
+        const q = r.multi
+        if (q && (q as any).best_hit) {
+          const provider = (q as any).best_hit.provider
+          if (!resultsData[provider]) {
+            resultsData[provider] = {
+              items: [],
+              item_prices: {},
+              total_price: 0,
+            }
+          }
+          resultsData[provider].items.push(r.item.detalle || r.item.item_original)
+          const price = (q as any).best_hit.price || 0
+          resultsData[provider].item_prices[r.item.detalle || r.item.item_original] = price
+          resultsData[provider].total_price += price * r.quantity
+        }
+      })
+
+      await api.post('/user/quotes', {
+        title: quoteTitle,
+        raw_text: rawText,
+        items: itemsData,
+        results: Object.keys(resultsData).length > 0 ? resultsData : null,
+        notes: '',
+      })
+
+      alert('✅ Cotización guardada exitosamente')
+      setSaveDialogOpen(false)
+      setQuoteTitle('')
+      // No reseteamos porque el usuario podría guardar otra vez
+    } catch (err) {
+      console.error('Error guardando cotización:', err)
+      alert('❌ Error al guardar la cotización')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -840,9 +905,17 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       )}
 
       {quoted && (
-        <Box sx={{ mt: 4 }}>
+        <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
           <Button variant="contained" onClick={onReset}>
             Nueva cotización
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success"
+            startIcon={<SaveIcon />}
+            onClick={() => setSaveDialogOpen(true)}
+          >
+            Guardar cotización
           </Button>
         </Box>
       )}
@@ -856,6 +929,43 @@ export function QuoteStep({ results, onReset, sources }: Props) {
         onRetryItem={handleRetryItem}
         onClose={() => setShowProgress(false)}
       />
+
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Guardar cotización</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            label="Nombre de la cotización"
+            fullWidth
+            value={quoteTitle}
+            onChange={(e) => setQuoteTitle(e.target.value)}
+            placeholder="Ej: Cotización Colegio 1, Útiles Marzo 2026"
+            autoFocus
+            disabled={saving}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && quoteTitle.trim()) {
+                handleSaveQuote()
+              }
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Usa un nombre descriptivo para identificar esta cotización fácilmente después
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveDialogOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSaveQuote} 
+            variant="contained" 
+            color="success"
+            disabled={!quoteTitle.trim() || saving}
+            startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+          >
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
