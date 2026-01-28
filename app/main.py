@@ -357,7 +357,7 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         print(f"[DEBUG] Google callback GET recibido con código: {code[:20]}...")
         
         # El redirect_uri debe ser EXACTAMENTE el mismo que se usó en el GET a Google
-        redirect_uri = "http://localhost:8000/api/auth/google/callback"
+        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
         
         print(f"[DEBUG] Intercambiando código con redirect_uri: {redirect_uri}")
         
