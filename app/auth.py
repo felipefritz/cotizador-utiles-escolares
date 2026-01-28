@@ -147,13 +147,17 @@ def get_or_create_user(
 
 # Funciones para autenticación con contraseña
 def hash_password(password: str) -> str:
-    """Hashea una contraseña usando bcrypt"""
-    return pwd_context.hash(password)
+    """Hashea una contraseña usando bcrypt. Trunca a 72 bytes por limitación de bcrypt."""
+    # bcrypt tiene límite de 72 bytes, truncar manualmente
+    password_bytes = password.encode('utf-8')[:72]
+    return pwd_context.hash(password_bytes.decode('utf-8', errors='ignore'))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña contra su hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verifica una contraseña contra su hash. Trunca a 72 bytes por limitación de bcrypt."""
+    # Truncar la contraseña de la misma manera que al hashear
+    password_bytes = plain_password.encode('utf-8')[:72]
+    return pwd_context.verify(password_bytes.decode('utf-8', errors='ignore'), hashed_password)
 
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
