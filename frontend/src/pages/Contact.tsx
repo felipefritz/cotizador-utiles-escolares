@@ -36,15 +36,13 @@ export function ContactPage() {
     setLoading(true)
 
     try {
-      const response = await api.post('/contact', formData)
+      await api.post('/contact', formData)
       
-      if (response.status === 200) {
-        setSuccess(true)
-        setFormData({ name: '', email: '', message: '' })
-        
-        // Limpiar mensaje de éxito después de 5 segundos
-        setTimeout(() => setSuccess(false), 5000)
-      }
+      setSuccess(true)
+      setFormData({ name: '', email: '', message: '' })
+      
+      // Limpiar mensaje de éxito después de 5 segundos
+      setTimeout(() => setSuccess(false), 5000)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error enviando el mensaje. Intenta de nuevo.')
       console.error('Error:', err)
