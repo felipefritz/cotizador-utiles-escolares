@@ -8,6 +8,8 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { api } from '../api'
 
 type Props = {
   onTrialClick: () => void
@@ -51,6 +53,20 @@ const FEATURES = [
 export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [plans, setPlans] = useState<any[]>([])
+  
+  useEffect(() => {
+    loadPlans()
+  }, [])
+  
+  const loadPlans = async () => {
+    try {
+      const res = await api.get('/plans')
+      setPlans(res.data)
+    } catch (error) {
+      console.error('Error loading plans:', error)
+    }
+  }
   
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -261,6 +277,126 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
               Registrarse
             </Button>
           </Box>
+        </Container>
+      </Box>
+
+      {/* Plans Section */}
+      <Box sx={{ py: 8, bgcolor: 'background.default' }}>
+        <Container maxWidth="lg">
+          <Typography variant="h4" fontWeight={600} align="center" gutterBottom>
+            Planes y Precios
+          </Typography>
+          <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 6 }}>
+            Elige el plan que mejor se adapte a tus necesidades
+          </Typography>
+
+          <Grid container spacing={4} justifyContent="center">
+            {plans.map((plan) => (
+              <Grid item xs={12} sm={6} md={4} key={plan.id}>
+                <Card 
+                  sx={{ 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    borderRadius: 3,
+                    boxShadow: plan.name === 'pro' ? 4 : 1,
+                    border: plan.name === 'pro' ? 2 : 0,
+                    borderColor: plan.name === 'pro' ? 'primary.main' : 'transparent',
+                    position: 'relative',
+                    transition: 'all 0.3s',
+                    '&:hover': {
+                      boxShadow: 6,
+                      transform: 'translateY(-4px)'
+                    }
+                  }}
+                >
+                  {plan.name === 'pro' && (
+                    <Box 
+                      sx={{ 
+                        position: 'absolute', 
+                        top: -12, 
+                        left: '50%', 
+                        transform: 'translateX(-50%)',
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: 2,
+                        fontSize: '0.85rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      RECOMENDADO
+                    </Box>
+                  )}
+                  <CardContent sx={{ flexGrow: 1, pt: plan.name === 'pro' ? 4 : 3 }}>
+                    <Typography variant="h5" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase' }}>
+                      {plan.name}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 3 }}>
+                      <Typography variant="h3" color="primary" fontWeight={700}>
+                        ${(plan.price / 1000).toFixed(0)}K
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                        {plan.billing_cycle === 'monthly' ? '/mes' : '/plan'}
+                      </Typography>
+                    </Box>
+                    
+                    <Box sx={{ mt: 3, mb: 3 }}>
+                      {[
+                        {
+                          label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
+                        },
+                        {
+                          label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
+                        },
+                        {
+                          label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
+                        },
+                      ].map((feature, idx) => (
+                        <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+                          <Box 
+                            sx={{ 
+                              width: 20, 
+                              height: 20, 
+                              borderRadius: '50%', 
+                              bgcolor: 'success.main',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              mr: 1.5,
+                              color: 'white',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            ✓
+                          </Box>
+                          <Typography variant="body2" fontWeight={500}>
+                            {feature.label}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </CardContent>
+                  <Box sx={{ p: 3, pt: 0 }}>
+                    <Button
+                      fullWidth
+                      variant={plan.name === 'pro' ? 'contained' : 'outlined'}
+                      size="large"
+                      sx={{ 
+                        py: 1.5, 
+                        fontWeight: 600,
+                        textTransform: 'none'
+                      }}
+                    >
+                      {plan.name === 'free' ? 'Comenzar' : 'Contratar'}
+                    </Button>
+                  </Box>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
         </Container>
       </Box>
 

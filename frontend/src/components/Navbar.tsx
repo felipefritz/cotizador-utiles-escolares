@@ -1,16 +1,20 @@
-import { AppBar, Toolbar, Box, Button, Container, Avatar, Menu, MenuItem, Typography } from '@mui/material'
+import { AppBar, Toolbar, Box, Button, Container, Avatar, Menu, MenuItem, Typography, IconButton } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import MailIcon from '@mui/icons-material/Mail'
 import HomeIcon from '@mui/icons-material/Home'
+import LightModeIcon from '@mui/icons-material/LightMode'
+import DarkModeIcon from '@mui/icons-material/DarkMode'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useThemeMode } from '../contexts/ThemeContext'
 import { useState } from 'react'
 
 export function Navbar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
+  const { mode, toggleTheme } = useThemeMode()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -115,6 +119,19 @@ export function Navbar() {
             >
               <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>Contacto</Box>
             </Button>
+
+            {/* Theme Toggle */}
+            <IconButton
+              onClick={toggleTheme}
+              title={mode === 'light' ? 'Modo oscuro' : 'Modo claro'}
+              sx={{
+                color: 'inherit',
+                opacity: 0.8,
+                '&:hover': { opacity: 1 },
+              }}
+            >
+              {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+            </IconButton>
 
             {/* Autenticación */}
             {user ? (
