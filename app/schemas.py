@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
+from datetime import datetime
 
 Unidad = Literal["unid", "caja", "sobre", "pliego", "bolsa", "resma", "pack"]
 
@@ -20,3 +21,33 @@ class ParsedList(BaseModel):
     dubious_sent_to_ai: int = 0
     curso: Optional[str] = None
     items: List[ParsedItem]
+
+
+# ============ PROVIDER SUGGESTIONS ============
+
+class ProviderSuggestionCreate(BaseModel):
+    provider_name: str
+    description: str
+    website_url: Optional[str] = None
+    email_contact: Optional[str] = None
+
+
+class ProviderSuggestionUpdate(BaseModel):
+    status: Literal["processing", "not_feasible", "completed", "rejected"]
+    admin_notes: Optional[str] = None
+
+
+class ProviderSuggestionResponse(BaseModel):
+    id: int
+    user_id: int
+    provider_name: str
+    description: str
+    website_url: Optional[str]
+    email_contact: Optional[str]
+    status: str
+    admin_notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

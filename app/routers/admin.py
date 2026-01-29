@@ -103,10 +103,23 @@ async def get_users(
     db: Session = Depends(get_db),
     _: User = Depends(verify_admin),
 ):
-    """Get all registered users."""
+    """Get all registered users with their current plan."""
     users = db.query(User).all()
-    return [
-        {
+    result = []
+    
+    for u in users:
+        # Obtener el plan actual del usuario
+        subscription = db.query(Subscription).filter(
+            Subscription.user_id == u.id
+        ).first()
+        
+        current_plan = None
+        if subscription:
+            plan = db.query(Plan).filter(Plan.id == subscription.plan_id).first()
+            if plan:
+                current_plan = plan.name.lower()
+        
+        result.append({
             "id": u.id,
             "email": u.email,
             "name": u.name,
@@ -115,9 +128,10 @@ async def get_users(
             "created_at": u.created_at.isoformat() if u.created_at else None,
             "is_active": u.is_active,
             "last_login": u.last_login.isoformat() if u.last_login else None,
-        }
-        for u in users
-    ]
+            "current_plan": current_plan,
+        })
+    
+    return result
 
 
 @router.delete("/users/{user_id}")

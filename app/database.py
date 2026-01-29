@@ -132,6 +132,32 @@ class SavedQuote(Base):
     user = relationship("User", back_populates="quotes")
 
 
+class SuggestionStatus(str, enum.Enum):
+    processing = "processing"
+    not_feasible = "not_feasible"
+    completed = "completed"
+    rejected = "rejected"
+
+
+class ProviderSuggestion(Base):
+    """Sugerencias de nuevos proveedores por usuarios"""
+    __tablename__ = "provider_suggestions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    provider_name = Column(String, index=True)
+    description = Column(Text)
+    website_url = Column(String, nullable=True)
+    email_contact = Column(String, nullable=True)
+    status = Column(Enum(SuggestionStatus), default=SuggestionStatus.processing, index=True)
+    admin_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    
+    # Relaciones
+    user = relationship("User", foreign_keys=[user_id])
+
+
 class PageVisit(Base):
     """Track page visits for analytics"""
     __tablename__ = "page_visits"

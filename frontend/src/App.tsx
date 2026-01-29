@@ -13,6 +13,7 @@ import { AdminDashboard } from './pages/AdminDashboard'
 import { ContactPage } from './pages/Contact'
 import { DemoQuoteModal } from './components/DemoQuoteModal'
 import { WhatsAppButton } from './components/WhatsAppButton'
+import { ProviderSuggestionForm } from './components/ProviderSuggestionForm'
 import { UploadStep } from './steps/UploadStep'
 import { ItemsStep } from './steps/ItemsStep'
 import { SourcesStep } from './steps/SourcesStep'
@@ -36,6 +37,7 @@ function MainApp() {
   const { user, logout } = useAuth()
   const [showHome, setShowHome] = useState(true)
   const [showDemoModal, setShowDemoModal] = useState(false)
+  const [showSuggestionForm, setShowSuggestionForm] = useState(false)
   const [step, setStep] = useState(0)
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
   const [sources, setSources] = useState<SourceId[]>([
@@ -137,11 +139,17 @@ function MainApp() {
           onTrialClick={handleTrialClick}
           onLoginClick={handleLoginClick}
           onStartClick={handleStartApp}
+          onSuggestProvider={() => setShowSuggestionForm(true)}
         />
         <DemoQuoteModal
           open={showDemoModal}
           onClose={() => setShowDemoModal(false)}
           onUpgradeClick={handleUpgradeFromDemo}
+        />
+        <ProviderSuggestionForm
+          open={showSuggestionForm}
+          onClose={() => setShowSuggestionForm(false)}
+          onSuccess={() => setShowSuggestionForm(false)}
         />
       </>
     )

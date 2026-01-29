@@ -41,6 +41,8 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
     const fetchLimits = async () => {
       try {
         const response = await api.get('/user/limits')
+        console.log('[ItemsStep] Límites recibidos:', response.data)
+        console.log('[ItemsStep] max_items:', response.data?.limits?.max_items)
         setLimits(response.data)
       } catch (error) {
         console.log('No se pudieron cargar límites:', error)
@@ -51,8 +53,39 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
     fetchLimits()
   }, [])
 
-  const maxItems = limits?.limits.max_items || items.length
   const selectedCount = useMemo(() => items.filter((i) => i.selected).length, [items])
+
+  // Si max_items es null/undefined = ilimitado, usar items.length
+  // Si max_items es un número (incluso 0), respetar ese límite
+  const maxItems = limits?.limits.max_items !== null && limits?.limits.max_items !== undefined 
+    ? limits.limits.max_items 
+    : items.length
+  
+  console.log('[ItemsStep] maxItems calculado:', maxItems, 'items.length:', items.length, 'selectedCount:', selectedCount)
+
+  // Auto-limitar items seleccionados cuando se cargan los límites
+  useEffect(() => {
+    if (!limits || loadingLimits) return
+    
+    const selectedItems = items.filter(i => i.selected)
+    if (selectedItems.length > maxItems) {
+      console.log(`[ItemsStep] ⚠️ Limitando selección: ${selectedItems.length} → ${maxItems}`)
+      
+      // Deseleccionar items que excedan el límite (mantener solo los primeros maxItems)
+      let count = 0
+      const limitedItems = items.map(item => {
+        if (item.selected && item.item.tipo !== 'lectura') {
+          count++
+          if (count > maxItems) {
+            return { ...item, selected: false }
+          }
+        }
+        return item
+      })
+      
+      onItemsChange(limitedItems)
+    }
+  }, [limits, loadingLimits, maxItems])
 
   const toggle = (index: number) => {
     const next = [...items]
@@ -75,8 +108,32 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   }
 
   const toggleAll = () => {
-    const all = selectedCount === items.length
-    onItemsChange(items.map((i) => ({ ...i, selected: !all })))
+    // Contar solo items que pueden seleccionarse (no son "lectura")
+    const selectableItems = items.filter(i => i.item.tipo !== 'lectura')
+    const selectableSelected = items.filter(i => i.selected && i.item.tipo !== 'lectura').length
+    
+    // Si todos los seleccionables están seleccionados → deseleccionar todos
+    // Si no todos están seleccionados → seleccionar hasta el límite
+    const shouldSelectAll = selectableSelected < selectableItems.length
+    
+    if (shouldSelectAll) {
+      // Seleccionar hasta maxItems (respetando el límite)
+      let count = 0
+      const updated = items.map(i => {
+        if (i.item.tipo === 'lectura') {
+          return i // Items lectura siempre sin seleccionar
+        }
+        if (!i.selected && count < maxItems) {
+          count++
+          return { ...i, selected: true }
+        }
+        return i
+      })
+      onItemsChange(updated)
+    } else {
+      // Deseleccionar todos
+      onItemsChange(items.map((i) => ({ ...i, selected: false })))
+    }
   }
 
   const canProceed = selectedCount > 0
@@ -117,10 +174,9 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedCount > 0 && selectedCount < items.length}
-                  checked={items.length > 0 && selectedCount === items.length}
+                  indeterminate={selectedCount > 0 && selectedCount < maxItems}
+                  checked={selectedCount === maxItems && maxItems > 0}
                   onChange={toggleAll}
-                  disabled={items.length > maxItems && selectedCount === 0}
                 />
               </TableCell>
               <TableCell>Detalle</TableCell>

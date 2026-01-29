@@ -312,7 +312,7 @@ export const UserDashboard: React.FC = () => {
                       </Box>
                     </CardContent>
                     <CardActions sx={{ p: 3, pt: 0 }}>
-                      {plan.name === 'free' ? (
+                      {subscription?.plan_name?.toLowerCase() === plan.name.toLowerCase() ? (
                         <Button
                           fullWidth
                           variant="outlined"

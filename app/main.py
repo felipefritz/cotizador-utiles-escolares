@@ -20,13 +20,13 @@ from sqlalchemy.orm import Session
 from app.extractors import extract_text
 from app.rules_parser import split_lines, parse_with_rules, find_dubious_lines
 from app.llm_client import call_llm_fix, call_llm_full_extraction, call_llm_with_vision
-from app.schemas import ParsedList, ParsedItem
+from app.schemas import ParsedList, ParsedItem, ProviderSuggestionCreate, ProviderSuggestionUpdate, ProviderSuggestionResponse
 
 from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.multi_provider import quote_multi_providers
 
 # Autenticación
-from app.database import get_db, init_db, User, SessionLocal
+from app.database import get_db, init_db, User, SessionLocal, ProviderSuggestion, Plan, Subscription
 from app.auth import get_current_user, get_current_user_optional, create_access_token, get_or_create_user
 from app.oauth_providers import get_google_user_info, get_twitter_user_info, get_github_user_info
 
@@ -1247,6 +1247,78 @@ async def get_user_plan_limits(
     }
 
 
+# ============ PROVIDER SUGGESTIONS ENDPOINTS ============
+
+@api_router.post("/suggestions")
+async def create_suggestion(
+    suggestion: ProviderSuggestionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Crear una sugerencia de nuevo proveedor"""
+    new_suggestion = ProviderSuggestion(
+        user_id=current_user.id,
+        provider_name=suggestion.provider_name,
+        description=suggestion.description,
+        website_url=suggestion.website_url,
+        email_contact=suggestion.email_contact,
+    )
+    db.add(new_suggestion)
+    db.commit()
+    db.refresh(new_suggestion)
+    return ProviderSuggestionResponse.from_orm(new_suggestion)
+
+
+@api_router.get("/suggestions")
+async def get_user_suggestions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Obtener sugerencias del usuario"""
+    suggestions = db.query(ProviderSuggestion).filter(
+        ProviderSuggestion.user_id == current_user.id
+    ).all()
+    return [ProviderSuggestionResponse.from_orm(s) for s in suggestions]
+
+
+@api_router.get("/suggestions/admin/all")
+async def get_all_suggestions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Obtener todas las sugerencias (solo admins)"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ver todas las sugerencias")
+    
+    suggestions = db.query(ProviderSuggestion).all()
+    return [ProviderSuggestionResponse.from_orm(s) for s in suggestions]
+
+
+@api_router.put("/suggestions/{suggestion_id}")
+async def update_suggestion(
+    suggestion_id: int,
+    update: ProviderSuggestionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Actualizar estado de una sugerencia (solo admins)"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden actualizar sugerencias")
+    
+    suggestion = db.query(ProviderSuggestion).filter(
+        ProviderSuggestion.id == suggestion_id
+    ).first()
+    
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Sugerencia no encontrada")
+    
+    suggestion.status = update.status
+    suggestion.admin_notes = update.admin_notes
+    db.commit()
+    db.refresh(suggestion)
+    return ProviderSuggestionResponse.from_orm(suggestion)
+
+
 @api_router.post("/payment/checkout")
 async def create_checkout(
     request: CheckoutRequest,
@@ -1646,6 +1718,67 @@ async def unmark_item_purchased(
     return {
         "message": f"Item '{item_name}' desmarcado",
         "purchased_items": quote.purchased_items,
+    }
+
+
+# ============ ADMIN: USER PLAN MANAGEMENT ============
+
+class ChangePlanRequest(BaseModel):
+    plan_id: int
+
+
+@api_router.put("/admin/users/{user_id}/plan")
+async def change_user_plan(
+    user_id: int,
+    request: ChangePlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Cambiar el plan de un usuario (solo admin)
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden cambiar planes")
+    
+    # Obtener el usuario
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Verificar que el plan existe
+    plan = db.query(Plan).filter(Plan.id == request.plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no existe")
+    
+    # Obtener o crear suscripción
+    subscription = db.query(Subscription).filter(
+        Subscription.user_id == user_id
+    ).first()
+    
+    if subscription:
+        subscription.plan_id = request.plan_id
+        subscription.updated_at = datetime.utcnow()
+    else:
+        subscription = Subscription(
+            user_id=user_id,
+            plan_id=request.plan_id,
+            status="active",
+        )
+        db.add(subscription)
+    
+    db.commit()
+    db.refresh(subscription)
+    
+    return {
+        "message": f"Plan de usuario {user.email} actualizado a {plan.name}",
+        "user_id": user_id,
+        "plan_name": plan.name,
+        "subscription": {
+            "status": subscription.status,
+            "plan_id": subscription.plan_id,
+            "started_at": subscription.started_at,
+            "expires_at": subscription.expires_at,
+        }
     }
 
 
