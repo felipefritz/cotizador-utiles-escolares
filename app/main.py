@@ -764,12 +764,8 @@ async def parse_items_without_quote(
     merged = ok_items + fixed_items
     merged = normalize_items(merged)
 
-    # MODO DEMO: Limitar a 5 productos si no está autenticado
-    is_demo_mode = current_user is None
-    if is_demo_mode and len(merged) > 5:
-        merged = merged[:5]
-
     # 4) salida final validada (SIN cotización)
+    # El frontend maneja el límite de selección en modo demo
     final = ParsedList(
         raw_text_preview=raw[:1500],
         lines_count=len(lines),
