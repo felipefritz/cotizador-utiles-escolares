@@ -40,5 +40,5 @@ RUN mkdir -p uploads
 # Puerto de la aplicación (Railway inyecta $PORT)
 EXPOSE 8000
 
-# Comando de inicio - Python lee PORT y lo convierte a int
-CMD ["python", "-c", "import os; import uvicorn; uvicorn.run('app.main:app', host='0.0.0.0', port=int(os.getenv('PORT', 8000)))"]
+# Comando de inicio usando run.py con PORT de Railway
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
