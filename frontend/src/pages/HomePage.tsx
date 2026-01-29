@@ -351,8 +351,8 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
                       RECOMENDADO
                     </Box>
                   )}
-                  <CardContent sx={{ flexGrow: 1, pt: plan.name === 'pro' ? 4 : 3 }}>
-                    <Typography variant="h5" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase' }}>
+                  <CardContent sx={{ flexGrow: 1, pt: plan.name === 'pro' ? 4 : 3, color: 'text.primary' }}>
+                    <Typography variant="h5" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase', color: 'text.primary' }}>
                       {plan.name}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 3 }}>
@@ -394,7 +394,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
                           >
                             ✓
                           </Box>
-                          <Typography variant="body2" fontWeight={500}>
+                          <Typography variant="body2" fontWeight={500} color="text.primary">
                             {feature.label}
                           </Typography>
                         </Box>
