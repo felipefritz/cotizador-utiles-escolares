@@ -455,15 +455,15 @@ export function QuoteStep({ results, onReset, sources }: Props) {
           <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
             <Table size="small" stickyHeader>
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ width: 56 }} />
-                  <TableCell>Detalle</TableCell>
-                  <TableCell align="center" sx={{ width: 90 }}>Cantidad</TableCell>
-                  <TableCell align="center" sx={{ width: 120 }}>Proveedor</TableCell>
-                  <TableCell align="right" sx={{ width: 120 }}>Precio unit.</TableCell>
-                  <TableCell align="right" sx={{ width: 130 }}>Total línea</TableCell>
-                  <TableCell align="center" sx={{ width: 130 }}>Estado</TableCell>
-                  <TableCell align="center" sx={{ width: 180 }}>Producto seleccionado</TableCell>
+                <TableRow sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
+                  <TableCell sx={{ width: 56, color: 'text.primary', fontWeight: 700 }} />
+                  <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Detalle</TableCell>
+                  <TableCell align="center" sx={{ width: 90, color: 'text.primary', fontWeight: 700 }}>Cantidad</TableCell>
+                  <TableCell align="center" sx={{ width: 120, color: 'text.primary', fontWeight: 700 }}>Proveedor</TableCell>
+                  <TableCell align="right" sx={{ width: 120, color: 'text.primary', fontWeight: 700 }}>Precio unit.</TableCell>
+                  <TableCell align="right" sx={{ width: 130, color: 'text.primary', fontWeight: 700 }}>Total línea</TableCell>
+                  <TableCell align="center" sx={{ width: 130, color: 'text.primary', fontWeight: 700 }}>Estado</TableCell>
+                  <TableCell align="center" sx={{ width: 180, color: 'text.primary', fontWeight: 700 }}>Producto seleccionado</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -725,7 +725,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
           {isMultiProvider && Object.keys(byProvider).length > 0 && (
             <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.primary' }}>
                 📦 Resumen por Proveedor
               </Typography>
               <Divider sx={{ mb: 3 }} />
@@ -749,7 +749,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                       variant="outlined" 
                       sx={{ 
                         p: 2, 
-                        bgcolor: (t) => t.palette.mode === 'light' ? '#f5f5f5' : '#1e1e1e',
+                        bgcolor: (t) => t.palette.mode === 'light' ? '#f5f5f5' : 'background.paper',
                         borderLeft: `4px solid ${getProviderColor(providerKey)}`,
                         transition: 'box-shadow 0.2s',
                         '&:hover': { boxShadow: 2 }
@@ -757,8 +757,8 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                     >
                       <Typography 
                         variant="subtitle1" 
-                        fontWeight={700} 
-                        sx={{ mb: 1.5, color: getProviderColor(providerKey) }}
+                        fontWeight={700}
+                        sx={{ mb: 1.5, color: 'primary.main' }}
                       >
                         {providerData.name}
                       </Typography>
@@ -770,7 +770,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                             <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 1 }}>
                               <Box sx={{ flex: 1 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                  <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                                  <Typography variant="body2" sx={{ fontSize: '0.875rem', color: 'text.primary' }}>
                                     {item.item.item.detalle || item.item.item.item_original}
                                   </Typography>
                                   {isSelected && (
@@ -787,7 +787,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                                   × {item.item.quantity}
                                 </Typography>
                               </Box>
-                              <Typography variant="body2" fontWeight={600}>
+                              <Typography variant="body2" fontWeight={600} sx={{ color: 'text.primary' }}>
                                 {formatCLP(item.price * item.item.quantity)}
                               </Typography>
                             </Box>
@@ -796,7 +796,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                       </Box>
                       <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <Typography variant="body2" fontWeight={700}>
+                          <Typography variant="body2" fontWeight={700} sx={{ color: 'text.primary' }}>
                             Subtotal:
                           </Typography>
                           <Typography 
@@ -869,11 +869,11 @@ export function QuoteStep({ results, onReset, sources }: Props) {
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Proveedor</TableCell>
-                      <TableCell align="center">Ítems con precio</TableCell>
-                      <TableCell align="center">Ítems sin precio</TableCell>
-                      <TableCell align="right">Total estimado</TableCell>
+                    <TableRow sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
+                      <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Proveedor</TableCell>
+                      <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Ítems con precio</TableCell>
+                      <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Ítems sin precio</TableCell>
+                      <TableCell align="right" sx={{ color: 'text.primary', fontWeight: 700 }}>Total estimado</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
