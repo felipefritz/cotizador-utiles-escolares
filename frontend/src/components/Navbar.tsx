@@ -162,7 +162,7 @@ export function Navbar() {
                     fontWeight: 600,
                   }}
                 >
-                  {user.username?.[0]?.toUpperCase() || 'U'}
+                  {user.email?.[0]?.toUpperCase() || 'U'}
                 </Avatar>
 
                 <Menu
@@ -173,7 +173,7 @@ export function Navbar() {
                 >
                   <MenuItem disabled>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {user.username}
+                      {user.email}
                     </Typography>
                   </MenuItem>
                   <MenuItem divider />

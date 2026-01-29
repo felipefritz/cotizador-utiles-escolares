@@ -6,12 +6,9 @@ import {
   Tab,
   Box,
   Button,
-  Dialog,
-  TextField,
   Card,
   CardContent,
   Typography,
-  IconButton,
   Chip,
   Alert,
   CircularProgress,
@@ -166,10 +163,6 @@ export const UserDashboard: React.FC = () => {
       setMessage(errorMessage);
       setMessageType('error');
     }
-  };
-
-  const handleNewQuote = () => {
-    navigate('/');
   };
 
   if (loading) {
