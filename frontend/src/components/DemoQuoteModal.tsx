@@ -34,7 +34,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import LockOpenIcon from '@mui/icons-material/LockOpen'
 import { parseAiItemsOnly, quoteMultiProviders, type ParsedItem, type MultiProviderResponse } from '../api'
 
-const DEMO_STEPS = ['Subir lista', 'Elegir proveedores', 'Cotizar']
+const DEMO_STEPS = ['Subir lista', 'Seleccionar items y tiendas', 'Resultados']
 
 const PROVIDERS = [
   { id: 'dimeiggs', name: 'Dimeiggs', color: '#FF6B35' },
@@ -57,15 +57,22 @@ type QuoteResult = {
   quote: MultiProviderResponse | null
 }
 
+type SelectableItem = ParsedItem & {
+  selected: boolean
+}
+
 export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
   const [step, setStep] = useState(0)
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [items, setItems] = useState<ParsedItem[]>([])
+  const [items, setItems] = useState<SelectableItem[]>([])
   const [selectedProviders, setSelectedProviders] = useState<string[]>([])
   const [quotedItems, setQuotedItems] = useState<QuoteResult[]>([])
   const [quoting, setQuoting] = useState(false)
+
+  const MAX_DEMO_ITEMS = 5
+  const selectedCount = items.filter(item => item.selected).length
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -83,8 +90,12 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
 
     try {
       const data = await parseAiItemsOnly(f)
-      // Mostrar TODOS los items detectados
-      setItems(data.items)
+      // Convertir items a SelectableItem con selected: false
+      const selectableItems: SelectableItem[] = data.items.map(item => ({
+        ...item,
+        selected: false
+      }))
+      setItems(selectableItems)
       setStep(1)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al procesar el archivo.')
@@ -93,9 +104,21 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     }
   }
 
-  const demoItems = items.slice(0, 5)
-  const extraItems = items.slice(5)
-  const MAX_DEMO_ITEMS = 5
+  const handleItemToggle = (index: number) => {
+    const item = items[index]
+    const isCurrentlySelected = item.selected
+    
+    // Si está tratando de seleccionar y ya alcanzó el límite, no permitir
+    if (!isCurrentlySelected && selectedCount >= MAX_DEMO_ITEMS) {
+      setError(`En modo prueba solo puedes seleccionar ${MAX_DEMO_ITEMS} items. Regístrate para acceso completo.`)
+      return
+    }
+    
+    setError(null)
+    const updatedItems = [...items]
+    updatedItems[index] = { ...updatedItems[index], selected: !isCurrentlySelected }
+    setItems(updatedItems)
+  }
 
   const handleProviderToggle = (providerId: string) => {
     if (selectedProviders.includes(providerId)) {
@@ -112,8 +135,15 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
   }
 
   const handleQuote = useCallback(async () => {
+    const selectedItems = items.filter(item => item.selected)
+    
     if (selectedProviders.length === 0) {
       setError('Selecciona al menos 1 proveedor')
+      return
+    }
+    
+    if (selectedItems.length === 0) {
+      setError('Selecciona al menos 1 item para cotizar')
       return
     }
 
@@ -121,8 +151,8 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     setError(null)
     const results: QuoteResult[] = []
 
-    // Solo cotizar los primeros 5 items en modo demo
-    for (const item of demoItems) {
+    // Cotizar solo los items seleccionados
+    for (const item of selectedItems) {
       try {
         const quote = await quoteMultiProviders(
           item.detalle,
@@ -138,7 +168,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     setQuotedItems(results)
     setStep(2)
     setQuoting(false)
-  }, [demoItems, selectedProviders])
+  }, [items, selectedProviders])
 
   const handleReset = () => {
     setStep(0)
@@ -172,8 +202,8 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
       <DialogContent>
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
-            En modo prueba puedes cotizar hasta <strong>5 items</strong> en <strong>2 tiendas</strong>.
-            Regístrate gratis para cotizar sin límites en todas las tiendas.
+            En modo prueba puedes <strong>seleccionar hasta 5 items</strong> de tu lista y cotizarlos en <strong>2 tiendas</strong>.
+            Regístrate gratis para cotizar todos tus items en las 7 tiendas disponibles.
           </Typography>
         </Alert>
 
@@ -223,7 +253,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
           </Box>
         )}
 
-        {/* Paso 2: Elegir proveedores */}
+        {/* Paso 1: Elegir items y proveedores */}
         {step === 1 && (
           <Box>
             <Alert severity="info" sx={{ mb: 2 }}>
@@ -231,51 +261,52 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                 <strong>Total de items detectados: {items.length}</strong>
               </Typography>
               <Typography variant="caption">
-                En modo prueba se cotizarán los primeros <strong>{MAX_DEMO_ITEMS} items</strong>
+                Selecciona hasta <strong>{MAX_DEMO_ITEMS} items</strong> para cotizar (seleccionados: {selectedCount}/{MAX_DEMO_ITEMS})
               </Typography>
             </Alert>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
-              Items habilitados para cotizar ({Math.min(items.length, MAX_DEMO_ITEMS)}/{items.length}):
+              Selecciona los items que deseas cotizar:
             </Typography>
-            <List dense sx={{ mb: 2, bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.50', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
-              {demoItems.map((item, idx) => (
-                <ListItem key={idx} sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'success.dark' : 'success.lighter', borderBottom: '1px solid', borderColor: 'divider' }}>
-                  <ListItemText
-                    primary={item.detalle}
-                    secondary={`Cantidad: ${item.cantidad || 1}`}
-                    primaryTypographyProps={{ color: 'text.primary' }}
-                    secondaryTypographyProps={{ color: 'text.secondary' }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-
-            {extraItems.length > 0 && (
-              <>
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  <Typography variant="body2">
-                    <strong>{extraItems.length} items adicionales detectados</strong> - Regístrate para cotizar todos
-                  </Typography>
-                </Alert>
-
-                <Typography variant="subtitle1" gutterBottom>
-                  Items deshabilitados (regístrate para acceso completo):
-                </Typography>
-                <List dense sx={{ mb: 3, bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100', borderRadius: 1, maxHeight: 150, overflow: 'auto', opacity: 0.6 }}>
-                  {extraItems.map((item, idx) => (
-                    <ListItem key={idx + MAX_DEMO_ITEMS}>
-                      <ListItemText
-                        primary={item.detalle}
-                        secondary={`Cantidad: ${item.cantidad || 1}`}
-                        primaryTypographyProps={{ color: 'text.primary' }}
-                        secondaryTypographyProps={{ color: 'text.secondary' }}
+            <Paper variant="outlined" sx={{ mb: 3, maxHeight: 300, overflow: 'auto' }}>
+              <List dense>
+                {items.map((item, idx) => {
+                  const isDisabled = !item.selected && selectedCount >= MAX_DEMO_ITEMS
+                  return (
+                    <ListItem
+                      key={idx}
+                      sx={{
+                        borderBottom: idx < items.length - 1 ? '1px solid' : 'none',
+                        borderColor: 'divider',
+                        bgcolor: item.selected ? (t) => t.palette.mode === 'dark' ? 'success.dark' : 'success.lighter' : 'transparent',
+                        opacity: isDisabled ? 0.6 : 1,
+                      }}
+                    >
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={item.selected}
+                            onChange={() => handleItemToggle(idx)}
+                            disabled={isDisabled}
+                          />
+                        }
+                        label={
+                          <Box>
+                            <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                              {item.detalle}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              Cantidad: {item.cantidad || 1}
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ width: '100%', m: 0 }}
                       />
                     </ListItem>
-                  ))}
-                </List>
-              </>
-            )}
+                  )
+                })}
+              </List>
+            </Paper>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
               Selecciona hasta 2 tiendas (máximo en modo prueba):
@@ -393,10 +424,13 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                 <strong>Resumen de la cotización de prueba:</strong>
               </Typography>
               <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                ✓ Items cotizados: {Math.min(quotedItems.length, MAX_DEMO_ITEMS)} / {MAX_DEMO_ITEMS}
+                ✓ Items cotizados: {quotedItems.length}
               </Typography>
               <Typography variant="caption" sx={{ display: 'block' }}>
                 ✓ Tiendas consultadas: {selectedProviders.length} / 2
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block' }}>
+                ✓ Items totales en tu lista: {items.length}
               </Typography>
             </Alert>
 
@@ -416,10 +450,10 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             <Button
               variant="contained"
               onClick={handleQuote}
-              disabled={selectedProviders.length === 0 || quoting}
+              disabled={selectedCount === 0 || selectedProviders.length === 0 || quoting}
               startIcon={quoting ? <CircularProgress size={20} /> : undefined}
             >
-              {quoting ? 'Cotizando...' : 'Cotizar'}
+              {quoting ? 'Cotizando...' : `Cotizar ${selectedCount} ${selectedCount === 1 ? 'Item' : 'Items'}`}
             </Button>
           </>
         )}
