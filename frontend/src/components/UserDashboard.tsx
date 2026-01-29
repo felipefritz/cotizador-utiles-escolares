@@ -389,7 +389,7 @@ export const UserDashboard: React.FC = () => {
                             available: true
                           },
                           { 
-                            label: `${plan.max_providers} proveedores`,
+                            label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
                             available: true
                           },
                           { 
