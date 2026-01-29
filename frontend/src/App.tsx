@@ -11,6 +11,7 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ContactPage } from './pages/Contact'
 import { DemoQuoteModal } from './components/DemoQuoteModal'
+import { WhatsAppButton } from './components/WhatsAppButton'
 import { UploadStep } from './steps/UploadStep'
 import { ItemsStep } from './steps/ItemsStep'
 import { SourcesStep } from './steps/SourcesStep'
@@ -258,6 +259,7 @@ export default function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/" element={<MainApp />} />
             </Routes>
+            <WhatsAppButton />
           </>
         }
       />
