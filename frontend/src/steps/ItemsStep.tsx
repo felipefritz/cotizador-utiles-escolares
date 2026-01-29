@@ -53,7 +53,6 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
 
   const maxItems = limits?.limits.max_items || items.length
   const selectedCount = useMemo(() => items.filter((i) => i.selected).length, [items])
-  const canSelectMore = selectedCount < maxItems
 
   const toggle = (index: number) => {
     const next = [...items]

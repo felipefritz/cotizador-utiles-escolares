@@ -17,21 +17,8 @@ import {
   CircularProgress,
   Grid,
   CardActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Stack,
 } from '@mui/material';
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Download as DownloadIcon,
-  Star as StarIcon,
-  StarBorder as StarBorderIcon,
-  Visibility as VisibilityIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
 import { api } from '../api';
@@ -58,22 +45,6 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-interface Quote {
-  id: number;
-  title: string;
-  raw_text: string;
-  items_count: number;
-  is_favorite: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface QuoteDetail extends Quote {
-  items: any[];
-  results: any;
-  notes: string;
-}
-
 interface Subscription {
   plan_name: string;
   status: string;
@@ -97,15 +68,9 @@ export const UserDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [tabValue, setTabValue] = useState(0);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [selectedQuote, setSelectedQuote] = useState<QuoteDetail | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editNotes, setEditNotes] = useState('');
-  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
@@ -153,10 +118,6 @@ export const UserDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Cargar cotizaciones
-      const quotesRes = await api.get('/user/quotes');
-      setQuotes(quotesRes.data);
-
       // Cargar suscripción
       const subRes = await api.get('/user/subscription');
       setSubscription(subRes.data);
@@ -168,66 +129,6 @@ export const UserDashboard: React.FC = () => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleViewQuote = async (quoteId: number) => {
-    try {
-      const res = await api.get(`/user/quotes/${quoteId}`);
-      setSelectedQuote(res.data);
-    } catch (error) {
-      setMessage('Error al cargar la cotización');
-      setMessageType('error');
-    }
-  };
-
-  const handleEditQuote = (quote: Quote) => {
-    setEditingQuoteId(quote.id);
-    setEditTitle(quote.title);
-    setEditNotes('');
-    setEditDialogOpen(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingQuoteId) return;
-
-    try {
-      await api.put(`/user/quotes/${editingQuoteId}`, {
-        title: editTitle,
-        notes: editNotes,
-      });
-      setMessage('Cotización actualizada');
-      setMessageType('success');
-      setEditDialogOpen(false);
-      loadData();
-    } catch (error) {
-      setMessage('Error al actualizar');
-      setMessageType('error');
-    }
-  };
-
-  const handleDeleteQuote = async (quoteId: number) => {
-    if (!window.confirm('¿Eliminar esta cotización?')) return;
-
-    try {
-      await api.delete(`/user/quotes/${quoteId}`);
-      setMessage('Cotización eliminada');
-      setMessageType('success');
-      loadData();
-    } catch (error) {
-      setMessage('Error al eliminar');
-      setMessageType('error');
-    }
-  };
-
-  const handleToggleFavorite = async (quoteId: number, currentFav: boolean) => {
-    try {
-      await api.put(`/user/quotes/${quoteId}`, {
-        is_favorite: !currentFav,
-      });
-      loadData();
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
     }
   };
 
@@ -267,19 +168,17 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
-  const handleDownloadQuote = (quote: Quote) => {
-    const content = JSON.stringify(quote, null, 2);
-    const element = document.createElement('a');
-    element.setAttribute(
-      'href',
-      'data:text/plain;charset=utf-8,' + encodeURIComponent(content)
-    );
-    element.setAttribute('download', `${quote.title}.json`);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  const handleNewQuote = () => {
+    navigate('/');
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
