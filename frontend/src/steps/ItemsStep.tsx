@@ -52,15 +52,18 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   }, [])
 
   const maxItems = limits?.limits.max_items || items.length
-  const exceededItems = items.length > maxItems
   const selectedCount = useMemo(() => items.filter((i) => i.selected).length, [items])
-  
-  // Limitar items que se pueden cotizar
-  const itemsToShow = items.slice(0, maxItems)
-  const itemsExceeded = items.slice(maxItems)
+  const canSelectMore = selectedCount < maxItems
 
   const toggle = (index: number) => {
     const next = [...items]
+    const isCurrentlySelected = next[index].selected
+    
+    // Solo permitir seleccionar si no ha alcanzado el límite O si ya estaba seleccionado (para deseleccionar)
+    if (!isCurrentlySelected && selectedCount >= maxItems) {
+      return
+    }
+    
     next[index] = { ...next[index], selected: !next[index].selected }
     onItemsChange(next)
   }
@@ -73,15 +76,8 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   }
 
   const toggleAll = () => {
-    const all = selectedCount === itemsToShow.length
-    const next = items.map((i, idx) => {
-      // Solo permite seleccionar items dentro del límite
-      if (idx < itemsToShow.length) {
-        return { ...i, selected: !all }
-      }
-      return i
-    })
-    onItemsChange(next)
+    const all = selectedCount === items.length
+    onItemsChange(items.map((i) => ({ ...i, selected: !all })))
   }
 
   const canProceed = selectedCount > 0
@@ -110,9 +106,9 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
         Marca los útiles que quieres cotizar y ajusta la cantidad
       </Typography>
 
-      {exceededItems && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Tu plan permite cotizar máximo <strong>{maxItems} items</strong>. Se detectaron {items.length} items. Solo se cotizarán los primeros {maxItems}.
+      {items.length > maxItems && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Tu plan permite cotizar máximo <strong>{maxItems} items</strong> por cotización. Se detectaron {items.length} items. Solo podrás seleccionar {maxItems}.
         </Alert>
       )}
 
@@ -122,9 +118,10 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedCount > 0 && selectedCount < itemsToShow.length}
-                  checked={itemsToShow.length > 0 && selectedCount === itemsToShow.length}
+                  indeterminate={selectedCount > 0 && selectedCount < items.length}
+                  checked={items.length > 0 && selectedCount === items.length}
                   onChange={toggleAll}
+                  disabled={items.length > maxItems && selectedCount === 0}
                 />
               </TableCell>
               <TableCell>Detalle</TableCell>
@@ -134,35 +131,39 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {itemsToShow.map((row, idx) => (
-              <TableRow key={idx} hover selected={row.selected}>
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    checked={row.selected}
-                    onChange={() => toggle(idx)}
-                    disabled={row.item.tipo === 'lectura'}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{row.item.detalle || row.item.item_original}</Typography>
-                  {row.item.asignatura && (
-                    <Typography variant="caption" color="text.secondary">
-                      {row.item.asignatura}
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell align="right">
-                  <TextField
-                    type="number"
-                    size="small"
-                    value={row.quantity}
-                    onChange={(e) => setQuantity(idx, Number(e.target.value))}
-                    inputProps={{ min: 1, max: 999, style: { width: 56, textAlign: 'center' } }}
-                    sx={{ '& .MuiOutlinedInput-root': { fontSize: 14 } }}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
+            {items.map((row, idx) => {
+              const isDisabled = row.item.tipo === 'lectura' || (!row.selected && selectedCount >= maxItems);
+              return (
+                <TableRow key={idx} hover selected={row.selected} sx={{ opacity: isDisabled ? 0.6 : 1 }}>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={row.selected}
+                      onChange={() => toggle(idx)}
+                      disabled={isDisabled}
+                      title={isDisabled && !row.selected ? `Máximo ${maxItems} items permitidos` : ''}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{row.item.detalle || row.item.item_original}</Typography>
+                    {row.item.asignatura && (
+                      <Typography variant="caption" color="text.secondary">
+                        {row.item.asignatura}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    <TextField
+                      type="number"
+                      size="small"
+                      value={row.quantity}
+                      onChange={(e) => setQuantity(idx, Number(e.target.value))}
+                      inputProps={{ min: 1, max: 999, style: { width: 56, textAlign: 'center' } }}
+                      sx={{ '& .MuiOutlinedInput-root': { fontSize: 14 } }}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
           <TableFooter>
             <TableRow>

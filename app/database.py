@@ -158,16 +158,16 @@ def init_db():
                     name="free",
                     price=0,
                     billing_cycle="lifetime",
-                    max_items=5,
-                    max_providers=2,
+                    max_items=30,
+                    max_providers=3,
                     monthly_limit=None
                 ),
                 Plan(
                     name="basic",
                     price=4990,  # CLP
                     billing_cycle="monthly",
-                    max_items=50,
-                    max_providers=7,
+                    max_items=100,
+                    max_providers=10,
                     monthly_limit=100
                 ),
                 Plan(
@@ -175,7 +175,7 @@ def init_db():
                     price=14990,  # CLP
                     billing_cycle="monthly",
                     max_items=None,
-                    max_providers=7,
+                    max_providers=None,
                     monthly_limit=None
                 ),
             ]

@@ -39,6 +39,7 @@ interface SavedQuote {
   id: number;
   title: string;
   items: any[];
+  items_count: number;
   results: any;
   notes: string;
   is_favorite: boolean;
@@ -289,7 +290,7 @@ export const SavedQuotesManager: React.FC = () => {
                       sx={{ mr: 1 }}
                     />
                     <Chip
-                      label={`${quote.items?.length || 0} items`}
+                      label={`${quote.items_count || 0} items`}
                       size="small"
                       variant="outlined"
                     />

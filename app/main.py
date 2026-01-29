@@ -1362,18 +1362,31 @@ async def get_user_quotes(
         SavedQuote.user_id == current_user.id
     ).order_by(SavedQuote.created_at.desc()).offset(skip).limit(limit).all()
     
-    return [
-        {
+    result = []
+    for q in quotes:
+        # Contar items correctamente (puede ser lista o diccionario JSON)
+        items_count = 0
+        if q.items:
+            if isinstance(q.items, list):
+                items_count = len(q.items)
+            elif isinstance(q.items, dict):
+                items_count = len(q.items)
+        
+        print(f"[DEBUG] Quote {q.id} ({q.title}): items={q.items}, count={items_count}")
+        
+        result.append({
             "id": q.id,
             "title": q.title,
             "raw_text": q.raw_text[:200],  # Preview
-            "items_count": len(q.items) if q.items else 0,
+            "items_count": items_count,
             "is_favorite": q.is_favorite,
+            "status": q.status,
+            "purchased_items": q.purchased_items,
             "created_at": q.created_at.isoformat(),
             "updated_at": q.updated_at.isoformat(),
-        }
-        for q in quotes
-    ]
+        })
+    
+    return result
 
 
 @api_router.get("/user/quotes/{quote_id}")

@@ -320,202 +320,18 @@ export const UserDashboard: React.FC = () => {
             px: 2
           }}
         >
-          <Tab label="Mis Cotizaciones" sx={{ fontWeight: 600 }} />
           <Tab label="Cotizaciones Guardadas" sx={{ fontWeight: 600 }} />
           <Tab label="Planes" sx={{ fontWeight: 600 }} />
           <Tab label="Suscripción" sx={{ fontWeight: 600 }} />
         </Tabs>
 
-        {/* TAB 1: Cotizaciones */}
+        {/* TAB 1: Cotizaciones Guardadas */}
         <TabPanel value={tabValue} index={0}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-              <CircularProgress size={50} />
-            </Box>
-          ) : quotes.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No tienes cotizaciones guardadas
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                ¡Crea tu primera cotización para comparar precios!
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                size="large"
-                onClick={() => navigate('/')}
-              >
-                Nueva Cotización
-              </Button>
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
-                    <TableCell width="40px"></TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Título</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">Items</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {quotes.map((quote) => (
-                    <TableRow 
-                      key={quote.id}
-                      sx={{ 
-                        '&:hover': { bgcolor: 'grey.50' },
-                        transition: 'background-color 0.2s'
-                      }}
-                    >
-                      <TableCell>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleToggleFavorite(quote.id, quote.is_favorite)}
-                        >
-                          {quote.is_favorite ? (
-                            <StarIcon sx={{ color: 'warning.main' }} />
-                          ) : (
-                            <StarBorderIcon sx={{ color: 'grey.400' }} />
-                          )}
-                        </IconButton>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body1" fontWeight={500}>
-                          {quote.title}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip 
-                          label={quote.items_count} 
-                          size="small" 
-                          color="primary"
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {new Date(quote.created_at).toLocaleDateString('es-CL', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewQuote(quote.id)}
-                            title="Ver detalle"
-                            color="primary"
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEditQuote(quote)}
-                            title="Editar"
-                            color="primary"
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDownloadQuote(quote)}
-                            title="Descargar"
-                            color="primary"
-                          >
-                            <DownloadIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteQuote(quote.id)}
-                            title="Eliminar"
-                            color="error"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-
-          {/* Dialog para editar */}
-          <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-            <Box sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Editar Cotización
-              </Typography>
-              <TextField
-                fullWidth
-                label="Título"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Notas"
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                multiline
-                rows={4}
-                margin="normal"
-              />
-              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                <Button variant="contained" onClick={handleSaveEdit}>
-                  Guardar
-                </Button>
-                <Button onClick={() => setEditDialogOpen(false)}>
-                  Cancelar
-                </Button>
-              </Box>
-            </Box>
-          </Dialog>
-
-          {/* Modal para ver detalle */}
-          <Dialog open={!!selectedQuote} onClose={() => setSelectedQuote(null)} maxWidth="md" fullWidth>
-            {selectedQuote && (
-              <Box sx={{ p: 3 }}>
-                <Typography variant="h6">{selectedQuote.title}</Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ my: 1 }}>
-                  {selectedQuote.items_count} items • Creada: {new Date(selectedQuote.created_at).toLocaleDateString()}
-                </Typography>
-                <Box sx={{ maxHeight: '400px', overflowY: 'auto', mt: 2 }}>
-                  <Typography variant="subtitle2">Notas:</Typography>
-                  <Typography variant="body2">{selectedQuote.notes || 'Sin notas'}</Typography>
-                  
-                  {selectedQuote.results && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2">Resultados:</Typography>
-                      <pre style={{ overflow: 'auto', maxHeight: '300px' }}>
-                        {JSON.stringify(selectedQuote.results, null, 2)}
-                      </pre>
-                    </Box>
-                  )}
-                </Box>
-                <Button onClick={() => setSelectedQuote(null)} sx={{ mt: 2 }}>
-                  Cerrar
-                </Button>
-              </Box>
-            )}
-          </Dialog>
-        </TabPanel>
-
-        {/* TAB 2: Cotizaciones Guardadas */}
-        <TabPanel value={tabValue} index={1}>
           <SavedQuotesManager />
         </TabPanel>
 
-        {/* TAB 3: Planes */}
-        <TabPanel value={tabValue} index={2}>
+        {/* TAB 2: Planes */}
+        <TabPanel value={tabValue} index={1}>
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
               <CircularProgress size={50} />
@@ -637,8 +453,8 @@ export const UserDashboard: React.FC = () => {
           )}
         </TabPanel>
 
-        {/* TAB 4: Suscripción */}
-        <TabPanel value={tabValue} index={3}>
+        {/* TAB 3: Suscripción */}
+        <TabPanel value={tabValue} index={2}>
           {subscription ? (
             <Card>
               <CardContent>
