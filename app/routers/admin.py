@@ -18,7 +18,6 @@ from app.database import (
     PageVisit,
 )
 from app.auth import get_current_user
-from app.schemas import PlanResponse, UserResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -163,12 +162,12 @@ async def get_analytics(
     # Total users
     total_users = db.query(func.count(User.id)).scalar() or 0
 
-    # Active subscriptions (expiry_date > now)
+    # Active subscriptions (expires_at > now)
     now = datetime.utcnow()
     active_subscriptions = db.query(func.count(Subscription.id)).filter(
         and_(
             Subscription.status == "active",
-            Subscription.expiry_date > now,
+            Subscription.expires_at > now,
         )
     ).scalar() or 0
 
@@ -218,7 +217,7 @@ async def get_dashboard_summary(
     active_subs = db.query(func.count(Subscription.id)).filter(
         and_(
             Subscription.status == "active",
-            Subscription.expiry_date > now,
+            Subscription.expires_at > now,
         )
     ).scalar() or 0
     

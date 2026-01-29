@@ -1697,6 +1697,8 @@ async def send_contact_email(request: ContactRequest):
 # Import admin router
 from app.routers.admin import router as admin_router
 
+# Incluir admin router en api_router ANTES de incluir api_router en app
+api_router.include_router(admin_router)
+
 # Registrar router con prefijo /api
 app.include_router(api_router)
-api_router.include_router(admin_router)
