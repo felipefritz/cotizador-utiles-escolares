@@ -778,8 +778,6 @@ async def parse_items_without_quote(
         "lines_count": len(lines),
         "dubious_sent_to_ai": len(dub_lines),
         "items": [it.model_dump() for it in final.items],
-        "is_demo_mode": is_demo_mode,
-        "demo_limit_applied": is_demo_mode and len(ok_items + fixed_items) > 5,
         "total_items_found": len(ok_items + fixed_items),
     })
 
