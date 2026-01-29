@@ -238,12 +238,14 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
               Items habilitados para cotizar ({Math.min(items.length, MAX_DEMO_ITEMS)}/{items.length}):
             </Typography>
-            <List dense sx={{ mb: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
+            <List dense sx={{ mb: 2, bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.50', borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
               {demoItems.map((item, idx) => (
-                <ListItem key={idx} sx={{ bgcolor: 'success.lighter', borderBottom: '1px solid', borderColor: 'divider' }}>
+                <ListItem key={idx} sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'success.dark' : 'success.lighter', borderBottom: '1px solid', borderColor: 'divider' }}>
                   <ListItemText
                     primary={item.detalle}
                     secondary={`Cantidad: ${item.cantidad || 1}`}
+                    primaryTypographyProps={{ color: 'text.primary' }}
+                    secondaryTypographyProps={{ color: 'text.secondary' }}
                   />
                 </ListItem>
               ))}
@@ -260,12 +262,14 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                 <Typography variant="subtitle1" gutterBottom>
                   Items deshabilitados (regístrate para acceso completo):
                 </Typography>
-                <List dense sx={{ mb: 3, bgcolor: 'grey.100', borderRadius: 1, maxHeight: 150, overflow: 'auto', opacity: 0.6 }}>
+                <List dense sx={{ mb: 3, bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100', borderRadius: 1, maxHeight: 150, overflow: 'auto', opacity: 0.6 }}>
                   {extraItems.map((item, idx) => (
                     <ListItem key={idx + MAX_DEMO_ITEMS}>
                       <ListItemText
                         primary={item.detalle}
                         secondary={`Cantidad: ${item.cantidad || 1}`}
+                        primaryTypographyProps={{ color: 'text.primary' }}
+                        secondaryTypographyProps={{ color: 'text.secondary' }}
                       />
                     </ListItem>
                   ))}
@@ -337,11 +341,11 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Producto</TableCell>
-                      <TableCell>Tienda</TableCell>
-                      <TableCell align="right">Precio</TableCell>
-                      <TableCell align="center">Link</TableCell>
+                    <TableRow sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
+                      <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Producto</TableCell>
+                      <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Tienda</TableCell>
+                      <TableCell align="right" sx={{ color: 'text.primary', fontWeight: 700 }}>Precio</TableCell>
+                      <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Link</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -349,31 +353,31 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                       const bestHit = result.quote?.hits?.[0]
                       return (
                         <TableRow key={idx}>
-                          <TableCell>{result.item.detalle}</TableCell>
+                          <TableCell sx={{ color: 'text.primary' }}>{result.item.detalle}</TableCell>
                           <TableCell>
                             {bestHit ? (
                               <Chip
                                 label={PROVIDERS.find(p => p.id === bestHit.provider)?.name || bestHit.provider}
                                 size="small"
                                 sx={{
-                                  bgcolor: PROVIDERS.find(p => p.id === bestHit.provider)?.color || 'grey',
+                                  bgcolor: 'primary.main',
                                   color: 'white',
                                 }}
                               />
                             ) : (
-                              '—'
+                              <Typography sx={{ color: 'text.secondary' }}>—</Typography>
                             )}
                           </TableCell>
-                          <TableCell align="right">
+                          <TableCell align="right" sx={{ color: 'text.primary' }}>
                             {bestHit?.price ? `$${bestHit.price.toLocaleString()}` : '—'}
                           </TableCell>
                           <TableCell align="center">
                             {bestHit?.url ? (
-                              <Link href={bestHit.url} target="_blank" rel="noopener">
+                              <Link href={bestHit.url} target="_blank" rel="noopener" sx={{ color: 'primary.main' }}>
                                 Ver
                               </Link>
                             ) : (
-                              '—'
+                              <Typography sx={{ color: 'text.secondary' }}>—</Typography>
                             )}
                           </TableCell>
                         </TableRow>
