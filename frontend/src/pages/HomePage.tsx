@@ -1,4 +1,4 @@
-import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper, useTheme } from '@mui/material'
+import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper } from '@mui/material'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import SaveIcon from '@mui/icons-material/Save'
@@ -66,7 +66,6 @@ const FEATURES = [
 export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestProvider }: Props) {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const theme = useTheme()
   const [plans, setPlans] = useState<any[]>([])
   const [currentUserPlan, setCurrentUserPlan] = useState<string | null>(null)
   const [currentPlanId, setCurrentPlanId] = useState<number | null>(null)
