@@ -1,6 +1,7 @@
 import { AppBar, Toolbar, Box, Button, Container, Avatar, Menu, MenuItem, Typography, IconButton } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import MailIcon from '@mui/icons-material/Mail'
 import HomeIcon from '@mui/icons-material/Home'
 import LightModeIcon from '@mui/icons-material/LightMode'
@@ -149,6 +150,23 @@ export function Navbar() {
                 >
                   <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>Dashboard</Box>
                 </Button>
+
+                {/* Admin Panel - solo si es admin */}
+                {user?.is_admin && (
+                  <Button
+                    component="button"
+                    onClick={() => navigate('/admin')}
+                    startIcon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />}
+                    sx={{
+                      ...navLinkStyle('/admin'),
+                      textTransform: 'none',
+                      fontSize: { xs: '0.85rem', sm: '1rem' },
+                      color: 'warning.main',
+                    }}
+                  >
+                    <Box sx={{ display: { xs: 'none', sm: 'inline' } }}>Admin</Box>
+                  </Button>
+                )}
 
                 {/* Menu de Usuario */}
                 <Avatar

@@ -1694,5 +1694,9 @@ async def send_contact_email(request: ContactRequest):
         raise HTTPException(500, f"Error enviando correo: {str(e)}")
 
 
+# Import admin router
+from app.routers.admin import router as admin_router
+
 # Registrar router con prefijo /api
 app.include_router(api_router)
+api_router.include_router(admin_router)

@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { AdminDashboard } from './pages/AdminDashboard'
 import { ContactPage } from './pages/Contact'
 import { DemoQuoteModal } from './components/DemoQuoteModal'
 import { WhatsAppButton } from './components/WhatsAppButton'
@@ -256,6 +257,7 @@ export default function App() {
             <Navbar />
             <Routes>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/admin" element={user?.is_admin ? <AdminDashboard /> : <Navigate to="/" />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/" element={<MainApp />} />
             </Routes>

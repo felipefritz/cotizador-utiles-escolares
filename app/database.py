@@ -127,7 +127,19 @@ class SavedQuote(Base):
     status = Column(String, default="draft")  # draft, pending, completed, archived
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+
+class PageVisit(Base):
+    """Track page visits for analytics"""
+    __tablename__ = "page_visits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    page = Column(String, index=True)  # ej: "/", "/dashboard", "/contact"
+    referer = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     # Relaciones
     user = relationship("User", back_populates="quotes")
 
