@@ -413,13 +413,13 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
   return (
     <Box sx={{ maxWidth: 960, mx: 'auto' }}>
-      <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography variant="h6" color="text.primary" sx={{ mb: 2 }}>
         {!quoted ? 'Artículos seleccionados' : `Resultados de cotización ${isMultiProvider && '(Multi-tienda)'}`}
       </Typography>
 
       {!quoted ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>
+          <Typography color="text.primary" sx={{ mb: 3 }}>
             {results.length} artículos listos para cotizar en {sources.length} {sources.length === 1 ? 'tienda' : 'tiendas'}.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
@@ -750,7 +750,8 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                       sx={{ 
                         p: 2, 
                         bgcolor: (t) => t.palette.mode === 'light' ? '#f5f5f5' : 'background.paper',
-                        borderLeft: `4px solid ${getProviderColor(providerKey)}`,
+                        borderLeft: '4px solid',
+                        borderColor: 'primary.main',
                         transition: 'box-shadow 0.2s',
                         '&:hover': { boxShadow: 2 }
                       }}
@@ -779,7 +780,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                                       label="Comprado"
                                       size="small"
                                       variant="filled"
-                                      sx={{ height: 20, bgcolor: getProviderColor(providerKey), color: 'white' }}
+                                      sx={{ height: 20, bgcolor: 'primary.main', color: 'white' }}
                                     />
                                   )}
                                 </Box>
@@ -802,7 +803,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                           <Typography 
                             variant="body2" 
                             fontWeight={700} 
-                            sx={{ fontSize: '1.1rem', color: getProviderColor(providerKey) }}
+                            sx={{ fontSize: '1.1rem', color: 'primary.main' }}
                           >
                             {formatCLP(subtotalByProvider)}
                           </Typography>
@@ -823,7 +824,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                             rel="noopener noreferrer"
                             sx={{
                               flex: 1,
-                              bgcolor: getProviderColor(providerKey),
+                              bgcolor: 'primary.main',
                               '&:hover': { opacity: 0.9 }
                             }}
                           >
@@ -914,17 +915,17 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                 <Typography fontWeight={600}>{formatCLP(subtotal)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography color="text.secondary">Ítems cotizados (con precio)</Typography>
+                <Typography color="text.primary">Ítems cotizados (con precio)</Typography>
                 <Typography fontWeight={500}>{itemsConPrecio}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography color="text.secondary">Ítems pendientes / no encontrados</Typography>
+                <Typography color="text.primary">Ítems pendientes / no encontrados</Typography>
                 <Typography fontWeight={500} color="warning.main">{itemsPendientes}</Typography>
               </Box>
             </Box>
             {pendientes.length > 0 && (
               <>
-                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }} color="text.secondary">
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }} color="text.primary">
                   Pendientes:
                 </Typography>
                 <Box

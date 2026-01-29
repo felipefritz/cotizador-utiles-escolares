@@ -469,7 +469,7 @@ export const SavedQuotesManager: React.FC = () => {
 
               {viewDialog.results && Object.keys(viewDialog.results).length > 0 && (
                 <>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', mt: 3 }}>📦 Resumen por Proveedor</Typography>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', mt: 3, color: 'text.primary' }}>📦 Resumen por Proveedor</Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                     {Object.entries(viewDialog.results).map(([provider, data]: any, idx) => {
                       const totalPrice = Number(data.total_price || 0)
@@ -481,14 +481,15 @@ export const SavedQuotesManager: React.FC = () => {
                           variant="outlined" 
                           sx={{ 
                             p: 2, 
-                            bgcolor: '#f5f5f5',
-                            borderLeft: '4px solid #1976d2',
+                            bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : '#f5f5f5',
+                            borderLeft: '4px solid',
+                            borderColor: 'primary.main',
                           }}
                         >
                           <Typography 
                             variant="subtitle1" 
                             fontWeight={700} 
-                            sx={{ mb: 1.5, color: '#1976d2' }}
+                            sx={{ mb: 1.5, color: 'primary.main' }}
                           >
                             {provider}
                           </Typography>
@@ -507,14 +508,14 @@ export const SavedQuotesManager: React.FC = () => {
                               return (
                                 <Box key={itemIdx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 1 }}>
                                   <Box sx={{ flex: 1 }}>
-                                    <Typography variant="body2" sx={{ fontSize: '0.875rem', mb: 0.5 }}>
+                                    <Typography variant="body2" sx={{ fontSize: '0.875rem', mb: 0.5, color: 'text.primary' }}>
                                       {itemName}
                                     </Typography>
-                                    <Typography variant="caption" color="text.secondary">
+                                    <Typography variant="caption" color="text.primary">
                                       × {quantity}
                                     </Typography>
                                   </Box>
-                                  <Typography variant="body2" fontWeight={600}>
+                                  <Typography variant="body2" fontWeight={600} sx={{ color: 'text.primary' }}>
                                     ${Number(subtotal).toLocaleString('es-CL')}
                                   </Typography>
                                 </Box>
@@ -524,13 +525,13 @@ export const SavedQuotesManager: React.FC = () => {
                           
                           <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                              <Typography variant="body2" fontWeight={700}>
+                              <Typography variant="body2" fontWeight={700} sx={{ color: 'text.primary' }}>
                                 Subtotal:
                               </Typography>
                               <Typography 
                                 variant="body2" 
                                 fontWeight={700} 
-                                sx={{ fontSize: '1.1rem', color: '#1976d2' }}
+                                sx={{ fontSize: '1.1rem', color: 'primary.main' }}
                               >
                                 ${Number(totalPrice).toLocaleString('es-CL')}
                               </Typography>
