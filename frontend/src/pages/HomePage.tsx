@@ -67,6 +67,28 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
       console.error('Error loading plans:', error)
     }
   }
+
+  const handlePlanSelect = (planName: string) => {
+    if (planName === 'free') {
+      // Plan gratuito
+      if (user) {
+        // Usuario logueado: comenzar a cotizar
+        onStartClick()
+      } else {
+        // Usuario no logueado: probar gratis (demo)
+        onTrialClick()
+      }
+    } else {
+      // Planes de pago (Basic, Pro)
+      if (user) {
+        // Usuario logueado: ir al dashboard para comprar el plan
+        navigate(`/dashboard?selectPlan=${planName}`)
+      } else {
+        // Usuario no logueado: ir a login, luego dashboard
+        navigate(`/login?redirect=dashboard&selectPlan=${planName}`)
+      }
+    }
+  }
   
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -384,6 +406,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick }: Props) {
                       fullWidth
                       variant={plan.name === 'pro' ? 'contained' : 'outlined'}
                       size="large"
+                      onClick={() => handlePlanSelect(plan.name)}
                       sx={{ 
                         py: 1.5, 
                         fontWeight: 600,
