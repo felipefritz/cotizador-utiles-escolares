@@ -1,4 +1,4 @@
-import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper, useTheme, useMediaQuery } from '@mui/material'
+import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper, useTheme } from '@mui/material'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import SaveIcon from '@mui/icons-material/Save'
@@ -67,7 +67,6 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
   const { user } = useAuth()
   const navigate = useNavigate()
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [plans, setPlans] = useState<any[]>([])
   const [currentUserPlan, setCurrentUserPlan] = useState<string | null>(null)
   const [currentPlanId, setCurrentPlanId] = useState<number | null>(null)
