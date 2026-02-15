@@ -88,12 +88,18 @@ export function QuoteStep({ results, onReset, sources }: Props) {
   // Limitar proveedores según el plan
   const allowedSources = useMemo(() => {
     if (!limits) return sources
+    if (limits.limits.max_providers === null || limits.limits.max_providers === undefined) {
+      return sources
+    }
     return sources.slice(0, limits.limits.max_providers)
   }, [sources, limits])
 
   // Limitar items según el plan
   const allowedResults = useMemo(() => {
     if (!limits) return results
+    if (limits.limits.max_items === null || limits.limits.max_items === undefined) {
+      return results
+    }
     return results.slice(0, limits.limits.max_items)
   }, [results, limits])
 

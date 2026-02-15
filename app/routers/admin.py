@@ -18,6 +18,7 @@ from app.database import (
     PageVisit,
 )
 from app.auth import get_current_user
+from app.settings import get_setting_bool, set_setting_bool
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -61,6 +62,10 @@ class PlanUpdateRequest(BaseModel):
     max_items: int
     max_providers: int
     monthly_limit: Optional[int] = None
+
+
+class PlansSettingsUpdate(BaseModel):
+    plans_enabled: bool
 
 
 @router.put("/plans/{plan_id}", response_model=dict)
@@ -161,6 +166,28 @@ async def delete_user(
     db.commit()
 
     return {"message": f"Usuario {user.email} eliminado"}
+
+
+# ============ SETTINGS ENDPOINTS ============
+
+
+@router.get("/settings/plans", response_model=dict)
+async def get_plans_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(verify_admin),
+):
+    """Get plan visibility settings."""
+    return {"plans_enabled": get_setting_bool(db, "plans_enabled", True)}
+
+
+@router.put("/settings/plans", response_model=dict)
+async def update_plans_settings(
+    settings: PlansSettingsUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(verify_admin),
+):
+    """Update plan visibility settings."""
+    return {"plans_enabled": set_setting_bool(db, "plans_enabled", settings.plans_enabled)}
 
 
 # ============ ANALYTICS ENDPOINTS ============

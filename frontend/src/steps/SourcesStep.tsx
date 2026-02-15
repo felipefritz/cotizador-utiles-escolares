@@ -51,7 +51,7 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
         
         // Auto-limitar proveedores si exceden el límite del plan
         const maxProviders = response.data.limits.max_providers
-        if (selected.length > maxProviders) {
+        if (maxProviders !== null && maxProviders !== undefined && selected.length > maxProviders) {
           const limited = selected.slice(0, maxProviders)
           onSelectionChange(limited)
         }
@@ -77,7 +77,7 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
       onSelectionChange(next)
     } else {
       // Solo agregar si no se alcanzó el límite
-      if (limits && selected.length >= limits.limits.max_providers) {
+      if (limits && limits.limits.max_providers !== null && selected.length >= limits.limits.max_providers) {
         return
       }
       const next = [...selected, id]
@@ -85,9 +85,10 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
     }
   }
 
-  const canSelectMore = !limits || selected.length < limits.limits.max_providers
-  const maxProviders = limits?.limits.max_providers || 7
-  const isLimitedUser = limits && limits.limits.max_providers < 7
+  const maxProvidersLimit = limits?.limits.max_providers
+  const canSelectMore = !limits || maxProvidersLimit === null || selected.length < maxProvidersLimit
+  const maxProviders = maxProvidersLimit === null || maxProvidersLimit === undefined ? SOURCES.length : maxProvidersLimit
+  const isLimitedUser = limits && maxProvidersLimit !== null && maxProvidersLimit < SOURCES.length
 
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto' }}>

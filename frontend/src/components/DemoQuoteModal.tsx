@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -31,7 +31,7 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import CloseIcon from '@mui/icons-material/Close'
 import LockOpenIcon from '@mui/icons-material/LockOpen'
-import { parseAiItemsOnly, quoteMultiProviders, type ParsedItem, type MultiProviderResponse } from '../api'
+import { api, parseAiItemsOnly, quoteMultiProviders, type ParsedItem, type MultiProviderResponse } from '../api'
 
 const DEMO_STEPS = ['Subir lista', 'Seleccionar items y tiendas', 'Resultados']
 
@@ -69,9 +69,26 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
   const [selectedProviders, setSelectedProviders] = useState<string[]>([])
   const [quotedItems, setQuotedItems] = useState<QuoteResult[]>([])
   const [quoting, setQuoting] = useState(false)
+  const [plansEnabled, setPlansEnabled] = useState(true)
 
-  const MAX_DEMO_ITEMS = 5
+  const maxDemoItems = plansEnabled ? 5 : Number.POSITIVE_INFINITY
+  const maxDemoProviders = plansEnabled ? 2 : PROVIDERS.length
   const selectedCount = items.filter(item => item.selected).length
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await api.get('/settings/public')
+        setPlansEnabled(!!res.data?.plans_enabled)
+      } catch (e) {
+        console.error('Error loading public settings:', e)
+        setPlansEnabled(true)
+      }
+    }
+    if (open) {
+      loadSettings()
+    }
+  }, [open])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -108,8 +125,8 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     const isCurrentlySelected = item.selected
     
     // Si está tratando de seleccionar y ya alcanzó el límite, no permitir
-    if (!isCurrentlySelected && selectedCount >= MAX_DEMO_ITEMS) {
-      setError(`En modo prueba solo puedes seleccionar ${MAX_DEMO_ITEMS} items. Regístrate para acceso completo.`)
+    if (plansEnabled && !isCurrentlySelected && selectedCount >= maxDemoItems) {
+      setError(`En modo prueba solo puedes seleccionar ${maxDemoItems} items. Regístrate para acceso completo.`)
       return
     }
     
@@ -124,7 +141,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
       setSelectedProviders(selectedProviders.filter(p => p !== providerId))
     } else {
       // Limitar a 2 proveedores en modo demo
-      if (selectedProviders.length >= 2) {
+      if (plansEnabled && selectedProviders.length >= maxDemoProviders) {
         setError('En modo prueba solo puedes seleccionar 2 proveedores. Regístrate para acceso completo.')
         return
       }
@@ -189,8 +206,8 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <LockOpenIcon color="primary" />
-            <Typography variant="h6">Modo Prueba</Typography>
-            <Chip label="Gratis" size="small" color="success" />
+            <Typography variant="h6">{plansEnabled ? 'Modo Prueba' : 'Cotización Completa'}</Typography>
+            <Chip label={plansEnabled ? 'Gratis' : 'Acceso total'} size="small" color="success" />
           </Box>
           <IconButton onClick={handleClose} size="small">
             <CloseIcon />
@@ -201,8 +218,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
       <DialogContent>
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
-            En modo prueba puedes <strong>seleccionar hasta 5 items</strong> de tu lista y cotizarlos en <strong>2 tiendas</strong>.
-            Regístrate gratis para cotizar todos tus items en las 7 tiendas disponibles.
+            {plansEnabled
+              ? 'En modo prueba puedes seleccionar hasta 5 items de tu lista y cotizarlos en 2 tiendas. Regístrate gratis para acceso completo.'
+              : 'Acceso completo habilitado: puedes cotizar todos tus items en todas las tiendas disponibles.'}
           </Typography>
         </Alert>
 
@@ -259,9 +277,11 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
               <Typography variant="body2">
                 <strong>Total de items detectados: {items.length}</strong>
               </Typography>
-              <Typography variant="caption">
-                Selecciona hasta <strong>{MAX_DEMO_ITEMS} items</strong> para cotizar (seleccionados: {selectedCount}/{MAX_DEMO_ITEMS})
-              </Typography>
+              {plansEnabled && (
+                <Typography variant="caption">
+                  Selecciona hasta <strong>{maxDemoItems} items</strong> para cotizar (seleccionados: {selectedCount}/{maxDemoItems})
+                </Typography>
+              )}
             </Alert>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
@@ -270,7 +290,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             <Paper variant="outlined" sx={{ mb: 3, maxHeight: 300, overflow: 'auto' }}>
               <List dense>
                 {items.map((item, idx) => {
-                  const isDisabled = !item.selected && selectedCount >= MAX_DEMO_ITEMS
+                  const isDisabled = plansEnabled && !item.selected && selectedCount >= maxDemoItems
                   return (
                     <ListItem
                       key={idx}
@@ -308,20 +328,20 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             </Paper>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-              Selecciona hasta 2 tiendas (máximo en modo prueba):
+              {plansEnabled ? 'Selecciona hasta 2 tiendas (máximo en modo prueba):' : 'Selecciona las tiendas para cotizar:'}
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                Seleccionadas: <strong>{selectedProviders.length}/2</strong>
+                Seleccionadas: <strong>{selectedProviders.length}/{maxDemoProviders}</strong>
               </Typography>
-              {selectedProviders.length === 2 && (
+              {plansEnabled && selectedProviders.length === maxDemoProviders && (
                 <Chip label="Límite alcanzado" size="small" color="warning" variant="outlined" />
               )}
             </Box>
             <FormGroup>
               {PROVIDERS.map((provider) => {
                 const isSelected = selectedProviders.includes(provider.id)
-                const isDisabled = !isSelected && selectedProviders.length >= 2
+                const isDisabled = plansEnabled && !isSelected && selectedProviders.length >= maxDemoProviders
                 return (
                   <FormControlLabel
                     key={provider.id}
@@ -346,7 +366,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                         <Typography sx={{ opacity: isDisabled ? 0.5 : 1 }}>
                           {provider.name}
                         </Typography>
-                        {isDisabled && (
+                        {plansEnabled && isDisabled && (
                           <Chip label="Límite alcanzado" size="small" variant="outlined" sx={{ ml: 1 }} />
                         )}
                       </Box>
@@ -420,24 +440,26 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
 
             <Alert severity="warning" sx={{ mt: 3, mb: 2 }}>
               <Typography variant="body2">
-                <strong>Resumen de la cotización de prueba:</strong>
+                <strong>{plansEnabled ? 'Resumen de la cotización de prueba:' : 'Resumen de la cotización:'}</strong>
               </Typography>
               <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
                 ✓ Items cotizados: {quotedItems.length}
               </Typography>
               <Typography variant="caption" sx={{ display: 'block' }}>
-                ✓ Tiendas consultadas: {selectedProviders.length} / 2
+                ✓ Tiendas consultadas: {selectedProviders.length} / {maxDemoProviders}
               </Typography>
               <Typography variant="caption" sx={{ display: 'block' }}>
                 ✓ Items totales en tu lista: {items.length}
               </Typography>
             </Alert>
 
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Typography variant="body2">
-                ¿Te gustó? <strong>Regístrate gratis</strong> para cotizar sin límites, comparar en 7 tiendas y guardar tus cotizaciones.
-              </Typography>
-            </Alert>
+            {plansEnabled && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  ¿Te gustó? <strong>Regístrate gratis</strong> para cotizar sin límites, comparar en 7 tiendas y guardar tus cotizaciones.
+                </Typography>
+              </Alert>
+            )}
           </Box>
         )}
       </DialogContent>
@@ -459,9 +481,15 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
         {step === 2 && (
           <>
             <Button onClick={handleReset}>Cotizar Otra Lista</Button>
-            <Button variant="contained" color="success" onClick={onUpgradeClick}>
-              Registrarse Gratis
-            </Button>
+            {plansEnabled ? (
+              <Button variant="contained" color="success" onClick={onUpgradeClick}>
+                Registrarse Gratis
+              </Button>
+            ) : (
+              <Button variant="contained" onClick={handleClose}>
+                Cerrar
+              </Button>
+            )}
           </>
         )}
         {step === 0 && (

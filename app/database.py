@@ -171,6 +171,15 @@ class PageVisit(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class AppSetting(Base):
+    """App-level settings stored in the database."""
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True, index=True)
+    value = Column(JSON, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -219,6 +228,12 @@ def init_db():
                 ),
             ]
             db.add_all(plans)
+            db.commit()
+
+        # Crear setting por defecto si no existe
+        setting = db.query(AppSetting).filter(AppSetting.key == "plans_enabled").first()
+        if not setting:
+            db.add(AppSetting(key="plans_enabled", value=True))
             db.commit()
     except Exception as e:
         print(f"Error creating default plans: {e}")

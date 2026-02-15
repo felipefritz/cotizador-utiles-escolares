@@ -71,11 +71,30 @@ export const UserDashboard: React.FC = () => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [plansEnabled, setPlansEnabled] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  // Cargar settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await api.get('/settings/public');
+        setPlansEnabled(!!res.data?.plans_enabled);
+      } catch (error) {
+        console.error('Error loading public settings:', error);
+        setPlansEnabled(true);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    };
+    loadSettings();
+  }, []);
 
   // Cargar datos al montar el componente
   useEffect(() => {
+    if (!settingsLoaded) return;
     loadData();
-  }, []);
+  }, [settingsLoaded, plansEnabled]);
 
   // Detectar si volvemos de Mercado Pago
   useEffect(() => {
@@ -115,13 +134,18 @@ export const UserDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Cargar suscripción
-      const subRes = await api.get('/user/subscription');
-      setSubscription(subRes.data);
+      if (plansEnabled) {
+        // Cargar suscripción
+        const subRes = await api.get('/user/subscription');
+        setSubscription(subRes.data);
 
-      // Cargar planes
-      const plansRes = await api.get('/plans');
-      setPlans(plansRes.data);
+        // Cargar planes
+        const plansRes = await api.get('/plans');
+        setPlans(plansRes.data);
+      } else {
+        setSubscription(null);
+        setPlans([]);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -165,11 +189,198 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!plansEnabled && tabValue > 0) {
+      setTabValue(0);
+    }
+  }, [plansEnabled, tabValue]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <CircularProgress />
       </Box>
+    );
+  }
+
+  const tabItems = [
+    {
+      key: 'saved',
+      label: 'Cotizaciones Guardadas',
+      content: <SavedQuotesManager />,
+    },
+  ];
+
+  if (plansEnabled) {
+    tabItems.push(
+      {
+        key: 'plans',
+        label: 'Planes',
+        content: (
+          <>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+                <CircularProgress size={50} />
+              </Box>
+            ) : (
+              <Grid container spacing={4}>
+                {plans.map((plan) => (
+                  <Grid item xs={12} sm={6} md={4} key={plan.id}>
+                    <Card 
+                      sx={{ 
+                        height: '100%', 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        borderRadius: 3,
+                        boxShadow: plan.name === 'pro' ? 4 : 2,
+                        border: plan.name === 'pro' ? 2 : 0,
+                        borderColor: plan.name === 'pro' ? 'primary.main' : 'transparent',
+                        position: 'relative',
+                        transition: 'all 0.3s',
+                        '&:hover': {
+                          boxShadow: 6,
+                          transform: 'translateY(-4px)'
+                        }
+                      }}
+                    >
+                      {plan.name === 'pro' && (
+                        <Chip 
+                          label="RECOMENDADO" 
+                          color="primary" 
+                          size="small"
+                          sx={{ 
+                            position: 'absolute', 
+                            top: 16, 
+                            right: 16,
+                            fontWeight: 600
+                          }}
+                        />
+                      )}
+                      <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                        <Typography variant="h5" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase' }}>
+                          {plan.name?.toUpperCase() || 'PLAN'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
+                          <Typography variant="h3" color="primary" fontWeight={700}>
+                            ${(plan.price / 1000).toFixed(0)}K
+                          </Typography>
+                          <Typography variant="body1" color="text.secondary" sx={{ ml: 1 }}>
+                            /{plan.billing_cycle === 'monthly' ? 'mes' : plan.billing_cycle}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ mt: 3 }}>
+                          {[
+                            { 
+                              label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
+                              available: true
+                            },
+                            { 
+                              label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
+                              available: true
+                            },
+                            { 
+                              label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
+                              available: true
+                            }
+                          ].map((feature, idx) => (
+                            <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+                              <Box 
+                                sx={{ 
+                                  width: 20, 
+                                  height: 20, 
+                                  borderRadius: '50%', 
+                                  bgcolor: 'success.main',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  mr: 1.5
+                                }}
+                              >
+                                <Typography variant="caption" sx={{ color: 'white' }}>✓</Typography>
+                              </Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {feature.label}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </CardContent>
+                      <CardActions sx={{ p: 3, pt: 0 }}>
+                        {subscription?.plan_name?.toLowerCase() === plan.name.toLowerCase() ? (
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            size="large"
+                            disabled
+                            sx={{ py: 1.5, fontWeight: 600 }}
+                          >
+                            Plan Actual
+                          </Button>
+                        ) : (
+                          <Button
+                            fullWidth
+                            variant={plan.name === 'pro' ? 'contained' : 'outlined'}
+                            size="large"
+                            onClick={() => handleCheckout(plan.id)}
+                            sx={{ 
+                              py: 1.5, 
+                              fontWeight: 600,
+                              boxShadow: plan.name === 'pro' ? 2 : 0
+                            }}
+                          >
+                            Contratar Ahora
+                          </Button>
+                        )}
+                      </CardActions>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </>
+        ),
+      },
+      {
+        key: 'subscription',
+        label: 'Suscripción',
+        content: (
+          <>
+            {subscription ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Plan Actual: <Chip label={subscription.plan_name?.toUpperCase() || 'FREE'} color="primary" />
+                  </Typography>
+                  <Typography variant="body1" sx={{ mt: 2 }}>
+                    Estado: {subscription.status}
+                  </Typography>
+                  {subscription.expires_at && (
+                    <Typography variant="body1">
+                      Expira: {new Date(subscription.expires_at).toLocaleDateString()}
+                    </Typography>
+                  )}
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="subtitle2">Límites:</Typography>
+                    <Typography variant="body2">
+                      • Máx {subscription.max_items || '∞'} items por cotización
+                    </Typography>
+                    <Typography variant="body2">
+                      • {subscription.max_providers} proveedores
+                    </Typography>
+                    <Typography variant="body2">
+                      • {subscription.monthly_limit ? `${subscription.monthly_limit} cotizaciones/mes` : 'Ilimitadas cotizaciones'}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert severity="info">
+                No tienes suscripción activa. ¡Elige un plan para desbloquear funcionalidades!
+              </Alert>
+            )}
+          </>
+        ),
+      }
     );
   }
 
@@ -212,175 +423,16 @@ export const UserDashboard: React.FC = () => {
             px: 2
           }}
         >
-          <Tab label="Cotizaciones Guardadas" sx={{ fontWeight: 600 }} />
-          <Tab label="Planes" sx={{ fontWeight: 600 }} />
-          <Tab label="Suscripción" sx={{ fontWeight: 600 }} />
+          {tabItems.map((tab) => (
+            <Tab key={tab.key} label={tab.label} sx={{ fontWeight: 600 }} />
+          ))}
         </Tabs>
 
-        {/* TAB 1: Cotizaciones Guardadas */}
-        <TabPanel value={tabValue} index={0}>
-          <SavedQuotesManager />
-        </TabPanel>
-
-        {/* TAB 2: Planes */}
-        <TabPanel value={tabValue} index={1}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-              <CircularProgress size={50} />
-            </Box>
-          ) : (
-            <Grid container spacing={4}>
-              {plans.map((plan) => (
-                <Grid item xs={12} sm={6} md={4} key={plan.id}>
-                  <Card 
-                    sx={{ 
-                      height: '100%', 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      borderRadius: 3,
-                      boxShadow: plan.name === 'pro' ? 4 : 2,
-                      border: plan.name === 'pro' ? 2 : 0,
-                      borderColor: plan.name === 'pro' ? 'primary.main' : 'transparent',
-                      position: 'relative',
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        boxShadow: 6,
-                        transform: 'translateY(-4px)'
-                      }
-                    }}
-                  >
-                    {plan.name === 'pro' && (
-                      <Chip 
-                        label="RECOMENDADO" 
-                        color="primary" 
-                        size="small"
-                        sx={{ 
-                          position: 'absolute', 
-                          top: 16, 
-                          right: 16,
-                          fontWeight: 600
-                        }}
-                      />
-                    )}
-                    <CardContent sx={{ flexGrow: 1, p: 3 }}>
-                      <Typography variant="h5" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase' }}>
-                        {plan.name?.toUpperCase() || 'PLAN'}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
-                        <Typography variant="h3" color="primary" fontWeight={700}>
-                          ${(plan.price / 1000).toFixed(0)}K
-                        </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ ml: 1 }}>
-                          /{plan.billing_cycle === 'monthly' ? 'mes' : plan.billing_cycle}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ mt: 3 }}>
-                        {[
-                          { 
-                            label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
-                            available: true
-                          },
-                          { 
-                            label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
-                            available: true
-                          },
-                          { 
-                            label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
-                            available: true
-                          }
-                        ].map((feature, idx) => (
-                          <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-                            <Box 
-                              sx={{ 
-                                width: 20, 
-                                height: 20, 
-                                borderRadius: '50%', 
-                                bgcolor: 'success.main',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                mr: 1.5
-                              }}
-                            >
-                              <Typography variant="caption" sx={{ color: 'white' }}>✓</Typography>
-                            </Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {feature.label}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    </CardContent>
-                    <CardActions sx={{ p: 3, pt: 0 }}>
-                      {subscription?.plan_name?.toLowerCase() === plan.name.toLowerCase() ? (
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          size="large"
-                          disabled
-                          sx={{ py: 1.5, fontWeight: 600 }}
-                        >
-                          Plan Actual
-                        </Button>
-                      ) : (
-                        <Button
-                          fullWidth
-                          variant={plan.name === 'pro' ? 'contained' : 'outlined'}
-                          size="large"
-                          onClick={() => handleCheckout(plan.id)}
-                          sx={{ 
-                            py: 1.5, 
-                            fontWeight: 600,
-                            boxShadow: plan.name === 'pro' ? 2 : 0
-                          }}
-                        >
-                          Contratar Ahora
-                        </Button>
-                      )}
-                    </CardActions>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </TabPanel>
-
-        {/* TAB 3: Suscripción */}
-        <TabPanel value={tabValue} index={2}>
-          {subscription ? (
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Plan Actual: <Chip label={subscription.plan_name?.toUpperCase() || 'FREE'} color="primary" />
-                </Typography>
-                <Typography variant="body1" sx={{ mt: 2 }}>
-                  Estado: {subscription.status}
-                </Typography>
-                {subscription.expires_at && (
-                  <Typography variant="body1">
-                    Expira: {new Date(subscription.expires_at).toLocaleDateString()}
-                  </Typography>
-                )}
-                <Box sx={{ mt: 3 }}>
-                  <Typography variant="subtitle2">Límites:</Typography>
-                  <Typography variant="body2">
-                    • Máx {subscription.max_items || '∞'} items por cotización
-                  </Typography>
-                  <Typography variant="body2">
-                    • {subscription.max_providers} proveedores
-                  </Typography>
-                  <Typography variant="body2">
-                    • {subscription.monthly_limit ? `${subscription.monthly_limit} cotizaciones/mes` : 'Ilimitadas cotizaciones'}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          ) : (
-            <Alert severity="info">
-              No tienes suscripción activa. ¡Elige un plan para desbloquear funcionalidades!
-            </Alert>
-          )}
-        </TabPanel>
+        {tabItems.map((tab, index) => (
+          <TabPanel key={tab.key} value={tabValue} index={index}>
+            {tab.content}
+          </TabPanel>
+        ))}
       </Paper>
     </Container>
   );

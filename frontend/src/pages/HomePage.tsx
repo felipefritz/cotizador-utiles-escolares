@@ -69,16 +69,41 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
   const [plans, setPlans] = useState<any[]>([])
   const [currentUserPlan, setCurrentUserPlan] = useState<string | null>(null)
   const [currentPlanId, setCurrentPlanId] = useState<number | null>(null)
+  const [plansEnabled, setPlansEnabled] = useState(true)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await api.get('/settings/public')
+        setPlansEnabled(!!res.data?.plans_enabled)
+      } catch (error) {
+        console.error('Error loading public settings:', error)
+        setPlansEnabled(true)
+      } finally {
+        setSettingsLoaded(true)
+      }
+    }
+    loadSettings()
+  }, [])
   
   useEffect(() => {
-    loadPlans()
-    if (user) {
-      loadUserCurrentPlan()
+    if (!settingsLoaded) return
+
+    if (plansEnabled) {
+      loadPlans()
+      if (user) {
+        loadUserCurrentPlan()
+      } else {
+        setCurrentUserPlan(null)
+        setCurrentPlanId(null)
+      }
     } else {
+      setPlans([])
       setCurrentUserPlan(null)
       setCurrentPlanId(null)
     }
-  }, [user])
+  }, [user, plansEnabled, settingsLoaded])
   
   const loadUserCurrentPlan = async () => {
     try {
@@ -99,6 +124,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
   }
   
   const loadPlans = async () => {
+    if (!plansEnabled) return
     try {
       const res = await api.get('/plans')
       console.log('[HomePage] Planes disponibles:', res.data)
@@ -109,6 +135,10 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
   }
 
   const handlePlanSelect = (planName: string) => {
+    if (!plansEnabled) {
+      onStartClick()
+      return
+    }
     if (planName === 'free') {
       if (user) {
         onStartClick()
@@ -139,6 +169,16 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
     console.log(`[HomePage] Comparando ${planNameLower} con ${currentUserPlan}: ${isMatch}`)
     return isMatch
   }
+
+  const handlePrimaryCtaClick = () => {
+    if (plansEnabled) {
+      onTrialClick()
+    } else {
+      onStartClick()
+    }
+  }
+
+  const primaryCtaLabel = plansEnabled ? 'Probar Gratis' : 'Cotizar Ahora'
   
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -236,7 +276,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                     <Button
                       variant="contained"
                       size="large"
-                      onClick={onTrialClick}
+                      onClick={handlePrimaryCtaClick}
                       sx={{
                         bgcolor: 'white',
                         color: 'primary.main',
@@ -249,7 +289,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                         },
                       }}
                     >
-                      Probar Gratis
+                      {primaryCtaLabel}
                     </Button>
                     <Button
                       variant="outlined"
@@ -406,10 +446,10 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
             <Button
               variant="contained"
               size="large"
-              onClick={onTrialClick}
+              onClick={handlePrimaryCtaClick}
               sx={{ px: { xs: 2, sm: 4 }, py: 1.5, fontWeight: 600 }}
             >
-              Probar Gratis
+              {primaryCtaLabel}
             </Button>
             {user && (
               <Button
@@ -426,162 +466,163 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         </Container>
       </Box>
 
-      {/* Plans Section - Mejorado */}
-      <Box sx={{ py: { xs: 6, md: 10 }, bgcolor: 'background.default' }}>
-        <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <Typography 
-              variant="h4" 
-              fontWeight={700} 
-              gutterBottom
-              sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-            >
-              Planes que se adaptan a ti
-            </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' } }}
-            >
-              Elige el plan que mejor se adapte a tus necesidades
-            </Typography>
-          </Box>
+      {plansEnabled && (
+        <Box sx={{ py: { xs: 6, md: 10 }, bgcolor: 'background.default' }}>
+          <Container maxWidth="lg">
+            <Box sx={{ textAlign: 'center', mb: 6 }}>
+              <Typography 
+                variant="h4" 
+                fontWeight={700} 
+                gutterBottom
+                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+              >
+                Planes que se adaptan a ti
+              </Typography>
+              <Typography 
+                variant="body1" 
+                color="text.secondary"
+                sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' } }}
+              >
+                Elige el plan que mejor se adapte a tus necesidades
+              </Typography>
+            </Box>
 
-          <Grid container spacing={3} justifyContent="center">
-            {plans.map((plan) => (
-              <Grid item xs={12} sm={6} md={4} key={plan.id}>
-                <Card 
-                  sx={{ 
-                    height: '100%', 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    borderRadius: 3,
-                    boxShadow: plan.name === 'pro' ? 4 : 1,
-                    border: plan.name === 'pro' ? 3 : 1,
-                    borderColor: plan.name === 'pro' ? 'primary.main' : 'divider',
-                    position: 'relative',
-                    transition: 'all 0.3s',
-                    '&:hover': {
-                      boxShadow: 6,
-                      transform: 'translateY(-4px)'
-                    }
-                  }}
-                >
-                  {plan.name === 'pro' && (
-                    <Box 
-                      sx={{ 
-                        position: 'absolute', 
-                        top: -15, 
-                        left: '50%', 
-                        transform: 'translateX(-50%)',
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                        px: 2.5,
-                        py: 0.75,
-                        borderRadius: 2,
-                        fontSize: '0.85rem',
-                        fontWeight: 700,
-                        zIndex: 1
-                      }}
-                    >
-                      ⭐ MÁS POPULAR
-                    </Box>
-                  )}
-                  <CardContent sx={{ flexGrow: 1, pt: plan.name === 'pro' ? 5 : 3 }}>
-                    <Typography variant="h6" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                      {plan.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 3 }}>
-                      <Typography variant="h3" color="primary" fontWeight={700} sx={{ fontSize: { xs: '2rem', sm: '2.5rem' } }}>
-                        {plan.price === 0 ? 'Gratis' : `$${(plan.price / 1000).toFixed(0)}K`}
+            <Grid container spacing={3} justifyContent="center">
+              {plans.map((plan) => (
+                <Grid item xs={12} sm={6} md={4} key={plan.id}>
+                  <Card 
+                    sx={{ 
+                      height: '100%', 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      borderRadius: 3,
+                      boxShadow: plan.name === 'pro' ? 4 : 1,
+                      border: plan.name === 'pro' ? 3 : 1,
+                      borderColor: plan.name === 'pro' ? 'primary.main' : 'divider',
+                      position: 'relative',
+                      transition: 'all 0.3s',
+                      '&:hover': {
+                        boxShadow: 6,
+                        transform: 'translateY(-4px)'
+                      }
+                    }}
+                  >
+                    {plan.name === 'pro' && (
+                      <Box 
+                        sx={{ 
+                          position: 'absolute', 
+                          top: -15, 
+                          left: '50%', 
+                          transform: 'translateX(-50%)',
+                          bgcolor: 'primary.main',
+                          color: 'white',
+                          px: 2.5,
+                          py: 0.75,
+                          borderRadius: 2,
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          zIndex: 1
+                        }}
+                      >
+                        ⭐ MÁS POPULAR
+                      </Box>
+                    )}
+                    <CardContent sx={{ flexGrow: 1, pt: plan.name === 'pro' ? 5 : 3 }}>
+                      <Typography variant="h6" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                        {plan.name}
                       </Typography>
-                      {plan.price > 0 && (
-                        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                          {plan.billing_cycle === 'monthly' ? '/mes' : ''}
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 3 }}>
+                        <Typography variant="h3" color="primary" fontWeight={700} sx={{ fontSize: { xs: '2rem', sm: '2.5rem' } }}>
+                          {plan.price === 0 ? 'Gratis' : `$${(plan.price / 1000).toFixed(0)}K`}
                         </Typography>
-                      )}
-                    </Box>
-                    
-                    <Box sx={{ mt: 3, mb: 3 }}>
-                      {[
-                        {
-                          label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
-                        },
-                        {
-                          label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
-                        },
-                        {
-                          label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
-                        },
-                      ].map((feature, idx) => (
-                        <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-                          <Box 
-                            sx={{ 
-                              width: 24, 
-                              height: 24, 
-                              borderRadius: '50%', 
-                              bgcolor: 'success.main',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              mr: 1.5,
-                              color: 'white',
-                              fontSize: '0.75rem',
-                              fontWeight: 'bold',
-                              flexShrink: 0
-                            }}
-                          >
-                            ✓
-                          </Box>
-                          <Typography variant="body2" fontWeight={500}>
-                            {feature.label}
+                        {plan.price > 0 && (
+                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                            {plan.billing_cycle === 'monthly' ? '/mes' : ''}
                           </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </CardContent>
-                  <Box sx={{ p: 2, pt: 0 }}>
-                    {(() => {
-                      const isPlanCurrent = isCurrentPlan(plan)
-                      console.log(`[HomePage RENDER] Plan: ${plan.name}, isCurrentPlan: ${isPlanCurrent}, user: ${!!user}`)
-                      return (
-                        <>
-                          {isPlanCurrent && (
-                            <Box sx={{ mb: 1, textAlign: 'center' }}>
-                              <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
-                                ✓ Tu plan actual
-                              </Typography>
+                        )}
+                      </Box>
+                      
+                      <Box sx={{ mt: 3, mb: 3 }}>
+                        {[
+                          {
+                            label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
+                          },
+                          {
+                            label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
+                          },
+                          {
+                            label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
+                          },
+                        ].map((feature, idx) => (
+                          <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+                            <Box 
+                              sx={{ 
+                                width: 24, 
+                                height: 24, 
+                                borderRadius: '50%', 
+                                bgcolor: 'success.main',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mr: 1.5,
+                                color: 'white',
+                                fontSize: '0.75rem',
+                                fontWeight: 'bold',
+                                flexShrink: 0
+                              }}
+                            >
+                              ✓
                             </Box>
-                          )}
-                          <Button
-                            fullWidth
-                            variant={plan.name === 'pro' ? 'contained' : 'outlined'}
-                            size="large"
-                            onClick={() => handlePlanSelect(plan.name)}
-                            disabled={isPlanCurrent}
-                            sx={{ 
-                              py: 1.5, 
-                              fontWeight: 600,
-                              textTransform: 'none',
-                              fontSize: { xs: '0.9rem', sm: '1rem' }
-                            }}
-                          >
-                            {isPlanCurrent
-                              ? 'Plan Actual' 
-                              : plan.name === 'free' 
-                              ? 'Comenzar Gratis' 
-                              : 'Contratar'}
-                          </Button>
-                        </>
-                      )
-                    })()}
-                  </Box>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {feature.label}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                    <Box sx={{ p: 2, pt: 0 }}>
+                      {(() => {
+                        const isPlanCurrent = isCurrentPlan(plan)
+                        console.log(`[HomePage RENDER] Plan: ${plan.name}, isCurrentPlan: ${isPlanCurrent}, user: ${!!user}`)
+                        return (
+                          <>
+                            {isPlanCurrent && (
+                              <Box sx={{ mb: 1, textAlign: 'center' }}>
+                                <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
+                                  ✓ Tu plan actual
+                                </Typography>
+                              </Box>
+                            )}
+                            <Button
+                              fullWidth
+                              variant={plan.name === 'pro' ? 'contained' : 'outlined'}
+                              size="large"
+                              onClick={() => handlePlanSelect(plan.name)}
+                              disabled={isPlanCurrent}
+                              sx={{ 
+                                py: 1.5, 
+                                fontWeight: 600,
+                                textTransform: 'none',
+                                fontSize: { xs: '0.9rem', sm: '1rem' }
+                              }}
+                            >
+                              {isPlanCurrent
+                                ? 'Plan Actual' 
+                                : plan.name === 'free' 
+                                ? 'Comenzar Gratis' 
+                                : 'Contratar'}
+                            </Button>
+                          </>
+                        )
+                      })()}
+                    </Box>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Container>
+        </Box>
+      )}
 
       {/* Steps Section - Mejorado */}
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
@@ -688,7 +729,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
             <Button
               variant="contained"
               size="large"
-              onClick={onTrialClick}
+              onClick={handlePrimaryCtaClick}
               sx={{
                 bgcolor: 'white',
                 color: 'primary.main',
@@ -700,7 +741,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                 },
               }}
             >
-              Probar Gratis
+              {primaryCtaLabel}
             </Button>
             <Button
               variant="outlined"

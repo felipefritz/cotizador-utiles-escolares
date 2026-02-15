@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.database import Payment, Subscription, Plan, PaymentStatus, SubscriptionStatus
+from app.settings import get_setting_bool
 
 # Mercado Pago SDK
 try:
@@ -326,6 +327,9 @@ def has_active_subscription(user_id: int, db: Session) -> bool:
 def get_user_limits(user_id: int, db: Session) -> dict:
     """Obtiene los límites del usuario según su plan"""
     try:
+        if not get_setting_bool(db, "plans_enabled", True):
+            return {"max_items": None, "max_providers": None, "monthly_limit": None}
+
         subscription = db.query(Subscription).filter(
             Subscription.user_id == user_id
         ).first()
@@ -367,10 +371,13 @@ def validate_quote_limits(user_id: int, items_count: int, providers_count: int, 
     from datetime import datetime, timedelta
     from app.database import SavedQuote
     
+    if not get_setting_bool(db, "plans_enabled", True):
+        return {"valid": True}
+
     limits = get_user_limits(user_id, db)
     
     # Validar cantidad de items
-    if items_count > limits["max_items"]:
+    if limits["max_items"] is not None and items_count > limits["max_items"]:
         return {
             "valid": False,
             "reason": f"Máximo {limits['max_items']} items permitidos en tu plan",
@@ -379,7 +386,7 @@ def validate_quote_limits(user_id: int, items_count: int, providers_count: int, 
         }
     
     # Validar cantidad de proveedores
-    if providers_count > limits["max_providers"]:
+    if limits["max_providers"] is not None and providers_count > limits["max_providers"]:
         return {
             "valid": False,
             "reason": f"Máximo {limits['max_providers']} proveedores permitidos en tu plan",

@@ -28,6 +28,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Switch,
+  FormControlLabel,
   Drawer,
   IconButton,
   useTheme,
@@ -108,6 +110,9 @@ export const AdminDashboard: React.FC = () => {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  const [plansEnabled, setPlansEnabled] = useState(true)
+  const [plansSettingsLoading, setPlansSettingsLoading] = useState(false)
   
   // Plans state
   const [plans, setPlans] = useState<Plan[]>([])
@@ -141,6 +146,10 @@ export const AdminDashboard: React.FC = () => {
     try {
       if (tabValue === 0) {
         // Load plans
+        setPlansSettingsLoading(true)
+        const settingsRes = await api.get('/admin/settings/plans')
+        setPlansEnabled(!!settingsRes.data?.plans_enabled)
+        setPlansSettingsLoading(false)
         const res = await api.get('/admin/plans')
         setPlans(res.data)
       } else if (tabValue === 1) {
@@ -159,7 +168,22 @@ export const AdminDashboard: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error al cargar datos')
     } finally {
+      setPlansSettingsLoading(false)
       setLoading(false)
+    }
+  }
+
+  const handleTogglePlans = async (enabled: boolean) => {
+    setPlansSettingsLoading(true)
+    setError('')
+    try {
+      const res = await api.put('/admin/settings/plans', { plans_enabled: enabled })
+      setPlansEnabled(!!res.data?.plans_enabled)
+      setMessage(enabled ? 'Planes activados' : 'Planes desactivados')
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error al actualizar configuración')
+    } finally {
+      setPlansSettingsLoading(false)
     }
   }
 
@@ -270,6 +294,28 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Tab 0: Plans Management */}
       <TabPanel value={tabValue} index={0}>
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Planes visibles
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Activa o desactiva todas las secciones de planes y limites.
+              </Typography>
+            </Box>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={plansEnabled}
+                  onChange={(e) => handleTogglePlans(e.target.checked)}
+                  disabled={plansSettingsLoading}
+                />
+              }
+              label={plansEnabled ? 'Activado' : 'Desactivado'}
+            />
+          </Box>
+        </Paper>
         <Grid container spacing={2}>
           {plans.map((plan) => (
             <Grid item xs={12} sm={6} lg={4} key={plan.id}>
