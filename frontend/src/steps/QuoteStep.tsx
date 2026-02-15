@@ -30,7 +30,6 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
-import ShoppingBasketIcon from '@mui/icons-material/ShoppingBasket'
 import SaveIcon from '@mui/icons-material/Save'
 import type { ItemQuote, SourceId } from '../types'
 import { formatCLP } from '../utils/format'
@@ -418,20 +417,6 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
   const isItemSelected = (itemIndex: number, hitIndex: number) => {
     return selectedItems.has(`${itemIndex}:${hitIndex}`)
-  }
-
-  const getSelectedItemsForProvider = (providerKey: string) => {
-    const selected: Array<{ itemIndex: number; itemData: ItemQuote; hitIndex: number; hit: any }> = []
-    displayResults.forEach((item, itemIdx) => {
-      const q = item.multi || item.dimeiggs
-      const hits = (q as any)?.hits || []
-      hits.forEach((hit: any, hitIdx: number) => {
-        if (hit.provider === providerKey && isItemSelected(itemIdx, hitIdx)) {
-          selected.push({ itemIndex: itemIdx, itemData: item, hitIndex: hitIdx, hit })
-        }
-      })
-    })
-    return selected
   }
 
   return (
