@@ -34,7 +34,7 @@ import ShoppingBasketIcon from '@mui/icons-material/ShoppingBasket'
 import SaveIcon from '@mui/icons-material/Save'
 import type { ItemQuote, SourceId } from '../types'
 import { formatCLP } from '../utils/format'
-import { quoteMultiProviders, api } from '../api'
+import { quoteMultiProviders, quoteMultiProvidersBatch, api } from '../api'
 import { QuoteProgressModal } from '../components/QuoteProgressModal'
 
 type Props = {
@@ -53,6 +53,7 @@ interface UserLimits {
 }
 
 const FOUND_STATUSES = ['ok', 'ok_with_price']
+const MATCH_THRESHOLD = 0.4
 
 function isFound(q: { status?: string } | undefined): boolean {
   return !!q && FOUND_STATUSES.includes(q.status || '')
@@ -67,10 +68,13 @@ export function QuoteStep({ results, onReset, sources }: Props) {
   const [showProgress, setShowProgress] = useState(false)
   const [quotedCount, setQuotedCount] = useState(0)
   const [workingItems, setWorkingItems] = useState<ItemQuote[]>([])
+  const [batchMode, setBatchMode] = useState(false)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [quoteTitle, setQuoteTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [limits, setLimits] = useState<UserLimits | null>(null)
+  const [providerModalOpen, setProviderModalOpen] = useState(false)
+  const [providerModalKey, setProviderModalKey] = useState<string | null>(null)
 
   // Cargar límites del usuario
   useEffect(() => {
@@ -111,30 +115,28 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     setShowProgress(true)
     setQuotedCount(0)
     setWorkingItems(allowedResults)
+    setBatchMode(true)
     
     try {
-      const updated: ItemQuote[] = []
-      let count = 0
-      
-      for (const item of allowedResults) {
-        try {
-          const query = item.item.detalle || item.item.item_original
-          const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
-          updated.push({
-            item: item.item,
-            quantity: item.quantity,
-            multi: quote,
-          })
-        } catch (e) {
-          // Keep original item if quote fails
-          updated.push(item)
+      const payloadItems = allowedResults.map((item) => ({
+        detalle: item.item.detalle || item.item.item_original,
+        item_original: item.item.item_original,
+        cantidad: item.quantity,
+      }))
+
+      const batch = await quoteMultiProvidersBatch(payloadItems, allowedSources)
+
+      const updated = allowedResults.map((item, idx) => {
+        const quotedItem = batch.items?.[idx]
+        return {
+          item: item.item,
+          quantity: item.quantity,
+          multi: quotedItem?.quote || item.multi,
         }
-        
-        count += 1
-        setQuotedCount(count)
-      }
-      
+      })
+
       setQuotedResults(updated)
+      setQuotedCount(updated.length)
       setQuoted(true)
       setShowProgress(false)
     } catch (e) {
@@ -142,6 +144,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       setShowProgress(false)
     } finally {
       setLoading(false)
+      setBatchMode(false)
     }
   }, [allowedResults, allowedSources])
 
@@ -279,11 +282,10 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     return colors[provider] || '#757575'
   }
   
-  const { subtotal, itemsConPrecio, itemsPendientes, pendientes, byProvider } = useMemo(() => {
+  const { subtotal, itemsConPrecio, itemsPendientes, pendientes } = useMemo(() => {
     let sub = 0
     let conPrecio = 0
     const pen: ItemQuote[] = []
-    const providerMap: Record<string, { name: string; items: Array<{ item: ItemQuote; price: number }> }> = {}
 
     for (const r of displayResults) {
       const q = r.multi || r.dimeiggs
@@ -324,12 +326,6 @@ export function QuoteStep({ results, onReset, sources }: Props) {
         conPrecio += 1
         
         // Agregar al mapa por proveedor para el resumen
-        if (provider) {
-          if (!providerMap[provider]) {
-            providerMap[provider] = { name: getProviderName(provider), items: [] }
-          }
-          providerMap[provider].items.push({ item: r, price: unit })
-        }
       } else {
         pen.push(r)
       }
@@ -340,16 +336,15 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       itemsConPrecio: conPrecio,
       itemsPendientes: pen.length,
       pendientes: pen,
-      byProvider: providerMap,
     }
   }, [displayResults])
 
   const providerTotals = useMemo(() => {
     const providers = sources
-    const totals: Record<string, { name: string; total: number; found: number; missing: number }> = {}
+    const totals: Record<string, { name: string; total: number; found: number; missing: number; lowMatches: number; items: Array<{ item: ItemQuote; price: number; relevance: number; url?: string; title?: string }> }> = {}
 
     for (const p of providers) {
-      totals[p] = { name: getProviderName(p), total: 0, found: 0, missing: 0 }
+      totals[p] = { name: getProviderName(p), total: 0, found: 0, missing: 0, lowMatches: 0, items: [] }
     }
 
     for (const r of displayResults) {
@@ -359,21 +354,38 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
       for (const p of providers) {
         const providerHits = hits.filter((h: any) => h?.provider === p && h?.price != null)
-        let bestPrice: number | null = null
+        const validHits = providerHits.filter((h: any) => (typeof h?.relevance === 'number' ? h.relevance >= MATCH_THRESHOLD : false))
+        let bestHit: any = null
 
-        if (providerHits.length) {
-          bestPrice = providerHits.reduce((min: number | null, h: any) => {
+        if (validHits.length) {
+          bestHit = validHits.reduce((min: any, h: any) => {
             const price = Number(h.price)
             if (Number.isNaN(price)) return min
-            return min == null ? price : Math.min(min, price)
+            if (!min) return h
+            return Number(min.price) <= price ? min : h
           }, null)
+        } else if (providerHits.length) {
+          totals[p].lowMatches += 1
         } else if ((q as any)?.provider === p && (q as any)?.unit_price != null) {
-          bestPrice = Number((q as any).unit_price)
+          bestHit = {
+            price: Number((q as any).unit_price),
+            relevance: 1,
+            url: (q as any).url,
+            title: (q as any).title,
+          }
         }
 
-        if (bestPrice != null && !Number.isNaN(bestPrice)) {
-          totals[p].total += bestPrice * qty
+        if (bestHit && bestHit.price != null && !Number.isNaN(Number(bestHit.price))) {
+          const price = Number(bestHit.price)
+          totals[p].total += price * qty
           totals[p].found += 1
+          totals[p].items.push({
+            item: r,
+            price,
+            relevance: typeof bestHit.relevance === 'number' ? bestHit.relevance : 0,
+            url: bestHit.url,
+            title: bestHit.title,
+          })
         } else {
           totals[p].missing += 1
         }
@@ -382,6 +394,11 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
     return totals
   }, [displayResults, sources])
+
+  const openProviderModal = (providerKey: string) => {
+    setProviderModalKey(providerKey)
+    setProviderModalOpen(true)
+  }
 
   const pendingReason = (r: ItemQuote) => {
     const q = r.multi || r.dimeiggs
@@ -480,6 +497,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                   let img = ''
                   let productUrl = ''
                   let productTitle = ''
+                  let matchPercent: number | null = null
                   
                   // Extrae correctamente el precio y proveedor
                   // Prioridad 1: unit_price agregado por backend (si ya procesó el best_hit)
@@ -505,6 +523,9 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                     if (!productTitle && bestHit.title) {
                       productTitle = bestHit.title
                     }
+                    if (matchPercent == null && typeof bestHit.relevance === 'number') {
+                      matchPercent = Math.round(bestHit.relevance * 100)
+                    }
                   }
                   // Prioridad 3: primer hit si no hay best_hit
                   else if ((q as any)?.hits && (q as any).hits.length > 0) {
@@ -523,6 +544,9 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                     }
                     if (!productTitle && firstHit.title) {
                       productTitle = firstHit.title
+                    }
+                    if (matchPercent == null && typeof firstHit.relevance === 'number') {
+                      matchPercent = Math.round(firstHit.relevance * 100)
                     }
                   }
                   
@@ -592,13 +616,24 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                       <TableCell align="right">{formatCLP(lineTotal)}</TableCell>
                       <TableCell align="center">
                         {found ? (
-                          <Chip
-                            icon={<CheckCircleOutlineIcon />}
-                            label="Cotizado"
-                            size="small"
-                            color="success"
-                            variant="outlined"
-                          />
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                            <Chip
+                              icon={<CheckCircleOutlineIcon />}
+                              label="Cotizado"
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                            />
+                            {matchPercent != null && matchPercent < 40 && (
+                              <Chip
+                                icon={<WarningAmberIcon />}
+                                label="Baja coincidencia"
+                                size="small"
+                                color="warning"
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
                         ) : (
                           <Chip
                             icon={<WarningAmberIcon />}
@@ -621,6 +656,14 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                               Ver producto
                               <OpenInNewIcon sx={{ fontSize: 14 }} />
                             </Link>
+                            {matchPercent != null && (
+                              <Chip
+                                label={`Coincidencia ${matchPercent}%`}
+                                size="small"
+                                color={matchPercent >= 70 ? 'success' : matchPercent >= 40 ? 'warning' : 'error'}
+                                variant="outlined"
+                              />
+                            )}
                             <Checkbox
                               size="small"
                               checked={isItemSelected(idx, 0)}
@@ -713,6 +756,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                             {(h as any).brand && ` (${(h as any).brand})`}
                             {h.price != null && ` · ${formatCLP(h.price)}`}
                             {isMultiProvider && (h as any).provider && ` [${getProviderName((h as any).provider)}]`}
+                            {typeof (h as any).relevance === 'number' && ` · ${Math.round((h as any).relevance * 100)}%`}
                             <OpenInNewIcon sx={{ fontSize: 14 }} />
                           </Link>
                         </Box>
@@ -729,16 +773,17 @@ export function QuoteStep({ results, onReset, sources }: Props) {
             )
           })}
 
-          {isMultiProvider && Object.keys(byProvider).length > 0 && (
+          {isMultiProvider && Object.keys(providerTotals).length > 0 && (
             <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.primary' }}>
                 📦 Resumen por Proveedor
               </Typography>
               <Divider sx={{ mb: 3 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                {Object.entries(byProvider).map(([providerKey, providerData]) => {
-                  const subtotalByProvider = providerData.items.reduce((sum, item) => sum + (item.price * item.item.quantity), 0)
-                  const totalItems = providerData.items.length
+                {Object.entries(providerTotals).map(([providerKey, providerData]) => {
+                  if (!providerData.found && !providerData.lowMatches) return null
+                  const subtotalByProvider = providerData.total
+                  const totalItems = providerData.found
                   // Contar pendientes por proveedor (items que no tienen precio en este proveedor pero sí en otros)
                   const pendientesPorProveedor = pendientes.filter(p => {
                     const pq = p.multi || p.dimeiggs
@@ -769,38 +814,6 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                       >
                         {providerData.name}
                       </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1.5 }}>
-                        {providerData.items.map((item, i) => {
-                          const selectedForProvider = getSelectedItemsForProvider(providerKey)
-                          const isSelected = selectedForProvider.some(sel => sel.itemData === item.item)
-                          return (
-                            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 1 }}>
-                              <Box sx={{ flex: 1 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                  <Typography variant="body2" sx={{ fontSize: '0.875rem', color: 'text.primary' }}>
-                                    {item.item.item.detalle || item.item.item.item_original}
-                                  </Typography>
-                                  {isSelected && (
-                                    <Chip
-                                      icon={<ShoppingBasketIcon />}
-                                      label="Comprado"
-                                      size="small"
-                                      variant="filled"
-                                      sx={{ height: 20, bgcolor: 'primary.main', color: 'white' }}
-                                    />
-                                  )}
-                                </Box>
-                                <Typography variant="caption" color="text.secondary">
-                                  × {item.item.quantity}
-                                </Typography>
-                              </Box>
-                              <Typography variant="body2" fontWeight={600} sx={{ color: 'text.primary' }}>
-                                {formatCLP(item.price * item.item.quantity)}
-                              </Typography>
-                            </Box>
-                          )
-                        })}
-                      </Box>
                       <Box sx={{ pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                           <Typography variant="body2" fontWeight={700} sx={{ color: 'text.primary' }}>
@@ -836,6 +849,14 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                           >
                             Ir a tienda
                           </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => openProviderModal(providerKey)}
+                            sx={{ flex: 1 }}
+                          >
+                            Ver items
+                          </Button>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
                           <Box sx={{ flex: 1, textAlign: 'center', p: 1, bgcolor: (t) => t.palette.success.light, borderRadius: 1 }}>
@@ -846,6 +867,16 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                               Cotizados
                             </Typography>
                           </Box>
+                          {providerData.lowMatches > 0 && (
+                            <Box sx={{ flex: 1, textAlign: 'center', p: 1, bgcolor: (t) => t.palette.warning.light, borderRadius: 1 }}>
+                              <Typography variant="body2" fontWeight={600} color="warning.dark">
+                                {providerData.lowMatches}
+                              </Typography>
+                              <Typography variant="caption" color="warning.dark">
+                                Baja coincidencia
+                              </Typography>
+                            </Box>
+                          )}
                           {pendientesPorProveedor > 0 && (
                             <Box sx={{ flex: 1, textAlign: 'center', p: 1, bgcolor: (t) => t.palette.warning.light, borderRadius: 1 }}>
                               <Typography variant="body2" fontWeight={600} color="warning.dark">
@@ -881,6 +912,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                       <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Ítems con precio</TableCell>
                       <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Ítems sin precio</TableCell>
                       <TableCell align="right" sx={{ color: 'text.primary', fontWeight: 700 }}>Total estimado</TableCell>
+                      <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Detalle</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -901,6 +933,11 @@ export function QuoteStep({ results, onReset, sources }: Props) {
                           <TableCell align="right" sx={{ fontWeight: 700 }}>
                             {formatCLP(p.total)}
                           </TableCell>
+                          <TableCell align="center">
+                            <Button size="small" variant="outlined" onClick={() => openProviderModal(providerId)}>
+                              Ver items
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       )
                     })}
@@ -909,6 +946,100 @@ export function QuoteStep({ results, onReset, sources }: Props) {
               </TableContainer>
             </Paper>
           )}
+
+          <Dialog open={providerModalOpen} onClose={() => setProviderModalOpen(false)} maxWidth="md" fullWidth>
+            <DialogTitle>
+              {providerModalKey ? `Items cotizados en ${getProviderName(providerModalKey)}` : 'Items cotizados'}
+            </DialogTitle>
+            <DialogContent dividers>
+              {providerModalKey && providerTotals[providerModalKey]?.items?.length ? (
+                <Box>
+                  {providerTotals[providerModalKey].items.map((row, idx) => {
+                    const matchPercent = Math.round(row.relevance * 100)
+                    const originalName = row.item.item.detalle || row.item.item.item_original
+                    const lineTotal = row.price * row.item.quantity
+                    return (
+                      <Accordion key={idx} sx={{ mb: 1 }}>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="body2" fontWeight={600}>
+                                {originalName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Cantidad: {row.item.quantity}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Chip
+                                label={`${matchPercent}%`}
+                                size="small"
+                                color={matchPercent >= 70 ? 'success' : matchPercent >= 40 ? 'warning' : 'error'}
+                                variant="outlined"
+                              />
+                              <Typography variant="body2" fontWeight={600} sx={{ minWidth: 100, textAlign: 'right' }}>
+                                {formatCLP(lineTotal)}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">
+                                Producto encontrado:
+                              </Typography>
+                              <Typography variant="body2">
+                                {row.url ? (
+                                  <Link href={row.url} target="_blank" rel="noopener noreferrer">
+                                    {row.title || originalName} <OpenInNewIcon sx={{ fontSize: 14, ml: 0.5, verticalAlign: 'middle' }} />
+                                  </Link>
+                                ) : (
+                                  row.title || originalName
+                                )}
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2" color="text.secondary">
+                                Precio unitario:
+                              </Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {formatCLP(row.price)}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2" color="text.secondary">
+                                Cantidad:
+                              </Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {row.item.quantity}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2" color="text.secondary">
+                                Total línea:
+                              </Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {formatCLP(lineTotal)}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </AccordionDetails>
+                      </Accordion>
+                    )
+                  })}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No hay items con coincidencia suficiente para este proveedor.
+                </Typography>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setProviderModalOpen(false)}>Cerrar</Button>
+            </DialogActions>
+          </Dialog>
 
           <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
             <Typography variant="h6" gutterBottom>
@@ -985,6 +1116,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
         items={workingItems}
         quotedCount={quotedCount}
         sources={sources}
+        indeterminate={batchMode}
         onEditItem={handleEditItem}
         onRetryItem={handleRetryItem}
         onClose={() => setShowProgress(false)}

@@ -209,6 +209,8 @@ def should_quote_item(it: ParsedItem) -> bool:
 def _quote_single_item(
     item_dict: Dict[str, Any],
     providers: List[str],
+    limit_per_provider: int = 5,
+    max_results: int = 8,
 ) -> Dict[str, Any]:
     """
     Cotiza un item individual en múltiples proveedores.
@@ -230,8 +232,8 @@ def _quote_single_item(
         q = quote_multi_providers(
             query,
             providers=providers,
-            limit_per_provider=5,
-            max_results=8,
+            limit_per_provider=limit_per_provider,
+            max_results=max_results,
         )
         
         item_dict["quote"] = q
@@ -661,7 +663,11 @@ async def parse_with_ai_only(
     # Intentar usar visión primero si está habilitado y es PDF
     extraction_method = "ai_only"
     ai_result = None
-    
+
+    # Groq no soporta visión real; evita llamadas que fallan sin JSON
+    if use_vision and ext == ".pdf" and os.getenv("LLM_PROVIDER", "groq").lower() != "openai":
+        use_vision = False
+
     if use_vision and ext == ".pdf":
         try:
             print(f"🔍 Intentando extracción con GPT-4 Vision para {file.filename}...")
@@ -689,6 +695,17 @@ async def parse_with_ai_only(
             print(f"✅ Extracción con texto exitosa: {len(ai_result.get('items', []))} items encontrados")
         except Exception as e:
             raise HTTPException(500, f"Error al procesar con IA: {str(e)}")
+
+        # Si el modelo no devuelve JSON válido, hacer fallback a reglas
+        if not ai_result.get("items"):
+            try:
+                lines = split_lines(raw)
+                parsed = parse_with_rules(lines)
+                ok_items = [it for it in parsed["items"] if it.get("cantidad") is not None and it.get("detalle")]
+                ai_result["items"] = ok_items
+                extraction_method = "rules_fallback"
+            except Exception:
+                pass
     
     # Preview del texto (solo si no usamos visión)
     raw_preview = ""
@@ -752,7 +769,8 @@ async def parse_items_without_quote(
     if dub_lines:
         try:
             fixed = call_llm_fix(dub_lines)
-            fixed_items = [it.model_dump() for it in fixed.items]
+            raw_items = fixed.get("items") if isinstance(fixed, dict) else []
+            fixed_items = [x for x in (raw_items or []) if isinstance(x, dict)]
         except Exception:
             fixed_items = []
 
@@ -1016,6 +1034,156 @@ async def quote_multi_endpoint(
         raise
     except Exception as e:
         print(f"[ERROR] Error inesperado en quote_multi_endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Error en la búsqueda: {str(e)}")
+
+
+@api_router.post("/quote/multi-providers/batch")
+async def quote_multi_batch_endpoint(
+    payload: dict = Body(...),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """
+    Cotiza múltiples items en una sola llamada.
+
+    Payload:
+    {
+        "items": [
+            {"detalle": "lapiz scripto", "cantidad": 2, "item_original": "..."},
+            ...
+        ],
+        "providers": ["dimeiggs", "libreria_nacional", ...],  # opcional
+        "limit_per_provider": 5  # opcional
+    }
+    """
+    try:
+        items = payload.get("items") or []
+        if not isinstance(items, list) or not items:
+            raise HTTPException(400, "Falta 'items' o está vacío.")
+
+        providers = payload.get("providers")
+        limit_per_provider = payload.get("limit_per_provider", 5)
+
+        all_providers = [
+            "dimeiggs",
+            "libreria_nacional",
+            "jamila",
+            "coloranimal",
+            "pronobel",
+            "prisa",
+            "lasecretaria",
+        ]
+        providers_limited_by_plan = False
+
+        db = SessionLocal()
+        try:
+            plans_enabled = get_setting_bool(db, "plans_enabled", True)
+            is_demo_mode = current_user is None and plans_enabled
+
+            if not plans_enabled:
+                if not providers:
+                    providers = all_providers
+            elif is_demo_mode:
+                if providers:
+                    providers = providers[:2]
+                    providers_limited_by_plan = True
+                else:
+                    providers = ["dimeiggs", "libreria_nacional"]
+            else:
+                from app.payment import get_user_limits
+
+                limits = get_user_limits(current_user.id, db)
+                max_providers = limits["max_providers"]
+                if max_providers is None:
+                    if not providers:
+                        providers = all_providers
+                else:
+                    if providers and len(providers) > max_providers:
+                        print(
+                            f"[INFO] Usuario {current_user.id} solicitó {len(providers)} proveedores, limitado a {max_providers}"
+                        )
+                        providers = providers[:max_providers]
+                        providers_limited_by_plan = True
+                    elif not providers:
+                        if max_providers >= 5:
+                            providers = [
+                                "dimeiggs",
+                                "libreria_nacional",
+                                "jamila",
+                                "coloranimal",
+                                "pronobel",
+                            ][:max_providers]
+                        else:
+                            providers = ["dimeiggs", "libreria_nacional"][:max_providers]
+        finally:
+            db.close()
+
+        normalized_items: List[Dict[str, Any]] = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            detalle = (it.get("detalle") or it.get("item_original") or "").strip()
+            if not detalle:
+                continue
+            cantidad = it.get("cantidad") or it.get("quantity") or 1
+            try:
+                cantidad = int(cantidad)
+            except Exception:
+                cantidad = 1
+            normalized_items.append({
+                "detalle": detalle,
+                "cantidad": cantidad,
+                "item_original": it.get("item_original") or detalle,
+            })
+
+        if not normalized_items:
+            raise HTTPException(400, "No hay items válidos para cotizar.")
+
+        results: List[Dict[str, Any]] = [None] * len(normalized_items)
+        max_workers = min(6, len(normalized_items))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _quote_single_item,
+                    item,
+                    providers,
+                    limit_per_provider,
+                ): idx
+                for idx, item in enumerate(normalized_items)
+            }
+            for future in futures:
+                idx = futures[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as e:
+                    results[idx] = {
+                        "detalle": normalized_items[idx].get("detalle"),
+                        "cantidad": normalized_items[idx].get("cantidad"),
+                        "item_original": normalized_items[idx].get("item_original"),
+                        "quote": {
+                            "status": "error",
+                            "reason": f"Error: {str(e)[:100]}",
+                        },
+                    }
+
+        response = {
+            "items": results,
+            "providers": providers,
+            "is_demo_mode": is_demo_mode,
+        }
+
+        if is_demo_mode:
+            response["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
+        if providers_limited_by_plan:
+            response["was_limited"] = True
+            response["limited_message"] = f"Se limitó a {len(providers)} proveedores según tu plan. Actualiza tu plan para acceder a más."
+
+        return JSONResponse(response)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Error inesperado en quote_multi_batch_endpoint: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f"Error en la búsqueda: {str(e)}")

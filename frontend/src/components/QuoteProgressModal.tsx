@@ -30,6 +30,7 @@ type Props = {
   items: ItemQuote[]
   quotedCount: number
   sources: SourceId[]
+  indeterminate?: boolean
   onEditItem?: (index: number, newName: string) => void
   onRetryItem?: (index: number) => void
   onClose: () => void
@@ -40,6 +41,7 @@ export function QuoteProgressModal({
   items,
   quotedCount,
   sources,
+  indeterminate = false,
   onEditItem,
   onRetryItem,
   onClose,
@@ -87,20 +89,23 @@ export function QuoteProgressModal({
             <Typography variant="body2" fontWeight={600}>
               Progreso
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {Math.round(progress)}%
-            </Typography>
+            {!indeterminate && (
+              <Typography variant="body2" color="text.secondary">
+                {Math.round(progress)}%
+              </Typography>
+            )}
           </Box>
           <LinearProgress
-            variant="determinate"
-            value={progress}
+            variant={indeterminate ? 'indeterminate' : 'determinate'}
+            value={indeterminate ? undefined : progress}
             sx={{ height: 8, borderRadius: 1 }}
           />
         </Box>
 
-        {remaining > 0 && (
+        {(remaining > 0 || indeterminate) && (
           <Alert severity="info" sx={{ mb: 2, fontSize: '0.875rem' }}>
             ⏱️ Este proceso puede tomar algunos minutos. Por favor espera mientras cotizamos en {sources.length} {sources.length === 1 ? 'tienda' : 'tiendas'}...
+            {indeterminate && ' (procesando en servidor)'}
           </Alert>
         )}
 

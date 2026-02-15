@@ -401,9 +401,19 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                   <TableBody>
                     {quotedItems.map((result, idx) => {
                       const bestHit = result.quote?.hits?.[0]
+                      const matchPercent = typeof bestHit?.relevance === 'number'
+                        ? Math.round(bestHit.relevance * 100)
+                        : null
                       return (
                         <TableRow key={idx}>
-                          <TableCell sx={{ color: 'text.primary' }}>{result.item.detalle}</TableCell>
+                          <TableCell sx={{ color: 'text.primary' }}>
+                            <Typography variant="body2">{result.item.detalle}</Typography>
+                            {matchPercent != null && (
+                              <Typography variant="caption" color="text.secondary">
+                                Coincidencia {matchPercent}%
+                              </Typography>
+                            )}
+                          </TableCell>
                           <TableCell>
                             {bestHit ? (
                               <Chip

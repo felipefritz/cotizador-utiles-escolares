@@ -188,6 +188,22 @@ export type MultiProviderResponse = {
   error: string | null
 }
 
+export type MultiProviderBatchItem = {
+  detalle: string
+  cantidad: number
+  item_original?: string | null
+  quote: MultiProviderResponse
+}
+
+export type MultiProviderBatchResponse = {
+  items: MultiProviderBatchItem[]
+  providers: string[]
+  is_demo_mode?: boolean
+  demo_message?: string
+  was_limited?: boolean
+  limited_message?: string
+}
+
 export type ParseAiQuoteMultiResponse = ParseAiQuoteResponse & {
   resume: ParseAiQuoteResume & { providers_used: string[] }
 }
@@ -209,6 +225,30 @@ export async function quoteMultiProviders(
     },
     body: JSON.stringify({
       query: query.trim(),
+      providers: providers || ['dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
+      limit_per_provider: limitPerProvider || 5,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `Error ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function quoteMultiProvidersBatch(
+  items: Array<{ detalle: string; cantidad: number; item_original?: string | null }>,
+  providers?: string[],
+  limitPerProvider?: number,
+): Promise<MultiProviderBatchResponse> {
+  const res = await fetch(`${API_BASE}/quote/multi-providers/batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      items,
       providers: providers || ['dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
       limit_per_provider: limitPerProvider || 5,
     }),
