@@ -65,6 +65,11 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
     fetchLimits()
   }, [])
 
+  const maxProvidersLimit = limits?.limits.max_providers ?? null
+  const canSelectMore = maxProvidersLimit === null || selected.length < maxProvidersLimit
+  const maxProviders = maxProvidersLimit ?? SOURCES.length
+  const isLimitedUser = maxProvidersLimit !== null && maxProvidersLimit < SOURCES.length
+
   const toggle = (id: SourceId) => {
     const s = SOURCES.find((x) => x.id === id)
     if (!s?.available) return
@@ -77,18 +82,13 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
       onSelectionChange(next)
     } else {
       // Solo agregar si no se alcanzó el límite
-      if (limits && limits.limits.max_providers !== null && selected.length >= limits.limits.max_providers) {
+      if (maxProvidersLimit !== null && selected.length >= maxProvidersLimit) {
         return
       }
       const next = [...selected, id]
       onSelectionChange(next)
     }
   }
-
-  const maxProvidersLimit = limits?.limits.max_providers
-  const canSelectMore = !limits || maxProvidersLimit === null || selected.length < maxProvidersLimit
-  const maxProviders = maxProvidersLimit === null || maxProvidersLimit === undefined ? SOURCES.length : maxProvidersLimit
-  const isLimitedUser = limits && maxProvidersLimit !== null && maxProvidersLimit < SOURCES.length
 
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto' }}>
