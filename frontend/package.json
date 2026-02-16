@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsc -b && vitest run",
+    "test:watch": "vitest",
+    "test:all": "tsc -b && vitest run"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -22,7 +25,10 @@
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
+    "@testing-library/jest-dom": "^6.4.2",
+    "jsdom": "^24.0.0",
     "typescript": "^5.3.3",
-    "vite": "^5.0.12"
+    "vite": "^5.0.12",
+    "vitest": "^1.2.2"
   }
 }
