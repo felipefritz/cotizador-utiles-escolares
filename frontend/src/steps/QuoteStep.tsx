@@ -33,6 +33,8 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import SaveIcon from '@mui/icons-material/Save'
+import DeleteIcon from '@mui/icons-material/Delete'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import type { ItemQuote, SourceId } from '../types'
 import { formatCLP } from '../utils/format'
 import { quoteMultiProviders, api } from '../api'
@@ -483,6 +485,17 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
     setItemModalOpen(false)
   }
 
+  const handleDeleteItem = (itemIndex: number) => {
+    if (quoted) {
+      const newQuotedResults = quotedResults.filter((_, i) => i !== itemIndex)
+      setQuotedResults(newQuotedResults)
+      // Limpiar opciones seleccionadas para este item
+      const newSelectedOptions = new Map(selectedOptions)
+      newSelectedOptions.delete(itemIndex)
+      setSelectedOptions(newSelectedOptions)
+    }
+  }
+
   return (
     <Box sx={{ maxWidth: 960, mx: 'auto' }}>
       <Typography variant="h6" color="text.primary" sx={{ mb: 2 }}>
@@ -538,12 +551,13 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                 <TableRow sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
                   <TableCell sx={{ width: 56, color: 'text.primary', fontWeight: 700 }} />
                   <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Detalle</TableCell>
-                  <TableCell align="center" sx={{ width: 90, color: 'text.primary', fontWeight: 700 }}>Cantidad</TableCell>
-                  <TableCell align="center" sx={{ width: 120, color: 'text.primary', fontWeight: 700 }}>Proveedor</TableCell>
-                  <TableCell align="right" sx={{ width: 120, color: 'text.primary', fontWeight: 700 }}>Precio unit.</TableCell>
-                  <TableCell align="right" sx={{ width: 130, color: 'text.primary', fontWeight: 700 }}>Total línea</TableCell>
-                  <TableCell align="center" sx={{ width: 130, color: 'text.primary', fontWeight: 700 }}>Estado</TableCell>
-                  <TableCell align="center" sx={{ width: 180, color: 'text.primary', fontWeight: 700 }}>Producto seleccionado</TableCell>
+                  <TableCell align="center" sx={{ width: 80, color: 'text.primary', fontWeight: 700 }}>Cant.</TableCell>
+                  <TableCell align="center" sx={{ width: 110, color: 'text.primary', fontWeight: 700 }}>Proveedor</TableCell>
+                  <TableCell align="right" sx={{ width: 100, color: 'text.primary', fontWeight: 700 }}>P. Unit.</TableCell>
+                  <TableCell align="right" sx={{ width: 120, color: 'text.primary', fontWeight: 700 }}>Total</TableCell>
+                  <TableCell align="center" sx={{ width: 110, color: 'text.primary', fontWeight: 700 }}>Estado</TableCell>
+                  <TableCell align="center" sx={{ width: 250, color: 'text.primary', fontWeight: 700 }}>Producto</TableCell>
+                  <TableCell align="center" sx={{ width: 140, color: 'text.primary', fontWeight: 700 }}>Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -733,44 +747,75 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                       </TableCell>
                       <TableCell align="center">
                         {found && productUrl ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                setSelectedItemIndex(idx)
-                                setItemModalOpen(true)
-                              }}
-                            >
-                              Ver opciones
-                            </Button>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
                             <Link
                               href={productUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, fontSize: '0.875rem' }}
+                              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, fontSize: '0.85rem', fontWeight: 500 }}
                             >
-                              Ir al producto
-                              <OpenInNewIcon sx={{ fontSize: 14 }} />
+                              {productTitle}
+                              <OpenInNewIcon sx={{ fontSize: 12 }} />
                             </Link>
                             {matchPercent != null && (
                               <Chip
                                 label={`Coincidencia ${matchPercent}%`}
                                 size="small"
+                                sx={{ height: 20, fontSize: '0.75rem' }}
                                 color={matchPercent >= 70 ? 'success' : matchPercent >= 40 ? 'warning' : 'error'}
                                 variant="outlined"
                               />
                             )}
-                            <Checkbox
-                              size="small"
-                              checked={isItemSelected(idx, 0)}
-                              onChange={() => handleItemToggle(idx, 0)}
-                              title="Marcar como comprado"
-                            />
                           </Box>
                         ) : (
                           <Typography variant="caption" color="text.secondary">—</Typography>
                         )}
+                      </TableCell>
+                      <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                          {found && (
+                            <>
+                              <IconButton
+                                size="small"
+                                title="Ver todas las opciones"
+                                onClick={() => {
+                                  setSelectedItemIndex(idx)
+                                  if (!selectedOptions.has(idx)) {
+                                    const hits = (q as any)?.hits || []
+                                    if (hits.length > 0) {
+                                      setSelectedOptions(new Map(selectedOptions).set(idx, 0))
+                                    }
+                                  }
+                                  setItemModalOpen(true)
+                                }}
+                              >
+                                <MoreVertIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                title={isItemSelected(idx, 0) ? 'Desmarcar como comprado' : 'Marcar como comprado'}
+                                onClick={() => handleItemToggle(idx, 0)}
+                              >
+                                <Checkbox
+                                  size="small"
+                                  checked={isItemSelected(idx, 0)}
+                                  onChange={() => handleItemToggle(idx, 0)}
+                                  sx={{ p: 0 }}
+                                />
+                              </IconButton>
+                              {quoted && (
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  title="Eliminar este item"
+                                  onClick={() => handleDeleteItem(idx)}
+                                >
+                                  <DeleteIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              )}
+                            </>
+                          )}
+                        </Box>
                       </TableCell>
                     </TableRow>
                   )
