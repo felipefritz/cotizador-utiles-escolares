@@ -114,7 +114,7 @@ app.add_middleware(
         # Railway healthcheck
         "http://healthcheck.railway.app",
         "https://healthcheck.railway.app",
-        "healthcheck.railway.app"
+        "healthcheck.railway.app",
         "https://preciofast.cl",
         "https://www.preciofast.cl",
         # Agrega tu dominio custom de Vercel aquí si quieres ser específico
