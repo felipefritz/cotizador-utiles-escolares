@@ -35,31 +35,37 @@ const FEATURES = [
     icon: <AutoAwesomeIcon sx={{ fontSize: 40 }} />,
     title: 'Análisis con IA',
     description: 'Extracción inteligente de útiles desde PDF, DOCX, Excel con tecnología de IA',
+    forAll: true,
   },
   {
     icon: <CompareArrowsIcon sx={{ fontSize: 40 }} />,
     title: 'Comparación Múltiple',
     description: 'Cotiza en 7 tiendas simultáneamente y encuentra los mejores precios',
+    forAll: true,
   },
   {
     icon: <SpeedIcon sx={{ fontSize: 40 }} />,
     title: 'Rápido y Eficiente',
     description: 'Resultados en minutos. Ahorra tiempo y dinero en tus compras escolares',
+    forAll: true,
   },
   {
     icon: <SaveIcon sx={{ fontSize: 40 }} />,
     title: 'Ahorra Dinero',
     description: 'Compara precios y selecciona los productos más convenientes para tu presupuesto',
+    forAll: true,
   },
   {
     icon: <TrendingUpIcon sx={{ fontSize: 40 }} />,
-    title: 'Análisis Inteligente',
-    description: 'Recomendaciones personalizadas basadas en tus búsquedas anteriores',
+    title: 'Guarda tus Cotizaciones',
+    description: 'Registrate para guardar y acceder a tus cotizaciones en cualquier momento',
+    forAll: false,
   },
   {
     icon: <RocketLaunchIcon sx={{ fontSize: 40 }} />,
     title: 'Fácil de Usar',
     description: 'Interfaz intuitiva que funciona en cualquier dispositivo',
+    forAll: true,
   },
 ]
 
@@ -171,14 +177,11 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
   }
 
   const handlePrimaryCtaClick = () => {
-    if (plansEnabled) {
-      onTrialClick()
-    } else {
-      onStartClick()
-    }
+    // No-auth users siempre van al app completo sin límites
+    onStartClick()
   }
 
-  const primaryCtaLabel = plansEnabled ? 'Probar Gratis' : 'Cotizar Ahora'
+  const primaryCtaLabel = "Cotizar Gratis"
   
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -220,13 +223,24 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
               <Typography 
                 variant="h5" 
                 sx={{ 
-                  mb: 4, 
+                  mb: 1, 
                   opacity: 0.95,
                   fontSize: { xs: '1rem', sm: '1.25rem' },
                   fontWeight: 500
                 }}
               >
                 Compara precios en 7 tiendas simultáneamente y ahorra dinero en útiles escolares
+              </Typography>
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  mb: 4, 
+                  opacity: 0.85,
+                  fontSize: { xs: '0.95rem', sm: '1.1rem' },
+                  fontWeight: 400
+                }}
+              >
+                ✅ Totalmente gratis • 🔒 Sin necesidad de registrarse • 💰 Compara en minutos
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 {user ? (
@@ -349,7 +363,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
             color="text.secondary"
             sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' } }}
           >
-            Características que te ayudan a ahorrar tiempo y dinero
+            Características disponibles para todos, mejoras si te registras
           </Typography>
         </Box>
 
@@ -362,8 +376,11 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                   textAlign: 'center',
                   p: 3,
                   transition: 'all 0.3s ease',
-                  border: '1px solid',
-                  borderColor: 'divider',
+                  border: '2px solid',
+                  borderColor: feature.forAll ? 'divider' : 'primary.main',
+                  position: 'relative',
+                  bgcolor: feature.forAll ? 'background.paper' : 'primary.light',
+                  opacity: feature.forAll ? 1 : 0.95,
                   '&:hover': {
                     transform: 'translateY(-8px)',
                     boxShadow: 4,
@@ -371,6 +388,25 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                   },
                 }}
               >
+                {!feature.forAll && (
+                  <Box 
+                    sx={{
+                      position: 'absolute',
+                      top: -12,
+                      right: 16,
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      px: 2,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      zIndex: 1
+                    }}
+                  >
+                    PREMIUM
+                  </Box>
+                )}
                 <CardContent>
                   <Box sx={{ color: 'primary.main', mb: 2, display: 'flex', justifyContent: 'center' }}>
                     {feature.icon}
@@ -388,7 +424,82 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         </Grid>
       </Container>
 
-      {/* Providers Section - Mejorado */}
+      {/* Registration Benefits Section - NEW */}
+      <Box sx={{ bgcolor: 'primary.light', py: { xs: 6, md: 10 } }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={4} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography 
+                variant="h4" 
+                fontWeight={700} 
+                gutterBottom
+                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' }, mb: 3 }}
+              >
+                ¿Qué ganas si te registras?
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {[
+                  {
+                    title: '💾 Guarda todas tus cotizaciones',
+                    desc: 'Accede a tus búsquedas previas en cualquier momento'
+                  },
+                  {
+                    title: '✏️ Edita tus compras',
+                    desc: 'Modifica cantidades y proveedores después de cotizar'
+                  },
+                  {
+                    title: '📊 Historial de precios',
+                    desc: 'Monitorea tendencias de precios en el tiempo'
+                  },
+                  {
+                    title: '🎯 Planes personalizados',
+                    desc: 'Accede a más tiendas, más items y cotizaciones ilimitadas'
+                  },
+                ].map((benefit, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', gap: 2 }}>
+                    <Box sx={{ color: 'primary.main', fontWeight: 700, fontSize: '1.5rem' }}>
+                      {benefit.title.split(' ')[0]}
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1rem' }}>
+                        {benefit.title.split(' ').slice(1).join(' ')}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {benefit.desc}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+              <Button
+                variant="contained"
+                size="large"
+                onClick={onLoginClick}
+                sx={{ mt: 4, px: 4, py: 1.5, fontWeight: 600 }}
+              >
+                Crear Cuenta Gratis
+              </Button>
+            </Grid>
+            <Grid item xs={12} md={6} sx={{ display: { xs: 'none', md: 'block' } }}>
+              <Box
+                sx={{
+                  fontSize: '6rem',
+                  textAlign: 'center',
+                  animation: 'spin 8s linear infinite',
+                  '@keyframes spin': {
+                    '0%': { transform: 'rotate(0deg)' },
+                    '100%': { transform: 'rotate(360deg)' },
+                  }
+                }}
+              >
+                🔐
+              </Box>
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Providers Section - Original */}
       <Box sx={{ bgcolor: 'grey.50', py: { xs: 6, md: 10 } }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 6 }}>

@@ -80,6 +80,9 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
   const [providerModalOpen, setProviderModalOpen] = useState(false)
   const [providerModalKey, setProviderModalKey] = useState<string | null>(null)
   const [summaryInfoOpen, setSummaryInfoOpen] = useState(false)
+  const [itemModalOpen, setItemModalOpen] = useState(false)
+  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null)
+  const [selectedOptions, setSelectedOptions] = useState<Map<number, number>>(new Map()) // itemIndex -> hitIndex
 
   // Cargar límites del usuario
   useEffect(() => {
@@ -473,6 +476,13 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
     return selectedItems.has(`${itemIndex}:${hitIndex}`)
   }
 
+  const handleSelectOption = (itemIndex: number, hitIndex: number) => {
+    const newSelectedOptions = new Map(selectedOptions)
+    newSelectedOptions.set(itemIndex, hitIndex)
+    setSelectedOptions(newSelectedOptions)
+    setItemModalOpen(false)
+  }
+
   return (
     <Box sx={{ maxWidth: 960, mx: 'auto' }}>
       <Typography variant="h6" color="text.primary" sx={{ mb: 2 }}>
@@ -546,73 +556,103 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                   let productTitle = ''
                   let matchPercent: number | null = null
                   
-                  // Extrae correctamente el precio y proveedor
-                  // Prioridad 1: unit_price agregado por backend (si ya procesó el best_hit)
-                  if ((q as any)?.unit_price) {
-                    unit = (q as any).unit_price
+                  // Verificar si el usuario seleccionó un hit específico para este ítem
+                  const selectedHitIndex = selectedOptions.get(idx)
+                  let selectedHit: any = null
+                  
+                  if (selectedHitIndex != null && (q as any)?.hits) {
+                    selectedHit = (q as any).hits[selectedHitIndex]
                   }
                   
-                  // Prioridad 2: best_hit si existe (mejor hit del multi-provider)
-                  if (r.multi && (r.multi as any).best_hit) {
-                    const bestHit = (r.multi as any).best_hit
-                    if (bestHit.price && !unit) {
-                      unit = bestHit.price
+                  // Si hay un hit seleccionado, usarlo
+                  if (selectedHit) {
+                    if (selectedHit.price) {
+                      unit = selectedHit.price
                     }
-                    if (!providerName && bestHit.provider) {
-                      providerName = getProviderName(bestHit.provider)
+                    if (selectedHit.provider) {
+                      providerName = getProviderName(selectedHit.provider)
                     }
-                    if (!img && bestHit.image_url) {
-                      img = bestHit.image_url
+                    if (selectedHit.image_url) {
+                      img = selectedHit.image_url
                     }
-                    if (!productUrl && bestHit.url) {
-                      productUrl = bestHit.url
+                    if (selectedHit.url) {
+                      productUrl = selectedHit.url
                     }
-                    if (!productTitle && bestHit.title) {
-                      productTitle = bestHit.title
+                    if (selectedHit.title) {
+                      productTitle = selectedHit.title
                     }
-                    if (matchPercent == null && typeof bestHit.relevance === 'number') {
-                      matchPercent = Math.round(bestHit.relevance * 100)
+                    if (typeof selectedHit.relevance === 'number') {
+                      matchPercent = Math.round(selectedHit.relevance * 100)
                     }
-                  }
-                  // Prioridad 3: primer hit si no hay best_hit
-                  else if ((q as any)?.hits && (q as any).hits.length > 0) {
-                    const firstHit = (q as any).hits[0]
-                    if (firstHit.price && !unit) {
-                      unit = firstHit.price
+                  } else {
+                    // Si no hay selección, usar el comportamiento original
+                    // Prioridad 1: unit_price agregado por backend (si ya procesó el best_hit)
+                    if ((q as any)?.unit_price) {
+                      unit = (q as any).unit_price
                     }
-                    if (!providerName && firstHit.provider) {
-                      providerName = getProviderName(firstHit.provider)
+                    
+                    // Prioridad 2: best_hit si existe (mejor hit del multi-provider)
+                    if (r.multi && (r.multi as any).best_hit) {
+                      const bestHit = (r.multi as any).best_hit
+                      if (bestHit.price && !unit) {
+                        unit = bestHit.price
+                      }
+                      if (!providerName && bestHit.provider) {
+                        providerName = getProviderName(bestHit.provider)
+                      }
+                      if (!img && bestHit.image_url) {
+                        img = bestHit.image_url
+                      }
+                      if (!productUrl && bestHit.url) {
+                        productUrl = bestHit.url
+                      }
+                      if (!productTitle && bestHit.title) {
+                        productTitle = bestHit.title
+                      }
+                      if (matchPercent == null && typeof bestHit.relevance === 'number') {
+                        matchPercent = Math.round(bestHit.relevance * 100)
+                      }
                     }
-                    if (!img && firstHit.image_url) {
-                      img = firstHit.image_url
+                    // Prioridad 3: primer hit si no hay best_hit
+                    else if ((q as any)?.hits && (q as any).hits.length > 0) {
+                      const firstHit = (q as any).hits[0]
+                      if (firstHit.price && !unit) {
+                        unit = firstHit.price
+                      }
+                      if (!providerName && firstHit.provider) {
+                        providerName = getProviderName(firstHit.provider)
+                      }
+                      if (!img && firstHit.image_url) {
+                        img = firstHit.image_url
+                      }
+                      if (!productUrl && firstHit.url) {
+                        productUrl = firstHit.url
+                      }
+                      if (!productTitle && firstHit.title) {
+                        productTitle = firstHit.title
+                      }
+                      if (matchPercent == null && typeof firstHit.relevance === 'number') {
+                        matchPercent = Math.round(firstHit.relevance * 100)
+                      }
                     }
-                    if (!productUrl && firstHit.url) {
-                      productUrl = firstHit.url
+                    
+                    // Obtener proveedor de la propiedad provider si aún no lo tiene
+                    if (!providerName && (q as any)?.provider) {
+                      providerName = getProviderName((q as any).provider)
                     }
-                    if (!productTitle && firstHit.title) {
-                      productTitle = firstHit.title
+                    
+                    // Obtener imagen de la propiedad image_url si aún no la tiene
+                    if (!img && (q as any)?.image_url) {
+                      img = (q as any).image_url
                     }
-                    if (matchPercent == null && typeof firstHit.relevance === 'number') {
-                      matchPercent = Math.round(firstHit.relevance * 100)
+                    
+                    // Obtener URL y título de propiedades fallback
+                    if (!productUrl && (q as any)?.url) {
+                      productUrl = (q as any).url
                     }
-                  }
-                  
-                  // Obtener proveedor de la propiedad provider si aún no lo tiene
-                  if (!providerName && (q as any)?.provider) {
-                    providerName = getProviderName((q as any).provider)
-                  }
-                  
-                  // Obtener imagen de la propiedad image_url si aún no la tiene
-                  if (!img && (q as any)?.image_url) {
-                    img = (q as any).image_url
-                  }
-                  
-                  // Obtener URL y título de propiedades fallback
-                  if (!productUrl && (q as any)?.url) {
-                    productUrl = (q as any).url
-                  }
-                  if (!productTitle && (q as any)?.title) {
-                    productTitle = (q as any).title
+                    if (!productTitle && (q as any)?.title) {
+                      productTitle = (q as any).title
+                    }
                   }
                   
                   const lineTotal = unit != null ? unit * r.quantity : null
@@ -694,13 +734,23 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                       <TableCell align="center">
                         {found && productUrl ? (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                setSelectedItemIndex(idx)
+                                setItemModalOpen(true)
+                              }}
+                            >
+                              Ver opciones
+                            </Button>
                             <Link
                               href={productUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, fontSize: '0.875rem' }}
                             >
-                              Ver producto
+                              Ir al producto
                               <OpenInNewIcon sx={{ fontSize: 14 }} />
                             </Link>
                             {matchPercent != null && (
@@ -738,8 +788,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                 como baja coincidencia en el detalle por proveedor.
               </Typography>
               <Typography variant="body2">
-                En la columna "Producto seleccionado" se muestra el producto exacto que se uso para ese item,
-                con su enlace y porcentaje de coincidencia.
+                Click en "Ver opciones" para ver todas las alternativas encontradas para ese item.
               </Typography>
             </DialogContent>
             <DialogActions>
@@ -747,96 +796,57 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
             </DialogActions>
           </Dialog>
 
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Opciones por ítem
-          </Typography>
-          {displayResults.map((r, idx) => {
-            const q = r.multi || r.dimeiggs
-            // Obtener imagen del mejor hit si es multi-proveedor, si no usar dimeiggs
-            const summaryImage = r.multi && (r.multi as any).best_hit?.image_url 
-              ? (r.multi as any).best_hit.image_url 
-              : r.dimeiggs?.image_url
-            
-            return (
-            <Accordion key={idx} defaultExpanded={idx === 0} variant="outlined" sx={{ mb: 1 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                {summaryImage && (
-                  <Box
-                    component="img"
-                    src={summaryImage}
-                    alt=""
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      objectFit: 'contain',
-                      borderRadius: 1,
-                      mr: 1.5,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  />
-                )}
-                <Typography variant="body2">
-                  {r.item.detalle || r.item.item_original} × {r.quantity}
+          <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Resumen de cotización
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography>Subtotal (ítems con precio)</Typography>
+                <Typography fontWeight={600}>{formatCLP(subtotal)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography color="text.primary">Ítems cotizados (con precio)</Typography>
+                <Typography fontWeight={500}>{itemsConPrecio}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography color="text.primary">Ítems pendientes / no encontrados</Typography>
+                <Typography fontWeight={500} color="warning.main">{itemsPendientes}</Typography>
+              </Box>
+            </Box>
+            {pendientes.length > 0 && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }} color="text.primary">
+                  Pendientes:
                 </Typography>
-                {q?.status && FOUND_STATUSES.includes(q.status) && q.hits?.length ? (
-                  <Typography variant="caption" color="success.main" sx={{ ml: 1 }}>
-                    {q.hits.length} opciones
-                  </Typography>
-                ) : (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    {pendingReason(r)}
-                  </Typography>
-                )}
-              </AccordionSummary>
-              <AccordionDetails>
-                {q?.hits?.length ? (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
-                    {summaryImage && (
-                      <Box
-                        component="img"
-                        src={summaryImage}
-                        alt=""
-                        sx={{
-                          width: 80,
-                          height: 80,
-                          objectFit: 'contain',
-                          borderRadius: 1,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
-                    <Box component="ul" sx={{ m: 0, pl: 2.5, flex: 1 }}>
-                      {q.hits.slice(0, 8).map((h, i) => (
-                        <Box component="li" key={i} sx={{ mb: 1 }}>
-                          <Link
-                            href={h.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
-                          >
-                            {h.title}
-                            {(h as any).brand && ` (${(h as any).brand})`}
-                            {h.price != null && ` · ${formatCLP(h.price)}`}
-                            {isMultiProvider && (h as any).provider && ` [${getProviderName((h as any).provider)}]`}
-                            {typeof (h as any).relevance === 'number' && ` · ${Math.round((h as any).relevance * 100)}%`}
-                            <OpenInNewIcon sx={{ fontSize: 14 }} />
-                          </Link>
+                <Box
+                  component="ul"
+                  sx={{
+                    m: 0,
+                    pl: 2.5,
+                    pr: 2,
+                    py: 1.5,
+                    borderLeft: '3px solid',
+                    borderColor: 'warning.main',
+                    bgcolor: (t) => t.palette.mode === 'light' ? 'grey.100' : 'grey.800',
+                    borderRadius: 1,
+                  }}
+                >
+                  {pendientes.map((r, i) => (
+                    <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                      <Typography variant="body2">
+                        {r.item.detalle || r.item.item_original}
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.75rem', ml: 0.5 }}>
+                          — {pendingReason(r)}
                         </Box>
-                      ))}
+                      </Typography>
                     </Box>
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    {pendingReason(r)}
-                  </Typography>
-                )}
-              </AccordionDetails>
-            </Accordion>
-            )
-          })}
+                  ))}
+                </Box>
+              </>
+            )}
+          </Paper>
 
           {isMultiProvider && Object.keys(providerTotals).length > 0 && (
             <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
@@ -1237,59 +1247,322 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
             </DialogActions>
           </Dialog>
 
-          <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              Resumen de cotización
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography>Subtotal (ítems con precio)</Typography>
-                <Typography fontWeight={600}>{formatCLP(subtotal)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography color="text.primary">Ítems cotizados (con precio)</Typography>
-                <Typography fontWeight={500}>{itemsConPrecio}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography color="text.primary">Ítems pendientes / no encontrados</Typography>
-                <Typography fontWeight={500} color="warning.main">{itemsPendientes}</Typography>
-              </Box>
-            </Box>
-            {pendientes.length > 0 && (
-              <>
-                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }} color="text.primary">
-                  Pendientes:
-                </Typography>
-                <Box
-                  component="ul"
-                  sx={{
-                    m: 0,
-                    pl: 2.5,
-                    pr: 2,
-                    py: 1.5,
-                    borderLeft: '3px solid',
-                    borderColor: 'warning.main',
-                    bgcolor: (t) => t.palette.mode === 'light' ? 'grey.100' : 'grey.800',
-                    borderRadius: 1,
-                  }}
-                >
-                  {pendientes.map((r, i) => (
-                    <Box component="li" key={i} sx={{ mb: 0.5 }}>
-                      <Typography variant="body2">
-                        {r.item.detalle || r.item.item_original}
-                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.75rem', ml: 0.5 }}>
-                          — {pendingReason(r)}
-                        </Box>
-                      </Typography>
-                    </Box>
-                  ))}
+          <Dialog open={itemModalOpen} onClose={() => setItemModalOpen(false)} maxWidth="md" fullWidth>
+            <DialogTitle>
+              {selectedItemIndex != null && displayResults[selectedItemIndex]
+                ? `Todas las opciones para: ${displayResults[selectedItemIndex].item.detalle || displayResults[selectedItemIndex].item.item_original}`
+                : 'Opciones disponibles'}
+            </DialogTitle>
+            <DialogContent dividers>
+              {selectedItemIndex != null && displayResults[selectedItemIndex] ? (
+                <Box>
+                  {(() => {
+                    const r = displayResults[selectedItemIndex!]
+                    const q = r.multi || r.dimeiggs
+                    const hits = (q as any)?.hits || []
+                    const validHits = hits.filter((h: any) => typeof h?.relevance === 'number' ? h.relevance >= MATCH_THRESHOLD : false)
+                    const lowHits = hits.filter((h: any) => typeof h?.relevance === 'number' ? h.relevance < MATCH_THRESHOLD : false)
+
+                    return (
+                      <Box>
+                        {validHits.length > 0 && (
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" fontWeight={700} color="success.main" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+                              Opciones recomendadas ({validHits.length})
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                              {validHits.slice(0, 10).map((h: any, i: number) => {
+                                const matchPercent = Math.round((typeof h?.relevance === 'number' ? h.relevance : 0) * 100)
+                                const lineTotal = (h.price || 0) * r.quantity
+                                const isSelected = selectedOptions.get(selectedItemIndex!) === i
+                                return (
+                                  <Paper
+                                    key={i}
+                                    variant="outlined"
+                                    onClick={() => handleSelectOption(selectedItemIndex!, i)}
+                                    sx={{
+                                      p: 2,
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      gap: 2,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      border: '2px solid',
+                                      borderColor: isSelected ? 'success.main' : 'divider',
+                                      bgcolor: isSelected ? (t) => t.palette.mode === 'light' ? 'success.lighter' : 'success.dark' : 'transparent',
+                                      '&:hover': {
+                                        boxShadow: 2,
+                                        borderColor: 'success.main',
+                                      },
+                                    }}
+                                  >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', pt: 0.5, flexShrink: 0 }}>
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onChange={() => handleSelectOption(selectedItemIndex!, i)}
+                                        sx={{ p: 0 }}
+                                      />
+                                    </Box>
+                                    {h.image_url && (
+                                      <Box
+                                        component="img"
+                                        src={h.image_url}
+                                        alt=""
+                                        sx={{
+                                          width: 80,
+                                          height: 80,
+                                          objectFit: 'contain',
+                                          borderRadius: 1,
+                                          border: '1px solid',
+                                          borderColor: 'divider',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    )}
+                                    <Box sx={{ flex: 1 }}>
+                                      <Link
+                                        href={h.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}
+                                      >
+                                        <Typography variant="body2" fontWeight={600}>
+                                          {h.title}
+                                          {(h as any).brand && ` (${(h as any).brand})`}
+                                        </Typography>
+                                        <OpenInNewIcon sx={{ fontSize: 14 }} />
+                                      </Link>
+                                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                                        <Chip
+                                          label={`Coincidencia ${matchPercent}%`}
+                                          size="small"
+                                          color={matchPercent >= 70 ? 'success' : 'warning'}
+                                          variant="outlined"
+                                        />
+                                        {(h as any).provider && (
+                                          <Chip
+                                            label={getProviderName((h as any).provider)}
+                                            size="small"
+                                            sx={{
+                                              bgcolor: getProviderColor((h as any).provider),
+                                              color: '#fff',
+                                            }}
+                                          />
+                                        )}
+                                      </Box>
+                                      <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Typography variant="body2" color="text.secondary">
+                                          ${h.price ? (h.price as any).toLocaleString('es-CL') : '—'} × {r.quantity} = {formatCLP(lineTotal)}
+                                        </Typography>
+                                        {isSelected && (
+                                          <Chip
+                                            label="SELECCIONADO"
+                                            size="small"
+                                            color="success"
+                                            variant="filled"
+                                          />
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  </Paper>
+                                )
+                              })}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {lowHits.length > 0 && (
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" fontWeight={700} color="warning.main" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <WarningAmberIcon sx={{ fontSize: 18 }} />
+                              Opciones con baja coincidencia ({lowHits.length})
+                            </Typography>
+                            <Alert severity="warning" sx={{ mb: 1, fontSize: '0.875rem' }}>
+                              Estos productos tienen coincidencia menor al 40% con tu búsqueda.
+                            </Alert>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              {lowHits.slice(0, 5).map((h: any, i: number) => {
+                                const validHitsCount = validHits.length
+                                const lowHitIndex = validHitsCount + i // Ajustar índice considerando validHits
+                                const matchPercent = Math.round((typeof h?.relevance === 'number' ? h.relevance : 0) * 100)
+                                const lineTotal = (h.price || 0) * r.quantity
+                                const isSelected = selectedOptions.get(selectedItemIndex!) === lowHitIndex
+                                return (
+                                  <Paper
+                                    key={i}
+                                    variant="outlined"
+                                    onClick={() => handleSelectOption(selectedItemIndex!, lowHitIndex)}
+                                    sx={{
+                                      p: 2,
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      gap: 2,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      border: '2px solid',
+                                      borderColor: isSelected ? 'warning.main' : 'warning.light',
+                                      bgcolor: isSelected ? (t) => t.palette.mode === 'light' ? 'warning.lighter' : 'warning.dark' : (t) => t.palette.mode === 'light' ? 'warning.lighter' : 'warning.dark',
+                                    }}
+                                  >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', pt: 0.5, flexShrink: 0 }}>
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onChange={() => handleSelectOption(selectedItemIndex!, lowHitIndex)}
+                                        sx={{ p: 0 }}
+                                      />
+                                    </Box>
+                                    {h.image_url && (
+                                      <Box
+                                        component="img"
+                                        src={h.image_url}
+                                        alt=""
+                                        sx={{
+                                          width: 60,
+                                          height: 60,
+                                          objectFit: 'contain',
+                                          borderRadius: 1,
+                                          border: '1px solid',
+                                          borderColor: 'divider',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    )}
+                                    <Box sx={{ flex: 1 }}>
+                                      <Link
+                                        href={h.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}
+                                      >
+                                        <Typography variant="body2" fontWeight={600}>
+                                          {h.title}
+                                        </Typography>
+                                        <OpenInNewIcon sx={{ fontSize: 14 }} />
+                                      </Link>
+                                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                                        <Chip
+                                          label={`Coincidencia ${matchPercent}%`}
+                                          size="small"
+                                          color="error"
+                                          variant="outlined"
+                                        />
+                                        {(h as any).provider && (
+                                          <Chip
+                                            label={getProviderName((h as any).provider)}
+                                            size="small"
+                                          />
+                                        )}
+                                      </Box>
+                                      <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                          ${h.price ? (h.price as any).toLocaleString('es-CL') : '—'} × {r.quantity} = {formatCLP(lineTotal)}
+                                        </Typography>
+                                        {isSelected && (
+                                          <Chip
+                                            label="SELECCIONADO"
+                                            size="small"
+                                            color="warning"
+                                            variant="filled"
+                                          />
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  </Paper>
+                                )
+                              })}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {validHits.length === 0 && lowHits.length === 0 && (
+                          <Box sx={{ textAlign: 'center', py: 3 }}>
+                            <WarningAmberIcon sx={{ fontSize: 48, color: 'warning.main', mb: 1 }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {(q as any)?.reason || (q as any)?.error || 'No se encontraron opciones para este item'}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    )
+                  })()}
                 </Box>
-              </>
-            )}
-          </Paper>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No hay información disponible.
+                </Typography>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setItemModalOpen(false)}>Cerrar</Button>
+            </DialogActions>
+          </Dialog>
         </>
       )}
+
+      {quoted && (
+        <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+          <Button variant="contained" onClick={onReset}>
+            Nueva cotización
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success"
+            startIcon={<SaveIcon />}
+            onClick={() => setSaveDialogOpen(true)}
+          >
+            Guardar cotización
+          </Button>
+        </Box>
+      )}
+
+      <QuoteProgressModal
+        open={showProgress}
+        items={workingItems}
+        quotedCount={quotedCount}
+        sources={sources}
+        indeterminate={batchMode}
+        onEditItem={handleEditItem}
+        onRetryItem={handleRetryItem}
+        onClose={() => setShowProgress(false)}
+      />
+
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Guardar cotización</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            label="Nombre de la cotización"
+            fullWidth
+            value={quoteTitle}
+            onChange={(e) => setQuoteTitle(e.target.value)}
+            placeholder="Ej: Cotización Colegio 1, Útiles Marzo 2026"
+            autoFocus
+            disabled={saving}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && quoteTitle.trim()) {
+                handleSaveQuote()
+              }
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Usa un nombre descriptivo para identificar esta cotización fácilmente después
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveDialogOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSaveQuote} 
+            variant="contained" 
+            color="success"
+            disabled={!quoteTitle.trim() || saving}
+            startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+          >
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {quoted && (
         <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
