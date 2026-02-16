@@ -13,7 +13,7 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import { parseAiItemsOnly, parseAiFull, type ParsedItem } from '../api'
+import { parseAiFull, type ParsedItem } from '../api'
 import type { SourceId } from '../types'
 
 const ACCEPT = '.pdf,.docx,.xlsx,.xls'
