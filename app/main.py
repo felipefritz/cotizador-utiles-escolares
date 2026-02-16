@@ -152,6 +152,15 @@ def normalize_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     current_subject: Optional[str] = None
 
+    def _trim_after_slash(text: Optional[str]) -> Optional[str]:
+        if not text or not isinstance(text, str):
+            return text
+        # Solo cortar cuando hay " / " con espacios (evita cortar medidas tipo A4/3)
+        parts = re.split(r"\s+/\s+", text)
+        if len(parts) > 1 and parts[0].strip():
+            return parts[0].strip()
+        return text
+
     for it in items:
         it = dict(it)  # copia
         
@@ -160,6 +169,10 @@ def normalize_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             it["item_original"] = it.get("detalle", "sin detalle")
         
         it["asignatura"] = _clean_subject(it.get("asignatura"))
+
+        # Quitar descripciones especificas despues de " / " en el detalle
+        if it.get("detalle"):
+            it["detalle"] = _trim_after_slash(it.get("detalle"))
 
         # heredar asignatura
         if it["asignatura"]:

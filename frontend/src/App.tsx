@@ -228,6 +228,7 @@ function MainApp() {
               results={resultsForQuoteStep}
               onReset={onReset}
               sources={sources}
+              onEditSelection={() => setStep(2)}
             />
           )}
         </Paper>

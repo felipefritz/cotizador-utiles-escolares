@@ -23,23 +23,27 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  IconButton,
   TextField,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import SaveIcon from '@mui/icons-material/Save'
 import type { ItemQuote, SourceId } from '../types'
 import { formatCLP } from '../utils/format'
-import { quoteMultiProviders, quoteMultiProvidersBatch, api } from '../api'
+import { quoteMultiProviders, api } from '../api'
 import { QuoteProgressModal } from '../components/QuoteProgressModal'
+import { useAuth } from '../contexts/AuthContext'
 
 type Props = {
   results: ItemQuote[]
   onReset: () => void
   sources: SourceId[]
+  onEditSelection: () => void
 }
 
 interface UserLimits {
@@ -58,7 +62,8 @@ function isFound(q: { status?: string } | undefined): boolean {
   return !!q && FOUND_STATUSES.includes(q.status || '')
 }
 
-export function QuoteStep({ results, onReset, sources }: Props) {
+export function QuoteStep({ results, onReset, sources, onEditSelection }: Props) {
+  const { token } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [quoted, setQuoted] = useState(false)
@@ -74,10 +79,15 @@ export function QuoteStep({ results, onReset, sources }: Props) {
   const [limits, setLimits] = useState<UserLimits | null>(null)
   const [providerModalOpen, setProviderModalOpen] = useState(false)
   const [providerModalKey, setProviderModalKey] = useState<string | null>(null)
+  const [summaryInfoOpen, setSummaryInfoOpen] = useState(false)
 
   // Cargar límites del usuario
   useEffect(() => {
     const fetchLimits = async () => {
+      if (!token) {
+        setLimits(null)
+        return
+      }
       try {
         const response = await api.get('/user/limits')
         setLimits(response.data)
@@ -86,7 +96,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       }
     }
     fetchLimits()
-  }, [])
+  }, [token])
 
   // Limitar proveedores según el plan
   const allowedSources = useMemo(() => {
@@ -114,28 +124,43 @@ export function QuoteStep({ results, onReset, sources }: Props) {
     setShowProgress(true)
     setQuotedCount(0)
     setWorkingItems(allowedResults)
-    setBatchMode(true)
+    setBatchMode(false)
     
     try {
-      const payloadItems = allowedResults.map((item) => ({
-        detalle: item.item.detalle || item.item.item_original,
-        item_original: item.item.item_original,
-        cantidad: item.quantity,
-      }))
+      const updated: ItemQuote[] = []
 
-      const batch = await quoteMultiProvidersBatch(payloadItems, allowedSources)
+      for (let i = 0; i < allowedResults.length; i += 1) {
+        const item = allowedResults[i]
+        const query = item.item.detalle || item.item.item_original
 
-      const updated = allowedResults.map((item, idx) => {
-        const quotedItem = batch.items?.[idx]
-        return {
-          item: item.item,
-          quantity: item.quantity,
-          multi: quotedItem?.quote || item.multi,
+        try {
+          const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
+          updated.push({
+            item: item.item,
+            quantity: item.quantity,
+            multi: quote,
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Error al cotizar'
+          setError(msg)
+          updated.push({
+            item: item.item,
+            quantity: item.quantity,
+            multi: {
+              query,
+              status: 'error',
+              providers_queried: allowedSources,
+              providers_failed: [],
+              hits: [],
+              error: msg,
+            },
+          })
         }
-      })
 
-      setQuotedResults(updated)
-      setQuotedCount(updated.length)
+        setQuotedResults([...updated])
+        setQuotedCount(i + 1)
+      }
+
       setQuoted(true)
       setShowProgress(false)
     } catch (e) {
@@ -143,7 +168,6 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       setShowProgress(false)
     } finally {
       setLoading(false)
-      setBatchMode(false)
     }
   }, [allowedResults, allowedSources])
 
@@ -340,10 +364,19 @@ export function QuoteStep({ results, onReset, sources }: Props) {
 
   const providerTotals = useMemo(() => {
     const providers = sources
-    const totals: Record<string, { name: string; total: number; found: number; missing: number; lowMatches: number; items: Array<{ item: ItemQuote; price: number; relevance: number; url?: string; title?: string }> }> = {}
+    const totals: Record<string, { 
+      name: string; 
+      total: number; 
+      found: number; 
+      missing: number; 
+      lowMatches: number; 
+      items: Array<{ item: ItemQuote; price: number; relevance: number; url?: string; title?: string }>;
+      lowMatchItems: Array<{ item: ItemQuote; price: number; relevance: number; url?: string; title?: string }>;
+      missingItems: Array<{ item: ItemQuote; reason?: string }>
+    }> = {}
 
     for (const p of providers) {
-      totals[p] = { name: getProviderName(p), total: 0, found: 0, missing: 0, lowMatches: 0, items: [] }
+      totals[p] = { name: getProviderName(p), total: 0, found: 0, missing: 0, lowMatches: 0, items: [], lowMatchItems: [], missingItems: [] }
     }
 
     for (const r of displayResults) {
@@ -354,7 +387,9 @@ export function QuoteStep({ results, onReset, sources }: Props) {
       for (const p of providers) {
         const providerHits = hits.filter((h: any) => h?.provider === p && h?.price != null)
         const validHits = providerHits.filter((h: any) => (typeof h?.relevance === 'number' ? h.relevance >= MATCH_THRESHOLD : false))
+        const lowHits = providerHits.filter((h: any) => (typeof h?.relevance === 'number' ? h.relevance < MATCH_THRESHOLD : false))
         let bestHit: any = null
+        let bestLowHit: any = null
 
         if (validHits.length) {
           bestHit = validHits.reduce((min: any, h: any) => {
@@ -363,7 +398,13 @@ export function QuoteStep({ results, onReset, sources }: Props) {
             if (!min) return h
             return Number(min.price) <= price ? min : h
           }, null)
-        } else if (providerHits.length) {
+        } else if (lowHits.length) {
+          bestLowHit = lowHits.reduce((min: any, h: any) => {
+            const price = Number(h.price)
+            if (Number.isNaN(price)) return min
+            if (!min) return h
+            return Number(min.price) <= price ? min : h
+          }, null)
           totals[p].lowMatches += 1
         } else if ((q as any)?.provider === p && (q as any)?.unit_price != null) {
           bestHit = {
@@ -385,8 +426,21 @@ export function QuoteStep({ results, onReset, sources }: Props) {
             url: bestHit.url,
             title: bestHit.title,
           })
+        } else if (bestLowHit && bestLowHit.price != null && !Number.isNaN(Number(bestLowHit.price))) {
+          const price = Number(bestLowHit.price)
+          totals[p].lowMatchItems.push({
+            item: r,
+            price,
+            relevance: typeof bestLowHit.relevance === 'number' ? bestLowHit.relevance : 0,
+            url: bestLowHit.url,
+            title: bestLowHit.title,
+          })
         } else {
           totals[p].missing += 1
+          totals[p].missingItems.push({
+            item: r,
+            reason: (q as any)?.reason || (q as any)?.error || 'Sin resultados',
+          })
         }
       }
     }
@@ -431,7 +485,7 @@ export function QuoteStep({ results, onReset, sources }: Props) {
             {results.length} artículos listos para cotizar en {sources.length} {sources.length === 1 ? 'tienda' : 'tiendas'}.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-            <Button variant="outlined" onClick={() => window.history.back()}>
+            <Button variant="outlined" onClick={onEditSelection}>
               Editar selección
             </Button>
             <Button 
@@ -460,6 +514,14 @@ export function QuoteStep({ results, onReset, sources }: Props) {
         </Paper>
       ) : (
         <>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Resumen por item (mejor precio)
+            </Typography>
+            <IconButton size="small" onClick={() => setSummaryInfoOpen(true)} aria-label="Info resumen">
+              <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
           <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
             <Table size="small" stickyHeader>
               <TableHead>
@@ -666,6 +728,24 @@ export function QuoteStep({ results, onReset, sources }: Props) {
               </TableBody>
             </Table>
           </TableContainer>
+
+          <Dialog open={summaryInfoOpen} onClose={() => setSummaryInfoOpen(false)} maxWidth="sm" fullWidth>
+            <DialogTitle>Como leer esta tabla</DialogTitle>
+            <DialogContent dividers>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Esta tabla muestra, para cada item, el mejor precio encontrado entre las tiendas seleccionadas.
+                Si un item no supera el umbral de coincidencia (40%), no se incluye en el total y se muestra
+                como baja coincidencia en el detalle por proveedor.
+              </Typography>
+              <Typography variant="body2">
+                En la columna "Producto seleccionado" se muestra el producto exacto que se uso para ese item,
+                con su enlace y porcentaje de coincidencia.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSummaryInfoOpen(false)}>Entendido</Button>
+            </DialogActions>
+          </Dialog>
 
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
             Opciones por ítem
@@ -937,87 +1017,218 @@ export function QuoteStep({ results, onReset, sources }: Props) {
               {providerModalKey ? `Items cotizados en ${getProviderName(providerModalKey)}` : 'Items cotizados'}
             </DialogTitle>
             <DialogContent dividers>
-              {providerModalKey && providerTotals[providerModalKey]?.items?.length ? (
+              {providerModalKey && providerTotals[providerModalKey] ? (
                 <Box>
-                  {providerTotals[providerModalKey].items.map((row, idx) => {
-                    const matchPercent = Math.round(row.relevance * 100)
-                    const originalName = row.item.item.detalle || row.item.item.item_original
-                    const lineTotal = row.price * row.item.quantity
-                    return (
-                      <Accordion key={idx} sx={{ mb: 1 }}>
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="body2" fontWeight={600}>
-                                {originalName}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Cantidad: {row.item.quantity}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Chip
-                                label={`${matchPercent}%`}
-                                size="small"
-                                color={matchPercent >= 70 ? 'success' : matchPercent >= 40 ? 'warning' : 'error'}
-                                variant="outlined"
-                              />
-                              <Typography variant="body2" fontWeight={600} sx={{ minWidth: 100, textAlign: 'right' }}>
-                                {formatCLP(lineTotal)}
-                              </Typography>
-                            </Box>
+                  {providerTotals[providerModalKey].items.length > 0 && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" fontWeight={700} color="success.main" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+                        Items cotizados ({providerTotals[providerModalKey].items.length})
+                      </Typography>
+                      {providerTotals[providerModalKey].items.map((row, idx) => {
+                        const matchPercent = Math.round(row.relevance * 100)
+                        const originalName = row.item.item.detalle || row.item.item.item_original
+                        const lineTotal = row.price * row.item.quantity
+                        return (
+                          <Accordion key={idx} sx={{ mb: 1 }}>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {originalName}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Cantidad: {row.item.quantity}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Chip
+                                    label={`${matchPercent}%`}
+                                    size="small"
+                                    color={matchPercent >= 70 ? 'success' : 'warning'}
+                                    variant="outlined"
+                                  />
+                                  <Typography variant="body2" fontWeight={600} sx={{ minWidth: 100, textAlign: 'right' }}>
+                                    {formatCLP(lineTotal)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Producto encontrado:
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    {row.url ? (
+                                      <Link href={row.url} target="_blank" rel="noopener noreferrer">
+                                        {row.title || originalName} <OpenInNewIcon sx={{ fontSize: 14, ml: 0.5, verticalAlign: 'middle' }} />
+                                      </Link>
+                                    ) : (
+                                      row.title || originalName
+                                    )}
+                                  </Typography>
+                                </Box>
+                                <Divider />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Precio unitario:
+                                  </Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {formatCLP(row.price)}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Cantidad:
+                                  </Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {row.item.quantity}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Total línea:
+                                  </Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {formatCLP(lineTotal)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        )
+                      })}
+                    </Box>
+                  )}
+
+                  {providerTotals[providerModalKey].lowMatchItems.length > 0 && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" fontWeight={700} color="warning.main" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <WarningAmberIcon sx={{ fontSize: 18 }} />
+                        Items con baja coincidencia ({providerTotals[providerModalKey].lowMatchItems.length})
+                      </Typography>
+                      <Alert severity="warning" sx={{ mb: 1, fontSize: '0.875rem' }}>
+                        Estos items tienen coincidencia menor al 40% y no se incluyen en el total.
+                      </Alert>
+                      {providerTotals[providerModalKey].lowMatchItems.map((row, idx) => {
+                        const matchPercent = Math.round(row.relevance * 100)
+                        const originalName = row.item.item.detalle || row.item.item.item_original
+                        const lineTotal = row.price * row.item.quantity
+                        return (
+                          <Accordion key={idx} sx={{ mb: 1, bgcolor: 'warning.lighter', border: '1px solid', borderColor: 'warning.light' }}>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {originalName}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Cantidad: {row.item.quantity}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Chip
+                                    label={`${matchPercent}%`}
+                                    size="small"
+                                    color="error"
+                                    variant="outlined"
+                                  />
+                                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 100, textAlign: 'right' }}>
+                                    {formatCLP(lineTotal)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Producto encontrado (baja coincidencia):
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    {row.url ? (
+                                      <Link href={row.url} target="_blank" rel="noopener noreferrer">
+                                        {row.title || originalName} <OpenInNewIcon sx={{ fontSize: 14, ml: 0.5, verticalAlign: 'middle' }} />
+                                      </Link>
+                                    ) : (
+                                      row.title || originalName
+                                    )}
+                                  </Typography>
+                                </Box>
+                                <Divider />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Precio unitario:
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    {formatCLP(row.price)}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Cantidad:
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    {row.item.quantity}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Total línea (no incluido):
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ textDecoration: 'line-through' }}>
+                                    {formatCLP(lineTotal)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        )
+                      })}
+                    </Box>
+                  )}
+
+                  {providerTotals[providerModalKey].missingItems.length > 0 && (
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={700} color="error.main" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <WarningAmberIcon sx={{ fontSize: 18 }} />
+                        Items sin cotizar ({providerTotals[providerModalKey].missingItems.length})
+                      </Typography>
+                      <Alert severity="error" sx={{ mb: 1, fontSize: '0.875rem' }}>
+                        Estos items no fueron encontrados en este proveedor.
+                      </Alert>
+                      {providerTotals[providerModalKey].missingItems.map((row, idx) => {
+                        const originalName = row.item.item.detalle || row.item.item.item_original
+                        return (
+                          <Box key={idx} sx={{ mb: 1, p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
+                            <Typography variant="body2" fontWeight={600}>
+                              {originalName}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              Cantidad: {row.item.quantity}
+                            </Typography>
+                            <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
+                              {row.reason}
+                            </Typography>
                           </Box>
-                        </AccordionSummary>
-                        <AccordionDetails>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary">
-                                Producto encontrado:
-                              </Typography>
-                              <Typography variant="body2">
-                                {row.url ? (
-                                  <Link href={row.url} target="_blank" rel="noopener noreferrer">
-                                    {row.title || originalName} <OpenInNewIcon sx={{ fontSize: 14, ml: 0.5, verticalAlign: 'middle' }} />
-                                  </Link>
-                                ) : (
-                                  row.title || originalName
-                                )}
-                              </Typography>
-                            </Box>
-                            <Divider />
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Typography variant="body2" color="text.secondary">
-                                Precio unitario:
-                              </Typography>
-                              <Typography variant="body2" fontWeight={600}>
-                                {formatCLP(row.price)}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Typography variant="body2" color="text.secondary">
-                                Cantidad:
-                              </Typography>
-                              <Typography variant="body2" fontWeight={600}>
-                                {row.item.quantity}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Typography variant="body2" color="text.secondary">
-                                Total línea:
-                              </Typography>
-                              <Typography variant="body2" fontWeight={600}>
-                                {formatCLP(lineTotal)}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </AccordionDetails>
-                      </Accordion>
-                    )
-                  })}
+                        )
+                      })}
+                    </Box>
+                  )}
+
+                  {providerTotals[providerModalKey].items.length === 0 && 
+                   providerTotals[providerModalKey].lowMatchItems.length === 0 && 
+                   providerTotals[providerModalKey].missingItems.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      No hay items para este proveedor.
+                    </Typography>
+                  )}
                 </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  No hay items con coincidencia suficiente para este proveedor.
+                  No hay información disponible para este proveedor.
                 </Typography>
               )}
             </DialogContent>

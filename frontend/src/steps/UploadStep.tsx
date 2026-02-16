@@ -7,15 +7,12 @@ import {
   Alert,
   alpha,
   Button,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  Tooltip,
+  TextField,
+  Divider,
 } from '@mui/material'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import SpeedIcon from '@mui/icons-material/Speed'
 import { parseAiItemsOnly, parseAiFull, type ParsedItem } from '../api'
 import type { SourceId } from '../types'
 
@@ -33,7 +30,10 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
   const [parsed, setParsed] = useState(false)
-  const [extractionMethod, setExtractionMethod] = useState<'hybrid' | 'ai'>('hybrid')
+  const extractionMethod: 'ai' = 'ai'
+  const [manualName, setManualName] = useState('')
+  const [manualQty, setManualQty] = useState(1)
+  const [manualItems, setManualItems] = useState<ParsedItem[]>([])
 
   const upload = useCallback(async (f: File) => {
     const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'))
@@ -45,9 +45,7 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
     setFile(f)
     setLoading(true)
     try {
-      const data = extractionMethod === 'ai' 
-        ? await parseAiFull(f)
-        : await parseAiItemsOnly(f)
+      const data = await parseAiFull(f)
       onItemsParsed(data.items)
       setParsed(true)
     } catch (e) {
@@ -76,6 +74,29 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
     if (f) upload(f)
   }, [upload])
 
+  const addManualItem = () => {
+    const name = manualName.trim()
+    if (!name) return
+    const qty = Math.max(1, Math.min(999, Math.floor(manualQty) || 1))
+    const next: ParsedItem = {
+      item_original: name,
+      detalle: name,
+      cantidad: qty,
+      unidad: null,
+      asignatura: null,
+      tipo: 'util',
+    }
+    setManualItems((prev) => [...prev, next])
+    setManualName('')
+    setManualQty(1)
+  }
+
+  const continueWithManualItems = () => {
+    if (manualItems.length === 0) return
+    onItemsParsed(manualItems)
+    setManualItems([])
+  }
+
   return (
     <Box sx={{ maxWidth: 560, mx: 'auto' }}>
       <Typography variant="h6" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
@@ -96,42 +117,14 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
         }).join(', ')}
       </Typography>
 
-      {/* Selector de método de extracción */}
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-          Método de extracción
+        <Typography variant="subtitle2" sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AutoAwesomeIcon fontSize="small" />
+          Método de extracción: IA Completa
         </Typography>
-        <RadioGroup
-          value={extractionMethod}
-          onChange={(e) => setExtractionMethod(e.target.value as 'hybrid' | 'ai')}
-        >
-          <Tooltip title="Más rápido. Usa reglas de texto + IA para casos dudosos" placement="right">
-            <FormControlLabel 
-              value="hybrid" 
-              control={<Radio />} 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SpeedIcon fontSize="small" />
-                  <span>Híbrido (Reglas + IA)</span>
-                </Box>
-              }
-              disabled={loading}
-            />
-          </Tooltip>
-          <Tooltip title="Más preciso para archivos complejos. Usa IA completamente (puede tomar 1-2 minutos)" placement="right">
-            <FormControlLabel 
-              value="ai" 
-              control={<Radio />} 
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AutoAwesomeIcon fontSize="small" />
-                  <span>IA Completa (Recomendado)</span>
-                </Box>
-              }
-              disabled={loading}
-            />
-          </Tooltip>
-        </RadioGroup>
+        <Typography variant="body2" color="text.secondary">
+          Usamos IA para mayor precision (puede tomar 1-2 minutos).
+        </Typography>
       </Paper>
 
       <Paper
@@ -161,10 +154,7 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
           <Box sx={{ py: 2 }}>
             <CircularProgress size={48} sx={{ mb: 2 }} />
             <Typography>
-              {extractionMethod === 'ai' 
-                ? 'IA está analizando el archivo... esto puede tomar 1-2 minutos'
-                : 'Analizando lista…'
-              }
+              IA está analizando el archivo... esto puede tomar 1-2 minutos
             </Typography>
           </Box>
         ) : file ? (
@@ -188,6 +178,54 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
         <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
+      )}
+
+      {!file && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            O ingresa items manualmente
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                label="Nombre del item"
+                size="small"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                sx={{ flex: 1, minWidth: 240 }}
+              />
+              <TextField
+                label="Cantidad"
+                type="number"
+                size="small"
+                value={manualQty}
+                onChange={(e) => setManualQty(Number(e.target.value))}
+                inputProps={{ min: 1, max: 999, style: { width: 80, textAlign: 'center' } }}
+              />
+              <Button variant="contained" onClick={addManualItem} disabled={!manualName.trim()}>
+                Agregar
+              </Button>
+            </Box>
+            {manualItems.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                {manualItems.map((item, idx) => (
+                  <Typography key={idx} variant="body2" color="text.secondary">
+                    {item.detalle} — Cantidad: {item.cantidad || 1}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Paper>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={continueWithManualItems}
+            disabled={manualItems.length === 0}
+          >
+            Continuar con items manuales
+          </Button>
+        </>
       )}
       <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
         <Button variant="outlined" onClick={onBack} fullWidth>

@@ -15,9 +15,16 @@ import {
   TableFooter,
   Alert,
   CircularProgress,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
+import EditIcon from '@mui/icons-material/Edit'
+import DeleteIcon from '@mui/icons-material/Delete'
+import SaveIcon from '@mui/icons-material/Save'
+import CancelIcon from '@mui/icons-material/Cancel'
 import { api } from '../api'
 import type { SelectedItem } from '../types'
+import { useAuth } from '../contexts/AuthContext'
 
 interface UserLimits {
   limits: {
@@ -33,12 +40,23 @@ type Props = {
 }
 
 export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
+  const { token } = useAuth()
   const [limits, setLimits] = useState<UserLimits | null>(null)
   const [loadingLimits, setLoadingLimits] = useState(true)
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemQty, setNewItemQty] = useState(1)
+  const [addNotice, setAddNotice] = useState<string | null>(null)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
 
   // Cargar límites del usuario
   useEffect(() => {
     const fetchLimits = async () => {
+      if (!token) {
+        setLimits(null)
+        setLoadingLimits(false)
+        return
+      }
       try {
         const response = await api.get('/user/limits')
         console.log('[ItemsStep] Límites recibidos:', response.data)
@@ -51,7 +69,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
       }
     }
     fetchLimits()
-  }, [])
+  }, [token])
 
   const selectedCount = useMemo(() => items.filter((i) => i.selected).length, [items])
 
@@ -59,7 +77,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   // Si max_items es un número (incluso 0), respetar ese límite
   const maxItems = limits?.limits.max_items !== null && limits?.limits.max_items !== undefined 
     ? limits.limits.max_items 
-    : items.length
+    : (items.length > 0 ? items.length : 999)
   
   console.log('[ItemsStep] maxItems calculado:', maxItems, 'items.length:', items.length, 'selectedCount:', selectedCount)
 
@@ -107,6 +125,75 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
     onItemsChange(next)
   }
 
+  const addManualItem = () => {
+    const name = newItemName.trim()
+    if (!name) return
+
+    const qty = Math.max(1, Math.min(999, Math.floor(newItemQty) || 1))
+    const nextItem: SelectedItem = {
+      item: {
+        item_original: name,
+        detalle: name,
+        cantidad: qty,
+        unidad: null,
+        asignatura: null,
+        tipo: 'util',
+      },
+      selected: true,
+      quantity: qty,
+    }
+
+    let nextItems = [...items]
+    if (selectedCount >= maxItems && maxItems > 0) {
+      for (let i = nextItems.length - 1; i >= 0; i -= 1) {
+        if (nextItems[i].selected && nextItems[i].item.tipo !== 'lectura') {
+          nextItems[i] = { ...nextItems[i], selected: false }
+          setAddNotice('Se deselecciono el item mas reciente para respetar el limite.')
+          break
+        }
+      }
+    } else {
+      setAddNotice(null)
+    }
+
+    nextItems = [...nextItems, nextItem]
+    onItemsChange(nextItems)
+    setNewItemName('')
+    setNewItemQty(1)
+  }
+
+  const startEdit = (index: number, currentName: string) => {
+    setEditingIndex(index)
+    setEditValue(currentName)
+  }
+
+  const saveEdit = (index: number) => {
+    const name = editValue.trim()
+    if (!name) return
+    const next = [...items]
+    next[index] = {
+      ...next[index],
+      item: {
+        ...next[index].item,
+        detalle: name,
+        item_original: name,
+      },
+    }
+    onItemsChange(next)
+    setEditingIndex(null)
+    setEditValue('')
+  }
+
+  const cancelEdit = () => {
+    setEditingIndex(null)
+    setEditValue('')
+  }
+
+  const deleteItem = (index: number) => {
+    const next = items.filter((_, i) => i !== index)
+    onItemsChange(next)
+  }
+
   const toggleAll = () => {
     // Contar solo items que pueden seleccionarse (no son "lectura")
     const selectableItems = items.filter(i => i.item.tipo !== 'lectura')
@@ -138,16 +225,6 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
 
   const canProceed = selectedCount > 0
 
-  if (items.length === 0) {
-    return (
-      <Box sx={{ maxWidth: 560, mx: 'auto', textAlign: 'center', py: 4 }}>
-        <Typography color="text.secondary">
-          No se detectaron ítems en la lista. Prueba con otro archivo.
-        </Typography>
-      </Box>
-    )
-  }
-
   if (loadingLimits) {
     return (
       <Box sx={{ maxWidth: 560, mx: 'auto', textAlign: 'center', py: 4 }}>
@@ -161,6 +238,37 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
       <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
         Marca los útiles que quieres cotizar y ajusta la cantidad
       </Typography>
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          Agregar item manualmente
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            label="Nombre del item"
+            size="small"
+            value={newItemName}
+            onChange={(e) => setNewItemName(e.target.value)}
+            sx={{ flex: 1, minWidth: 240 }}
+          />
+          <TextField
+            label="Cantidad"
+            type="number"
+            size="small"
+            value={newItemQty}
+            onChange={(e) => setNewItemQty(Number(e.target.value))}
+            inputProps={{ min: 1, max: 999, style: { width: 80, textAlign: 'center' } }}
+          />
+          <Button variant="contained" onClick={addManualItem} disabled={!newItemName.trim()}>
+            Agregar
+          </Button>
+        </Box>
+        {addNotice && (
+          <Alert severity="info" sx={{ mt: 2 }} onClose={() => setAddNotice(null)}>
+            {addNotice}
+          </Alert>
+        )}
+      </Paper>
 
       {items.length > maxItems && (
         <Alert severity="info" sx={{ mb: 2 }}>
@@ -183,11 +291,24 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
               <TableCell align="right" sx={{ width: 120 }}>
                 Cantidad
               </TableCell>
+              <TableCell align="right" sx={{ width: 110 }}>
+                Acciones
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
+            {items.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                  <Typography color="text.secondary">
+                    Aun no hay items. Puedes agregarlos manualmente arriba.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
             {items.map((row, idx) => {
               const isDisabled = row.item.tipo === 'lectura' || (!row.selected && selectedCount >= maxItems);
+              const isEditing = editingIndex === idx
               return (
                 <TableRow key={idx} hover selected={row.selected} sx={{ opacity: isDisabled ? 0.6 : 1 }}>
                   <TableCell padding="checkbox">
@@ -199,7 +320,16 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
                     />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">{row.item.detalle || row.item.item_original}</Typography>
+                    {isEditing ? (
+                      <TextField
+                        size="small"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        fullWidth
+                      />
+                    ) : (
+                      <Typography variant="body2">{row.item.detalle || row.item.item_original}</Typography>
+                    )}
                     {row.item.asignatura && (
                       <Typography variant="caption" color="text.secondary">
                         {row.item.asignatura}
@@ -216,13 +346,42 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
                       sx={{ '& .MuiOutlinedInput-root': { fontSize: 14 } }}
                     />
                   </TableCell>
+                  <TableCell align="right">
+                    {isEditing ? (
+                      <>
+                        <Tooltip title="Guardar">
+                          <IconButton size="small" onClick={() => saveEdit(idx)}>
+                            <SaveIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Cancelar">
+                          <IconButton size="small" onClick={cancelEdit}>
+                            <CancelIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    ) : (
+                      <>
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => startEdit(idx, row.item.detalle || row.item.item_original)}>
+                            <EditIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Eliminar">
+                          <IconButton size="small" onClick={() => deleteItem(idx)}>
+                            <DeleteIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={3}>
+              <TableCell colSpan={4}>
                 <Typography variant="body2" color="text.secondary">
                   {selectedCount} de {items.length} seleccionados para cotizar. Los ítems tipo «lectura» no se cotizan.
                 </Typography>

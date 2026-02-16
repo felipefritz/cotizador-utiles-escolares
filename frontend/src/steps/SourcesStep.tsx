@@ -15,6 +15,7 @@ import LockIcon from '@mui/icons-material/Lock'
 import { SOURCES, type SourceId } from '../types'
 import { api } from '../api'
 import { useEffect, useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 
 type Props = {
   selected: SourceId[]
@@ -39,12 +40,18 @@ interface UserLimits {
 }
 
 export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideBack }: Props) {
+  const { token } = useAuth()
   const [limits, setLimits] = useState<UserLimits | null>(null)
   const [loadingLimits, setLoadingLimits] = useState(true)
 
   // Cargar límites del usuario y auto-limitar selección
   useEffect(() => {
     const fetchLimits = async () => {
+      if (!token) {
+        setLimits(null)
+        setLoadingLimits(false)
+        return
+      }
       try {
         const response = await api.get('/user/limits')
         setLimits(response.data)
@@ -63,7 +70,7 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
       }
     }
     fetchLimits()
-  }, [])
+  }, [token])
 
   const maxProvidersLimit = limits?.limits.max_providers ?? null
   const canSelectMore = maxProvidersLimit === null || selected.length < maxProvidersLimit
