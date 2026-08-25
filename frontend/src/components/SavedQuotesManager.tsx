@@ -417,7 +417,7 @@ export const SavedQuotesManager: React.FC = () => {
                 <TableContainer component={Paper} sx={{ mb: 2 }}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableRow sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
                         <TableCell>Item</TableCell>
                         <TableCell>Proveedor</TableCell>
                         <TableCell align="right">Precio</TableCell>
@@ -608,7 +608,10 @@ export const SavedQuotesManager: React.FC = () => {
                       {Object.entries(purchasedItemsDialog.purchased_items!).map(([itemName, data]: any, idx) => {
                         const subtotal = (data.price || 0) * (data.quantity || 1)
                         return (
-                          <TableRow key={idx} sx={{ backgroundColor: 'success.lighter' }}>
+                          <TableRow
+                            key={idx}
+                            sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'success.dark' : 'success.lighter' }}
+                          >
                             <TableCell><strong>{itemName}</strong></TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -667,7 +670,7 @@ export const SavedQuotesManager: React.FC = () => {
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableRow sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
                         <TableCell>Item</TableCell>
                         <TableCell align="right">Cantidad</TableCell>
                         <TableCell align="center">Estado</TableCell>

@@ -55,7 +55,7 @@ const getLightTheme = () =>
       button: { fontWeight: 700 },
     },
     shape: { borderRadius: 8 },
-    components: getComponentOverrides(),
+    components: getComponentOverrides('light'),
   })
 
 const getDarkTheme = () =>
@@ -96,10 +96,10 @@ const getDarkTheme = () =>
       button: { fontWeight: 700 },
     },
     shape: { borderRadius: 8 },
-    components: getComponentOverrides(),
+    components: getComponentOverrides('dark'),
   })
 
-const getComponentOverrides = () => ({
+const getComponentOverrides = (mode: ThemeMode) => ({
   MuiButton: {
     styleOverrides: {
       root: {
@@ -119,8 +119,24 @@ const getComponentOverrides = () => ({
   },
   MuiPaper: {
     styleOverrides: {
+      root: {
+        backgroundImage: 'none',
+      },
       rounded: {
         borderRadius: 8,
+      },
+    },
+  },
+  MuiOutlinedInput: {
+    styleOverrides: {
+      root: {
+        backgroundColor: mode === 'dark' ? 'rgba(15, 23, 42, 0.48)' : '#FFFFFF',
+        transition: 'background-color 160ms ease, border-color 160ms ease',
+        '& input:-webkit-autofill, & textarea:-webkit-autofill': {
+          WebkitBoxShadow: `0 0 0 100px ${mode === 'dark' ? '#0F172A' : '#FFFFFF'} inset`,
+          WebkitTextFillColor: mode === 'dark' ? '#F1F5F9' : '#111827',
+          caretColor: mode === 'dark' ? '#F1F5F9' : '#111827',
+        },
       },
     },
   },

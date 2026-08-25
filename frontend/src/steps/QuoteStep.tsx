@@ -1202,7 +1202,15 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                         const originalName = row.item.item.detalle || row.item.item.item_original
                         const lineTotal = row.price * row.item.quantity
                         return (
-                          <Accordion key={idx} sx={{ mb: 1, bgcolor: 'warning.lighter', border: '1px solid', borderColor: 'warning.light' }}>
+                          <Accordion
+                            key={idx}
+                            sx={{
+                              mb: 1,
+                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'warning.dark' : 'warning.lighter',
+                              border: '1px solid',
+                              borderColor: 'warning.light',
+                            }}
+                          >
                             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                                 <Box sx={{ flex: 1 }}>
@@ -1287,7 +1295,17 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                       {providerTotals[providerModalKey].missingItems.map((row, idx) => {
                         const originalName = row.item.item.detalle || row.item.item.item_original
                         return (
-                          <Box key={idx} sx={{ mb: 1, p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
+                          <Box
+                            key={idx}
+                            sx={{
+                              mb: 1,
+                              p: 1.5,
+                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'error.dark' : 'error.lighter',
+                              border: '1px solid',
+                              borderColor: 'error.light',
+                              borderRadius: 1,
+                            }}
+                          >
                             <Typography variant="body2" fontWeight={600}>
                               {originalName}
                             </Typography>

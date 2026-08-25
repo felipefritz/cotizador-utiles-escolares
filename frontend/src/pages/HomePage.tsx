@@ -185,7 +185,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
   const primaryCtaLabel = 'Cotizar ahora'
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#F6F8FB' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Box sx={{ bgcolor: '#0B1220', color: 'white', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
           <Grid container spacing={5} alignItems="center">
@@ -278,7 +278,9 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
               <Paper
                 variant="outlined"
                 sx={{
-                  bgcolor: 'rgba(255,255,255,0.96)',
+                  bgcolor: (theme) => theme.palette.mode === 'dark'
+                    ? 'rgba(30, 41, 59, 0.96)'
+                    : 'rgba(255, 255, 255, 0.96)',
                   borderColor: 'rgba(255,255,255,0.16)',
                   borderRadius: 2,
                   overflow: 'hidden',
@@ -303,7 +305,9 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                           borderColor: 'divider',
                           borderRadius: 1,
                           p: 1.5,
-                          bgcolor: '#fff',
+                          bgcolor: (theme) => theme.palette.mode === 'dark'
+                            ? 'rgba(15, 23, 42, 0.72)'
+                            : '#FFFFFF',
                         }}
                       >
                         <Stack direction="row" justifyContent="space-between" spacing={2}>
@@ -317,7 +321,13 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                           <LinearProgress
                             variant="determinate"
                             value={item.match}
-                            sx={{ flex: 1, height: 6, borderRadius: 1, bgcolor: '#E5E7EB', '& .MuiLinearProgress-bar': { bgcolor: '#14B8A6' } }}
+                            sx={{
+                              flex: 1,
+                              height: 6,
+                              borderRadius: 1,
+                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.700' : 'grey.200',
+                              '& .MuiLinearProgress-bar': { bgcolor: '#14B8A6' },
+                            }}
                           />
                           <Typography variant="caption" color="text.secondary">{item.match}%</Typography>
                         </Stack>
@@ -337,7 +347,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         </Container>
       </Box>
 
-      <Box sx={{ bgcolor: '#FFFFFF', borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg" sx={{ py: 3 }}>
           <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
             <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Rubros:</Typography>
@@ -354,7 +364,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
             <Grid item xs={12} sm={6} md={3} key={item.title}>
               <Card variant="outlined" sx={{ height: '100%', borderRadius: 1, boxShadow: 'none' }}>
                 <CardContent sx={{ p: 2.5 }}>
-                  <Box sx={{ color: '#0F766E', mb: 1.5 }}>{item.icon}</Box>
+                  <Box sx={{ color: 'secondary.main', mb: 1.5 }}>{item.icon}</Box>
                   <Typography variant="h6" fontWeight={800} gutterBottom>{item.title}</Typography>
                   <Typography variant="body2" color="text.secondary">{item.description}</Typography>
                 </CardContent>
@@ -364,7 +374,12 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         </Grid>
       </Container>
 
-      <Box sx={{ bgcolor: '#EEF2F6', py: { xs: 6, md: 9 } }}>
+      <Box
+        sx={{
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.58)' : '#EEF2F6',
+          py: { xs: 6, md: 9 },
+        }}
+      >
         <Container maxWidth="lg">
           <Grid container spacing={5} alignItems="center">
             <Grid item xs={12} md={5}>
@@ -416,7 +431,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
             <Grid item xs={12} sm={6} md={3} key={feature.title}>
               <Card variant="outlined" sx={{ height: '100%', borderRadius: 1, boxShadow: 'none' }}>
                 <CardContent sx={{ p: 2.5 }}>
-                  <Box sx={{ color: '#0F766E', mb: 1.5 }}>{feature.icon}</Box>
+                  <Box sx={{ color: 'secondary.main', mb: 1.5 }}>{feature.icon}</Box>
                   <Typography variant="h6" fontWeight={800} gutterBottom>{feature.title}</Typography>
                   <Typography variant="body2" color="text.secondary">{feature.description}</Typography>
                 </CardContent>
@@ -426,7 +441,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         </Grid>
       </Container>
 
-      <Box sx={{ bgcolor: '#FFFFFF', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ bgcolor: 'background.paper', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
           <Grid container spacing={4}>
             {[
