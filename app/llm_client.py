@@ -44,17 +44,14 @@ def get_model(use_vision: bool = False) -> str:
 
 
 
-PROMPT_TEMPLATE = """Eres un experto extractor de listas de útiles escolares. Tu tarea es analizar el contenido y extraer ÚNICAMENTE los útiles escolares válidos.
+PROMPT_TEMPLATE = """Eres un experto extractor de listas de productos y servicios para cotización. Tu tarea es analizar el contenido y extraer únicamente ítems cotizables.
 
 **REGLAS CRÍTICAS:**
 
-1. **SOLO extrae útiles escolares reales:**
-   - Artículos de escritorio: lápices, cuadernos, bolígrafos, gomas, sacapuntas, reglas
-   - Material escolar: tijeras, pegamento, cartulinas, hojas, carpetas, archivadores
-   - Libros de texto, diccionarios, atlas
-   - Mochilas, loncheras, delantales, uniformes
-   - Material de arte: témperas, pinceles, plastilina, acuarelas
-   - Material científico: calculadoras, compases, escuadras
+1. **Extrae ítems cotizables reales:**
+   - Productos físicos: útiles, insumos de oficina, ferretería, aseo, tecnología, alimentos no perecibles, repuestos, materiales de construcción, vestuario, etc.
+   - Servicios comprables si aparecen como línea cotizable: instalación, mantención, despacho, mano de obra, asesoría, arriendo, etc.
+   - Mantén marcas, modelos, medidas, color, material, capacidad, talla u otras especificaciones cuando aparezcan.
 
 2. **RECHAZA absolutamente:**
    - Información administrativa: cuotas, pagos, matrícula, pensión, intereses
@@ -62,17 +59,17 @@ PROMPT_TEMPLATE = """Eres un experto extractor de listas de útiles escolares. T
    - Información comercial: promociones, ofertas, stock, disponibilidad, plazos
    - Información institucional: dirección del colegio, teléfonos, emails
    - Información de salud: vacunas, certificados médicos, seguros
-   - Instrucciones generales que no sean artículos
+   - Instrucciones generales, notas, condiciones o comentarios que no sean ítems cotizables
 
 3. **Formato de extracción:**
    - Cada item DEBE tener una cantidad numérica explícita
-   - Extrae el nombre completo y específico del artículo
+   - Extrae el nombre completo y específico del producto o servicio
    - Incluye características importantes (tamaño, color, tipo) si están especificadas
-   - Mantén la asignatura si está indicada
+   - Mantén la categoría, área, sección o asignatura si está indicada
 
 4. **NO inventes ni asumas:**
    - Si no hay cantidad, NO agregues el item
-   - Si no estás seguro si es un útil escolar válido, NO lo incluyas
+   - Si no estás seguro si es un ítem cotizable válido, NO lo incluyas
    - Asigna confianza baja (0.5-0.7) si el texto es ambiguo
 
 **Formato de salida (JSON válido):**
@@ -80,11 +77,12 @@ PROMPT_TEMPLATE = """Eres un experto extractor de listas de útiles escolares. T
   "curso": "string o null - solo si está explícitamente mencionado",
   "items": [
     {{
-      "asignatura": "string o null - materia asociada si existe",
-      "detalle": "nombre completo del útil escolar con características",
+      "asignatura": "string o null - área, categoría, materia o sección asociada si existe",
+      "detalle": "nombre completo del producto o servicio con características",
       "cantidad": número entero positivo,
       "unidad": "unid|caja|sobre|pliego|bolsa|resma|pack|null",
       "item_original": "texto original de donde se extrajo",
+      "tipo": "producto|servicio|util|lectura",
       "confianza": número decimal entre 0.0 y 1.0
     }}
   ]
@@ -134,7 +132,7 @@ def _extract_json(raw: str) -> str:
     raise ValueError("No se encontró JSON en la respuesta del modelo.")
 
 
-# Palabras clave que indican que NO es un útil escolar válido
+# Palabras clave que indican que NO es un item cotizable válido
 INVALID_KEYWORDS = {
     "cuota", "cuotas", "pago", "pagos", "sin interés", "sin interes",
     "horario", "horarios", "hrs", "horas", "hora",
@@ -148,7 +146,7 @@ INVALID_KEYWORDS = {
 
 def validate_llm_items(items: list) -> list:
     """
-    Filtra items inválidos que Ollama podría haber incluido.
+    Filtra items inválidos que el modelo podría haber incluido.
     Valida contra palabras clave inválidas y criterios básicos.
     """
     valid_items = []
@@ -190,7 +188,7 @@ def validate_llm_items(items: list) -> list:
 
 def call_llm_fix(dub_lines: list[str]) -> dict:
     """
-    Llama al LLM para extraer útiles de líneas dudosas.
+    Llama al LLM para extraer items cotizables de líneas dudosas.
     """
     if not client:
         raise RuntimeError("LLM no configurado. Configure GROQ_API_KEY o OPENAI_API_KEY")
@@ -291,7 +289,7 @@ def call_llm_with_vision(file_path: Path) -> dict:
     content = [
         {
             "type": "text",
-            "text": PROMPT_TEMPLATE.format(content="Analiza las imágenes y extrae los útiles escolares.")
+            "text": PROMPT_TEMPLATE.format(content="Analiza las imágenes y extrae los items cotizables.")
         }
     ]
     
@@ -310,7 +308,7 @@ def call_llm_with_vision(file_path: Path) -> dict:
         messages = [
             {
                 "role": "system", 
-                "content": "Eres un experto extractor de listas de útiles escolares. Analiza cuidadosamente las imágenes y responde SOLO en JSON válido."
+                "content": "Eres un experto extractor de listas de productos y servicios cotizables. Analiza cuidadosamente las imágenes y responde SOLO en JSON válido."
             },
             {
                 "role": "user",
@@ -379,7 +377,7 @@ def call_llm_full_extraction(raw_text: str) -> dict:
         response = client.chat.completions.create(
             model=get_model(use_vision=False),
             messages=[
-                {"role": "system", "content": "Eres un extractor experto de listas de útiles escolares. Responde SOLO en JSON válido. Sin texto extra."},
+                {"role": "system", "content": "Eres un extractor experto de listas de productos y servicios cotizables. Responde SOLO en JSON válido. Sin texto extra."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.2,

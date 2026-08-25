@@ -23,30 +23,39 @@ const getLightTheme = () =>
     palette: {
       mode: 'light',
       primary: {
-        main: '#2563eb',
-        light: '#60a5fa',
-        dark: '#1d4ed8',
+        main: '#2563EB',
+        light: '#60A5FA',
+        dark: '#1D4ED8',
       },
       secondary: {
-        main: '#0ea5e9',
-        light: '#38bdf8',
-        dark: '#0284c7',
+        main: '#0F766E',
+        light: '#14B8A6',
+        dark: '#115E59',
       },
       background: {
-        default: '#f8fafc',
-        paper: '#ffffff',
+        default: '#F6F8FB',
+        paper: '#FFFFFF',
       },
-      success: { main: '#10b981' },
-      warning: { main: '#f59e0b' },
-      error: { main: '#ef4444' },
+      text: {
+        primary: '#111827',
+        secondary: '#5B6472',
+      },
+      success: { main: '#10B981' },
+      warning: { main: '#F59E0B' },
+      error: { main: '#EF4444' },
     },
     typography: {
       fontFamily: '"Plus Jakarta Sans", "DM Sans", "Helvetica", "Arial", sans-serif',
+      h1: { fontWeight: 800 },
+      h2: { fontWeight: 800 },
+      h3: { fontWeight: 800 },
       h4: { fontWeight: 700 },
       h5: { fontWeight: 600 },
       h6: { fontWeight: 600 },
+      button: { fontWeight: 700 },
     },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: 8 },
+    components: getComponentOverrides(),
   })
 
 const getDarkTheme = () =>
@@ -54,14 +63,14 @@ const getDarkTheme = () =>
     palette: {
       mode: 'dark',
       primary: {
-        main: '#3b82f6',
-        light: '#60a5fa',
-        dark: '#1d4ed8',
+        main: '#60A5FA',
+        light: '#93C5FD',
+        dark: '#2563EB',
       },
       secondary: {
-        main: '#06b6d4',
-        light: '#38bdf8',
-        dark: '#0284c7',
+        main: '#2DD4BF',
+        light: '#5EEAD4',
+        dark: '#0F766E',
       },
       background: {
         default: '#0f172a',
@@ -71,19 +80,66 @@ const getDarkTheme = () =>
         primary: '#f1f5f9',
         secondary: '#cbd5e1',
       },
-      success: { main: '#10b981' },
-      warning: { main: '#f59e0b' },
-      error: { main: '#ef4444' },
+      success: { main: '#10B981' },
+      warning: { main: '#F59E0B' },
+      error: { main: '#EF4444' },
       divider: '#334155',
     },
     typography: {
       fontFamily: '"Plus Jakarta Sans", "DM Sans", "Helvetica", "Arial", sans-serif',
+      h1: { fontWeight: 800 },
+      h2: { fontWeight: 800 },
+      h3: { fontWeight: 800 },
       h4: { fontWeight: 700 },
       h5: { fontWeight: 600 },
       h6: { fontWeight: 600 },
+      button: { fontWeight: 700 },
     },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: 8 },
+    components: getComponentOverrides(),
   })
+
+const getComponentOverrides = () => ({
+  MuiButton: {
+    styleOverrides: {
+      root: {
+        textTransform: 'none',
+        fontWeight: 700,
+        borderRadius: 8,
+        boxShadow: 'none',
+      },
+    },
+  },
+  MuiCard: {
+    styleOverrides: {
+      root: {
+        borderRadius: 8,
+      },
+    },
+  },
+  MuiPaper: {
+    styleOverrides: {
+      rounded: {
+        borderRadius: 8,
+      },
+    },
+  },
+  MuiChip: {
+    styleOverrides: {
+      root: {
+        borderRadius: 8,
+        fontWeight: 700,
+      },
+    },
+  },
+  MuiTableCell: {
+    styleOverrides: {
+      head: {
+        fontWeight: 800,
+      },
+    },
+  },
+})
 
 interface ThemeProviderProps {
   children: React.ReactNode

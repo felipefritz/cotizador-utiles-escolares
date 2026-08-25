@@ -17,7 +17,7 @@ export type ParsedItem = {
   cantidad: number | null
   unidad: string | null
   asignatura: string | null
-  tipo: 'util' | 'lectura'
+  tipo: 'producto' | 'servicio' | 'util' | 'lectura'
   confianza?: number
 }
 
@@ -175,7 +175,7 @@ export type MultiProviderHit = {
   url: string
   price: number | null
   available: boolean
-  provider: 'dimeiggs' | 'libreria_nacional' | 'jamila' | 'coloranimal' | 'pronobel' | 'prisa' | 'lasecretaria'
+  provider: string
   relevance: number
 }
 
@@ -209,7 +209,7 @@ export type ParseAiQuoteMultiResponse = ParseAiQuoteResponse & {
 }
 
 /**
- * Busca un producto en múltiples retailers (Dimeiggs, Jumbo, Lider, Lápiz López)
+ * Busca un producto en múltiples fuentes de precio.
  * Retorna resultados consolidados ordenados por relevancia + precio
  */
 export async function quoteMultiProviders(
@@ -225,7 +225,7 @@ export async function quoteMultiProviders(
     },
     body: JSON.stringify({
       query: query.trim(),
-      providers: providers || ['dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
+      providers: providers || ['mercadolibre', 'dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
       limit_per_provider: limitPerProvider || 5,
     }),
   })
@@ -249,7 +249,7 @@ export async function quoteMultiProvidersBatch(
     },
     body: JSON.stringify({
       items,
-      providers: providers || ['dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
+      providers: providers || ['mercadolibre', 'dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
       limit_per_provider: limitPerProvider || 5,
     }),
   })
@@ -262,7 +262,7 @@ export async function quoteMultiProvidersBatch(
 
 /**
  * Parsea + IA + Cotización Multi-Proveedor en una sola petición
- * Busca en Dimeiggs, Librería Nacional, Jamila, Coloranimal, Pronobel, Prisa y La Secretaria simultáneamente
+ * Busca en las fuentes seleccionadas o en las fuentes disponibles por defecto.
  */
 export async function parseAiQuoteMultiProviders(
   file: File,

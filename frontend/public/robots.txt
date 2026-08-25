@@ -4,4 +4,4 @@ Allow: /
 Disallow: /dashboard
 Disallow: /api/
 
-Sitemap: https://cotizador-utiles-escolares.vercel.app/sitemap.xml
+Sitemap: https://preciofast.cl/sitemap.xml

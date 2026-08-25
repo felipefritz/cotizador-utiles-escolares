@@ -22,7 +22,7 @@ import { useAuth } from './contexts/AuthContext'
 import type { ParsedItem } from './api'
 import type { ItemQuote, SelectedItem, SourceId } from './types'
 
-const STEPS = ['Elegir tiendas', 'Subir lista', 'Seleccionar útiles', 'Cotización']
+const STEPS = ['Elegir fuentes', 'Producto o lista', 'Seleccionar productos', 'Cotización']
 
 function buildSelectedItems(items: ParsedItem[]): SelectedItem[] {
   return (items || []).map((item) => ({
@@ -41,6 +41,7 @@ function MainApp() {
   const [step, setStep] = useState(0)
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
   const [sources, setSources] = useState<SourceId[]>([
+    'mercadolibre',
     'dimeiggs',
     'libreria_nacional',
     'jamila',
@@ -72,6 +73,7 @@ function MainApp() {
     setStep(0)
     setSelectedItems([])
     setSources([
+      'mercadolibre',
       'dimeiggs',
       'libreria_nacional',
       'jamila',
@@ -156,13 +158,27 @@ function MainApp() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 4 }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: { xs: 2, md: 4 } }}>
       <Container maxWidth="lg">
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h4" fontWeight={700} color="primary">
-            Cotizador de Útiles Escolares
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: { xs: 'flex-start', md: 'center' },
+            gap: 2,
+            mb: 3,
+            flexDirection: { xs: 'column', md: 'row' },
+          }}
+        >
+          <Box>
+            <Typography variant="h4" fontWeight={800} color="text.primary">
+              Nueva cotización
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Sube una lista o agrega productos manualmente, elige fuentes y compara precios.
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
             <Button
               size="small"
               startIcon={<HomeIcon />}
@@ -182,7 +198,7 @@ function MainApp() {
             <Avatar src={user?.avatar_url || undefined} sx={{ width: 32, height: 32 }}>
               {user?.name?.[0] || user?.email[0]}
             </Avatar>
-            <Typography variant="body2">{user?.name || user?.email}</Typography>
+            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>{user?.name || user?.email}</Typography>
             <Button
               size="small"
               startIcon={<LogoutIcon />}
@@ -193,11 +209,7 @@ function MainApp() {
             </Button>
           </Box>
         </Box>
-        <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 4 }}>
-          Sube tu lista, elige qué cotizar y en qué tiendas.
-        </Typography>
-
-        <Stepper activeStep={step} sx={{ mb: 4 }}>
+        <Stepper activeStep={step} sx={{ mb: 3, px: { xs: 0, md: 2 } }}>
           {STEPS.map((label) => (
             <Step key={label}>
               <StepLabel>{label}</StepLabel>
@@ -205,7 +217,15 @@ function MainApp() {
           ))}
         </Stepper>
 
-        <Paper variant="outlined" sx={{ p: 4, minHeight: 360 }}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: { xs: 2, md: 4 },
+            minHeight: 420,
+            borderRadius: 2,
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.06)',
+          }}
+        >
           {step === 0 && (
             <SourcesStep
               selected={sources}

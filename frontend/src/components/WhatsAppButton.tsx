@@ -5,7 +5,7 @@ export function WhatsAppButton() {
   // Número de WhatsApp desde variable de entorno
   // Formato internacional sin + ni espacios (ej: 56912345678 para +56 9 1234 5678)
   const phoneNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '56940126230'
-  const message = encodeURIComponent('Hola, tengo una consulta sobre el Cotizador de Útiles Escolares')
+  const message = encodeURIComponent('Hola, tengo una consulta sobre el Cotizador de Productos')
   
   const handleClick = () => {
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`

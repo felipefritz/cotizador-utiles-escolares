@@ -35,7 +35,7 @@ UNIT_MAP = {
     "frasco": None, "frascos": None,  # si quieres agregar "frasco" como unidad, agrégalo al esquema
 }
 
-# Palabras clave que indican que NO es un útil escolar válido
+# Palabras clave que indican que NO es un item cotizable válido
 INVALID_KEYWORDS = {
     "cuota", "cuotas", "pago", "pagos", "sin interés", "sin interes",
     "horario", "horarios", "hrs", "horas", "hora",
@@ -66,7 +66,7 @@ BAD_TITLES = {"PERSONAL", "DE ASEO", "PARA USO", "OCUPACIONAL"}
 
 def is_valid_item(item: Dict[str, Any]) -> bool:
     """
-    Valida si un item extraído es realmente un útil escolar válido.
+    Valida si un item extraído es realmente cotizable.
     Filtra items que contienen palabras clave inválidas o patrones extraños.
     """
     detalle = (item.get("detalle") or "").strip().upper()
@@ -86,7 +86,7 @@ def is_valid_item(item: Dict[str, Any]) -> bool:
         return False
     
     # Evitar líneas que parecen ser comentarios o información adicional
-    # (demasiado cortas o demasiado largas, sin palabras de útiles típicos)
+    # (demasiado cortas o demasiado largas, probablemente mezcladas con notas)
     if len(detalle) > 150:  # línea demasiado larga, probablemente mezclada
         return False
     

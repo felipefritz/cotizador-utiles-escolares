@@ -24,6 +24,7 @@ from app.schemas import ParsedList, ParsedItem, ProviderSuggestionCreate, Provid
 
 from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.multi_provider import quote_multi_providers
+from app.quoting.provider_registry import available_providers, web_shopping_enabled
 
 # Autenticación
 from app.database import get_db, init_db, User, SessionLocal, ProviderSuggestion, Plan, Subscription
@@ -52,7 +53,7 @@ class CheckoutRequest(BaseModel):
     plan_id: int
 
 
-app = FastAPI(title="Parser Útiles (Reglas + IA + Cotización)")
+app = FastAPI(title="Cotizador de Productos (IA + Fuentes de Precio)")
 
 # Crear router con prefijo /api
 api_router = APIRouter(prefix="/api")
@@ -76,7 +77,7 @@ async def startup_event():
 async def root():
     """Endpoint raíz"""
     print("📍 Root endpoint called")
-    return {"message": "Cotizador Útiles API", "status": "online"}
+    return {"message": "Cotizador Productos API", "status": "online"}
 
 
 @app.get("/health")
@@ -200,7 +201,7 @@ def normalize_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if not it.get("asignatura"):
                 it["asignatura"] = "LENGUAJE"
         else:
-            it.setdefault("tipo", "util")
+            it.setdefault("tipo", "producto")
 
         out.append(it)
 
@@ -954,8 +955,8 @@ async def quote_multi_endpoint(
     """
     Busca un producto en múltiples proveedores (EN PARALELO - MÁS RÁPIDO).
     
-    MODO DEMO (sin auth): Máximo 2 proveedores
-    MODO COMPLETO (con auth): Todos los proveedores disponibles
+    MODO DEMO (sin auth): Máximo 2 fuentes
+    MODO COMPLETO (con auth): Todas las fuentes disponibles
     
     Payload:
     {
@@ -976,15 +977,7 @@ async def quote_multi_endpoint(
         limit_per_provider = payload.get("limit_per_provider", 5)
 
         # MODO DEMO: Limitar a 2 proveedores si no está autenticado
-        all_providers = [
-            "dimeiggs",
-            "libreria_nacional",
-            "jamila",
-            "coloranimal",
-            "pronobel",
-            "prisa",
-            "lasecretaria",
-        ]
+        all_providers = available_providers()
         providers_limited_by_plan = False
         db = SessionLocal()
         try:
@@ -999,7 +992,7 @@ async def quote_multi_endpoint(
                     providers = providers[:2]
                     providers_limited_by_plan = True
                 else:
-                    providers = ["dimeiggs", "libreria_nacional"]  # Default para demo: solo 2
+                    providers = ["mercadolibre", "dimeiggs"]  # Default para demo: marketplace + tienda local
             else:
                 # Usuario autenticado: verificar límites y auto-limitar si es necesario
                 from app.payment import get_user_limits
@@ -1017,9 +1010,9 @@ async def quote_multi_endpoint(
                     elif not providers:
                         # Si no especificó proveedores, usar default según plan
                         if max_providers >= 5:
-                            providers = ["dimeiggs", "libreria_nacional", "jamila", "coloranimal", "pronobel"][:max_providers]
+                            providers = all_providers[:max_providers]
                         else:
-                            providers = ["dimeiggs", "libreria_nacional"][:max_providers]
+                            providers = ["mercadolibre", "dimeiggs"][:max_providers]
         finally:
             db.close()
         
@@ -1038,11 +1031,11 @@ async def quote_multi_endpoint(
         # Agregar info de modo demo y limitación a la respuesta
         result["is_demo_mode"] = is_demo_mode
         if is_demo_mode:
-            result["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
+            result["demo_message"] = "Modo prueba: máximo 2 fuentes. Regístrate para acceso completo."
         
         if providers_limited_by_plan:
             result["was_limited"] = True
-            result["limited_message"] = f"Se limitó a {len(providers)} proveedores según tu plan. Actualiza tu plan para acceder a más."
+            result["limited_message"] = f"Se limitó a {len(providers)} fuentes según tu plan. Actualiza tu plan para acceder a más."
 
         return JSONResponse(result)
     except HTTPException:
@@ -1080,15 +1073,7 @@ async def quote_multi_batch_endpoint(
         providers = payload.get("providers")
         limit_per_provider = payload.get("limit_per_provider", 5)
 
-        all_providers = [
-            "dimeiggs",
-            "libreria_nacional",
-            "jamila",
-            "coloranimal",
-            "pronobel",
-            "prisa",
-            "lasecretaria",
-        ]
+        all_providers = available_providers()
         providers_limited_by_plan = False
 
         db = SessionLocal()
@@ -1104,7 +1089,7 @@ async def quote_multi_batch_endpoint(
                     providers = providers[:2]
                     providers_limited_by_plan = True
                 else:
-                    providers = ["dimeiggs", "libreria_nacional"]
+                    providers = ["mercadolibre", "dimeiggs"]
             else:
                 from app.payment import get_user_limits
 
@@ -1122,15 +1107,9 @@ async def quote_multi_batch_endpoint(
                         providers_limited_by_plan = True
                     elif not providers:
                         if max_providers >= 5:
-                            providers = [
-                                "dimeiggs",
-                                "libreria_nacional",
-                                "jamila",
-                                "coloranimal",
-                                "pronobel",
-                            ][:max_providers]
+                            providers = all_providers[:max_providers]
                         else:
-                            providers = ["dimeiggs", "libreria_nacional"][:max_providers]
+                            providers = ["mercadolibre", "dimeiggs"][:max_providers]
         finally:
             db.close()
 
@@ -1189,10 +1168,10 @@ async def quote_multi_batch_endpoint(
         }
 
         if is_demo_mode:
-            response["demo_message"] = "Modo prueba: máximo 2 proveedores. Regístrate para acceso completo."
+            response["demo_message"] = "Modo prueba: máximo 2 fuentes. Regístrate para acceso completo."
         if providers_limited_by_plan:
             response["was_limited"] = True
-            response["limited_message"] = f"Se limitó a {len(providers)} proveedores según tu plan. Actualiza tu plan para acceder a más."
+            response["limited_message"] = f"Se limitó a {len(providers)} fuentes según tu plan. Actualiza tu plan para acceder a más."
 
         return JSONResponse(response)
     except HTTPException:
@@ -1207,17 +1186,17 @@ async def quote_multi_batch_endpoint(
 @api_router.post("/parse-ai-quote/multi-providers")
 async def parse_ai_and_quote_multi_providers(
     file: UploadFile = File(...),
-    providers: str = "dimeiggs,libreria_nacional,jamila,coloranimal,pronobel,prisa,lasecretaria",  # CSV list
+    providers: str = "",  # CSV list; empty = fuentes disponibles/configuradas
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Parse + AI fix + cotización multi-proveedor en una llamada.
     
-    MODO DEMO (sin auth): Máximo 5 productos y 2 proveedores
+    MODO DEMO (sin auth): Máximo 5 productos y 2 fuentes
     MODO COMPLETO (con auth): Sin límites
     
     Query params:
-    - providers: CSV de proveedores (e.g., "dimeiggs,libreria_nacional,jamila,coloranimal,pronobel,prisa,lasecretaria")
+    - providers: CSV de proveedores (e.g., "dimeiggs,libreria_nacional,web_shopping")
     """
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx", ".xlsx", ".xls"):
@@ -1263,7 +1242,7 @@ async def parse_ai_and_quote_multi_providers(
     # Parse providers
     provider_list = [p.strip().lower() for p in providers.split(",") if p.strip()]
     if not provider_list:
-        provider_list = ["dimeiggs", "libreria_nacional", "jamila", "coloranimal", "pronobel", "prisa", "lasecretaria"]
+        provider_list = available_providers()
     
     # MODO DEMO: Limitar a 2 proveedores si no está autenticado
     if is_demo_mode:
@@ -1311,7 +1290,7 @@ async def parse_ai_and_quote_multi_providers(
     
     # Agregar mensaje de demo si aplica
     if is_demo_mode:
-        resume["demo_message"] = "Modo prueba: máximo 5 productos y 2 proveedores. Regístrate para acceso completo."
+        resume["demo_message"] = "Modo prueba: máximo 5 productos y 2 fuentes. Regístrate para acceso completo."
         resume["demo_items_limit_applied"] = original_item_count > 5
         resume["total_items_found"] = original_item_count
 
@@ -1348,6 +1327,7 @@ async def get_cart_urls(
     
     # URL de carrito para cada proveedor
     urls: Dict[str, str] = {
+        "mercadolibre": "https://www.mercadolibre.cl/",
         "dimeiggs": "https://www.dimeiggs.cl/carrito",
         "libreria_nacional": "https://nacional.cl/carrito",
         "jamila": "https://www.jamila.cl/",
@@ -1355,6 +1335,14 @@ async def get_cart_urls(
         "pronobel": "https://pronobel.cl/",
         "prisa": "https://www.prisa.cl/",
         "lasecretaria": "https://lasecretaria.cl/",
+        "web_shopping": "https://www.google.com/search?tbm=shop",
+        "sodimac": "https://www.sodimac.cl/",
+        "falabella": "https://www.falabella.com/falabella-cl",
+        "ripley": "https://simple.ripley.cl/",
+        "pcfactory": "https://www.pcfactory.cl/",
+        "paris": "https://www.paris.cl/",
+        "lider_web": "https://www.lider.cl/",
+        "jumbo_web": "https://www.jumbo.cl/",
     }
     
     if provider not in urls:
@@ -1388,6 +1376,8 @@ async def get_public_settings(db: Session = Depends(get_db)):
     """Obtiene settings publicos para el frontend."""
     return {
         "plans_enabled": get_setting_bool(db, "plans_enabled", True),
+        "web_shopping_enabled": web_shopping_enabled(),
+        "available_providers": available_providers(),
     }
 
 @api_router.get("/plans")

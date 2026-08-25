@@ -4,15 +4,15 @@ from datetime import datetime
 
 Unidad = Literal["unid", "caja", "sobre", "pliego", "bolsa", "resma", "pack"]
 
-TipoItem = Literal["util", "lectura"]  # 👈
+TipoItem = Literal["producto", "servicio", "util", "lectura"]
 
 class ParsedItem(BaseModel):
     item_original: str
     detalle: str
     cantidad: Optional[int] = None
-    unidad: Optional[Unidad] = None     # 👈 antes era Literal a secas
+    unidad: Optional[Unidad] = None
     asignatura: Optional[str] = None
-    tipo: TipoItem = "util"             # 👈 por defecto util
+    tipo: TipoItem = "producto"
     confianza: Optional[float] = None
 
 class ParsedList(BaseModel):

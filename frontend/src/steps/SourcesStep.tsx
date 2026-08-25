@@ -14,7 +14,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import LockIcon from '@mui/icons-material/Lock'
 import { SOURCES, type SourceId } from '../types'
 import { api } from '../api'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 type Props = {
@@ -43,6 +43,31 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
   const { token } = useAuth()
   const [limits, setLimits] = useState<UserLimits | null>(null)
   const [loadingLimits, setLoadingLimits] = useState(true)
+  const [availableProviderIds, setAvailableProviderIds] = useState<string[]>(
+    SOURCES.filter((src) => src.available).map((src) => src.id)
+  )
+
+  useEffect(() => {
+    const fetchPublicSettings = async () => {
+      try {
+        const response = await api.get('/settings/public')
+        const available = response.data?.available_providers
+        if (Array.isArray(available)) {
+          setAvailableProviderIds(available)
+        }
+      } catch (error) {
+        console.log('No se pudieron cargar settings públicos:', error)
+      }
+    }
+    fetchPublicSettings()
+  }, [])
+
+  const sourceList = useMemo(
+    () => SOURCES.map((src) => (
+      { ...src, available: availableProviderIds.includes(src.id) }
+    )),
+    [availableProviderIds]
+  )
 
   // Cargar límites del usuario y auto-limitar selección
   useEffect(() => {
@@ -74,11 +99,12 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
 
   const maxProvidersLimit = limits?.limits.max_providers ?? null
   const canSelectMore = maxProvidersLimit === null || selected.length < maxProvidersLimit
-  const maxProviders = maxProvidersLimit ?? SOURCES.length
-  const isLimitedUser = maxProvidersLimit !== null && maxProvidersLimit < SOURCES.length
+  const availableSourceCount = sourceList.filter((src) => src.available).length
+  const maxProviders = maxProvidersLimit ?? availableSourceCount
+  const isLimitedUser = maxProvidersLimit !== null && maxProvidersLimit < availableSourceCount
 
   const toggle = (id: SourceId) => {
-    const s = SOURCES.find((x) => x.id === id)
+    const s = sourceList.find((x) => x.id === id)
     if (!s?.available) return
     
     const isCurrentlySelected = selected.includes(id)
@@ -100,7 +126,7 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto' }}>
       <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
-        Elige las tiendas donde quieres cotizar
+        Elige las fuentes donde quieres cotizar
       </Typography>
       
       {loadingLimits ? (
@@ -111,13 +137,13 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
         <>
           {isLimitedUser && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Tu plan permite cotizar en máximo <strong>{maxProviders} tiendas</strong> {selected.length > 0 && `(${selected.length} seleccionadas)`}.
+              Tu plan permite cotizar en máximo <strong>{maxProviders} fuentes</strong> {selected.length > 0 && `(${selected.length} seleccionadas)`}.
               {selected.length < maxProviders && ` Puedes seleccionar ${maxProviders - selected.length} más.`}
             </Alert>
           )}
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {SOURCES.map((src) => {
+            {sourceList.map((src) => {
               const active = selected.includes(src.id)
               const isDisabled = !src.available || (!active && !canSelectMore)
               
@@ -146,8 +172,13 @@ export function SourcesStep({ selected, onSelectionChange, onNext, onBack, hideB
                       <Typography variant="subtitle1" fontWeight={600}>
                         {src.name}
                       </Typography>
+                      {src.description && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                          {src.description}
+                        </Typography>
+                      )}
                       {!src.available && (
-                        <Chip label="Próximamente" size="small" sx={{ mt: 1 }} color="default" variant="outlined" />
+                        <Chip label="Configurar fuente" size="small" sx={{ mt: 1 }} color="default" variant="outlined" />
                       )}
                       {!active && !canSelectMore && (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mt: 1, color: 'text.secondary' }}>

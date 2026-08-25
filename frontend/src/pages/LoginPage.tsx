@@ -130,10 +130,10 @@ export function LoginPage() {
           }}
         >
           <Typography variant="h4" fontWeight={700} gutterBottom color="primary">
-            Cotizador de Útiles
+            Cotizador de Productos
           </Typography>
           <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 3 }}>
-            Inicia sesión para comenzar a cotizar útiles escolares en las mejores tiendas de Chile
+            Inicia sesión para guardar cotizaciones, comparar más fuentes y gestionar tus compras recurrentes
           </Typography>
 
           {tab === 'oauth' && (

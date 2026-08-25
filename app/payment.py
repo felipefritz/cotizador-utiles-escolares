@@ -64,7 +64,7 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
         preference_data = {
             "items": [
                 {
-                    "title": f"Plan {plan.name.upper()} - Cotizador Útiles",
+                    "title": f"Plan {plan.name.upper()} - Cotizador Productos",
                     "quantity": 1,
                     "currency_id": "CLP",
                     "unit_price": int(plan.price),
@@ -389,7 +389,7 @@ def validate_quote_limits(user_id: int, items_count: int, providers_count: int, 
     if limits["max_providers"] is not None and providers_count > limits["max_providers"]:
         return {
             "valid": False,
-            "reason": f"Máximo {limits['max_providers']} proveedores permitidos en tu plan",
+            "reason": f"Máximo {limits['max_providers']} fuentes permitidas en tu plan",
             "limit": limits["max_providers"],
             "current": providers_count,
         }

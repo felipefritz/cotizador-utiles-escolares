@@ -13,10 +13,11 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+import SearchIcon from '@mui/icons-material/Search'
 import { parseAiFull, type ParsedItem } from '../api'
-import type { SourceId } from '../types'
+import { SOURCES, type SourceId } from '../types'
 
-const ACCEPT = '.pdf,.docx,.xlsx,.xls'
+const ACCEPT = '.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg'
 
 type Props = {
   onItemsParsed: (items: ParsedItem[]) => void
@@ -37,8 +38,8 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
 
   const upload = useCallback(async (f: File) => {
     const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'))
-    if (!['.pdf', '.docx', '.xlsx', '.xls'].includes(ext)) {
-      setError('Formato no soportado. Use PDF, DOCX, XLS o XLSX.')
+    if (!['.pdf', '.docx', '.xlsx', '.xls', '.png', '.jpg', '.jpeg'].includes(ext)) {
+      setError('Formato no soportado. Use PDF, DOCX, XLS, XLSX, PNG o JPG.')
       return
     }
     setError(null)
@@ -84,11 +85,30 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
       cantidad: qty,
       unidad: null,
       asignatura: null,
-      tipo: 'util',
+      tipo: 'producto',
     }
     setManualItems((prev) => [...prev, next])
     setManualName('')
     setManualQty(1)
+  }
+
+  const buildManualItem = (name: string, qty: number): ParsedItem => ({
+    item_original: name,
+    detalle: name,
+    cantidad: qty,
+    unidad: null,
+    asignatura: null,
+    tipo: 'producto',
+  })
+
+  const quoteSingleProduct = () => {
+    const name = manualName.trim()
+    if (!name) return
+    const qty = Math.max(1, Math.min(999, Math.floor(manualQty) || 1))
+    onItemsParsed([buildManualItem(name, qty)])
+    setManualName('')
+    setManualQty(1)
+    setManualItems([])
   }
 
   const continueWithManualItems = () => {
@@ -98,32 +118,59 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
   }
 
   return (
-    <Box sx={{ maxWidth: 560, mx: 'auto' }}>
-      <Typography variant="h6" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
-        Sube tu lista de útiles en PDF, DOCX, XLS o XLSX
+    <Box sx={{ maxWidth: 720, mx: 'auto' }}>
+      <Typography variant="h6" color="text.primary" sx={{ mb: 1, textAlign: 'center', fontWeight: 800 }}>
+        Cotiza un producto individual o sube una lista completa
       </Typography>
       <Typography variant="body2" color="text.disabled" sx={{ mb: 3, textAlign: 'center' }}>
         Cotizaremos en: {sources.map(s => {
-          const names: Record<SourceId, string> = {
-            dimeiggs: 'Dimeiggs',
-            libreria_nacional: 'Librería Nacional',
-            jamila: 'Jamila',
-            coloranimal: 'Coloranimal',
-            pronobel: 'Pronobel',
-            prisa: 'Prisa',
-            lasecretaria: 'La Secretaria',
-          }
-          return names[s]
+          return SOURCES.find((src) => src.id === s)?.name || s
         }).join(', ')}
       </Typography>
+
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, mb: 2.5, borderColor: 'primary.light', bgcolor: (t) => alpha(t.palette.primary.main, 0.035) }}>
+        <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <SearchIcon color="primary" />
+          Producto individual
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Ideal para comparar algo puntual al estilo SoloTodo: notebook, monitor, celular, herramienta o repuesto.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            label="Producto a cotizar"
+            placeholder="Ej: notebook i5 16GB 512GB"
+            size="small"
+            value={manualName}
+            onChange={(e) => setManualName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && manualName.trim()) {
+                quoteSingleProduct()
+              }
+            }}
+            sx={{ flex: 1, minWidth: 260 }}
+          />
+          <TextField
+            label="Cantidad"
+            type="number"
+            size="small"
+            value={manualQty}
+            onChange={(e) => setManualQty(Number(e.target.value))}
+            inputProps={{ min: 1, max: 999, style: { width: 72, textAlign: 'center' } }}
+          />
+          <Button variant="contained" onClick={quoteSingleProduct} disabled={!manualName.trim()} startIcon={<SearchIcon />}>
+            Cotizar producto
+          </Button>
+        </Box>
+      </Paper>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
           <AutoAwesomeIcon fontSize="small" />
           Método de extracción: IA Completa
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Usamos IA para mayor precision (puede tomar 1-2 minutos).
+          <Typography variant="body2" color="text.secondary">
+          Usamos IA para extraer productos, servicios, cantidades y detalles importantes.
         </Typography>
       </Paper>
 
@@ -169,7 +216,7 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
               Arrastra un archivo aquí o haz clic para seleccionar
             </Typography>
             <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
-              PDF, DOCX, XLS, XLSX
+              PDF, DOCX, XLS, XLSX, PNG, JPG
             </Typography>
           </>
         )}
@@ -184,7 +231,7 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
         <>
           <Divider sx={{ my: 3 }} />
           <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            O ingresa items manualmente
+            O arma una lista manualmente
           </Typography>
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>

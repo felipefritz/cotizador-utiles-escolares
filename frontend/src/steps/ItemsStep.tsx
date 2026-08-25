@@ -137,7 +137,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
         cantidad: qty,
         unidad: null,
         asignatura: null,
-        tipo: 'util',
+        tipo: 'producto',
       },
       selected: true,
       quantity: qty,
@@ -236,7 +236,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto' }}>
       <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-        Marca los útiles que quieres cotizar y ajusta la cantidad
+        Marca los productos que quieres cotizar y ajusta la cantidad
       </Typography>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -383,7 +383,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             <TableRow>
               <TableCell colSpan={4}>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedCount} de {items.length} seleccionados para cotizar. Los ítems tipo «lectura» no se cotizan.
+                  {selectedCount} de {items.length} seleccionados para cotizar. Las lecturas detectadas en listas escolares quedan fuera de la cotización.
                 </Typography>
               </TableCell>
             </TableRow>

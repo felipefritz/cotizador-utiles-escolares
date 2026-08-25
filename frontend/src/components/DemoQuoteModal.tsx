@@ -33,9 +33,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import LockOpenIcon from '@mui/icons-material/LockOpen'
 import { api, parseAiItemsOnly, quoteMultiProviders, type ParsedItem, type MultiProviderResponse } from '../api'
 
-const DEMO_STEPS = ['Subir lista', 'Seleccionar items y tiendas', 'Resultados']
+const DEMO_STEPS = ['Subir lista', 'Seleccionar items y fuentes', 'Resultados']
 
 const PROVIDERS = [
+  { id: 'mercadolibre', name: 'MercadoLibre', color: '#FFE600' },
   { id: 'dimeiggs', name: 'Dimeiggs', color: '#FF6B35' },
   { id: 'libreria_nacional', name: 'Librería Nacional', color: '#004E89' },
   { id: 'jamila', name: 'Jamila', color: '#F77F00' },
@@ -43,6 +44,13 @@ const PROVIDERS = [
   { id: 'pronobel', name: 'Pronobel', color: '#D62828' },
   { id: 'prisa', name: 'Prisa', color: '#6A4C93' },
   { id: 'lasecretaria', name: 'La Secretaria', color: '#1982C4' },
+  { id: 'web_shopping', name: 'Búsqueda web', color: '#2E7D32' },
+  { id: 'solotodo', name: 'SoloTodo', color: '#111827' },
+  { id: 'sodimac', name: 'Sodimac', color: '#005D36' },
+  { id: 'falabella', name: 'Falabella', color: '#AAD500' },
+  { id: 'ripley', name: 'Ripley', color: '#6F2DBD' },
+  { id: 'pcfactory', name: 'PC Factory', color: '#F37021' },
+  { id: 'paris', name: 'Paris', color: '#00A3E0' },
 ]
 
 type Props = {
@@ -70,9 +78,11 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
   const [quotedItems, setQuotedItems] = useState<QuoteResult[]>([])
   const [quoting, setQuoting] = useState(false)
   const [plansEnabled, setPlansEnabled] = useState(true)
+  const [availableProviderIds, setAvailableProviderIds] = useState<string[]>(['mercadolibre', 'dimeiggs', 'libreria_nacional'])
 
   const maxDemoItems = plansEnabled ? 5 : Number.POSITIVE_INFINITY
-  const maxDemoProviders = plansEnabled ? 2 : PROVIDERS.length
+  const availableProviders = PROVIDERS.filter((provider) => availableProviderIds.includes(provider.id))
+  const maxDemoProviders = plansEnabled ? 2 : availableProviders.length
   const selectedCount = items.filter(item => item.selected).length
 
   useEffect(() => {
@@ -80,6 +90,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
       try {
         const res = await api.get('/settings/public')
         setPlansEnabled(!!res.data?.plans_enabled)
+        if (Array.isArray(res.data?.available_providers)) {
+          setAvailableProviderIds(res.data.available_providers)
+        }
       } catch (e) {
         console.error('Error loading public settings:', e)
         setPlansEnabled(true)
@@ -140,9 +153,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     if (selectedProviders.includes(providerId)) {
       setSelectedProviders(selectedProviders.filter(p => p !== providerId))
     } else {
-      // Limitar a 2 proveedores en modo demo
+      // Limitar a 2 fuentes en modo demo
       if (plansEnabled && selectedProviders.length >= maxDemoProviders) {
-        setError('En modo prueba solo puedes seleccionar 2 proveedores. Regístrate para acceso completo.')
+        setError('En modo prueba solo puedes seleccionar 2 fuentes. Regístrate para acceso completo.')
         return
       }
       setSelectedProviders([...selectedProviders, providerId])
@@ -154,7 +167,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     const selectedItems = items.filter(item => item.selected)
     
     if (selectedProviders.length === 0) {
-      setError('Selecciona al menos 1 proveedor')
+      setError('Selecciona al menos 1 fuente')
       return
     }
     
@@ -173,7 +186,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
         const quote = await quoteMultiProviders(
           item.detalle,
           selectedProviders,
-          3 // Limitar resultados por proveedor
+          3 // Limitar resultados por fuente
         )
         results.push({ item, quote })
       } catch (e) {
@@ -219,8 +232,8 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
             {plansEnabled
-              ? 'En modo prueba puedes seleccionar hasta 5 items de tu lista y cotizarlos en 2 tiendas. Regístrate gratis para acceso completo.'
-              : 'Acceso completo habilitado: puedes cotizar todos tus items en todas las tiendas disponibles.'}
+              ? 'En modo prueba puedes seleccionar hasta 5 items de tu lista y cotizarlos en 2 fuentes. Regístrate gratis para acceso completo.'
+              : 'Acceso completo habilitado: puedes cotizar todos tus items en todas las fuentes disponibles.'}
           </Typography>
         </Alert>
 
@@ -256,7 +269,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                 startIcon={loading ? <CircularProgress size={20} /> : <CloudUploadIcon />}
                 disabled={loading}
               >
-                {loading ? 'Analizando...' : 'Subir Lista de Útiles'}
+                {loading ? 'Analizando...' : 'Subir Lista de Productos'}
               </Button>
             </label>
             {file && (
@@ -270,7 +283,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
           </Box>
         )}
 
-        {/* Paso 1: Elegir items y proveedores */}
+        {/* Paso 1: Elegir items y fuentes */}
         {step === 1 && (
           <Box>
             <Alert severity="info" sx={{ mb: 2 }}>
@@ -328,7 +341,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             </Paper>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-              {plansEnabled ? 'Selecciona hasta 2 tiendas (máximo en modo prueba):' : 'Selecciona las tiendas para cotizar:'}
+              {plansEnabled ? 'Selecciona hasta 2 fuentes (máximo en modo prueba):' : 'Selecciona las fuentes para cotizar:'}
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" color="text.secondary">
@@ -339,7 +352,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
               )}
             </Box>
             <FormGroup>
-              {PROVIDERS.map((provider) => {
+              {availableProviders.map((provider) => {
                 const isSelected = selectedProviders.includes(provider.id)
                 const isDisabled = plansEnabled && !isSelected && selectedProviders.length >= maxDemoProviders
                 return (
@@ -466,7 +479,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             {plansEnabled && (
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2">
-                  ¿Te gustó? <strong>Regístrate gratis</strong> para cotizar sin límites, comparar en 7 tiendas y guardar tus cotizaciones.
+                  ¿Te gustó? <strong>Regístrate gratis</strong> para cotizar sin límites, comparar más fuentes y guardar tus cotizaciones.
                 </Typography>
               </Alert>
             )}

@@ -36,18 +36,28 @@ export function Navbar() {
 
   const navLinkStyle = (path: string) => ({
     textDecoration: 'none',
-    color: isActive(path) ? 'primary.light' : 'inherit',
+    color: isActive(path) ? 'primary.main' : 'inherit',
     fontWeight: isActive(path) ? 600 : 500,
     opacity: isActive(path) ? 1 : 0.8,
     '&:hover': {
       opacity: 1,
-      color: 'primary.light',
+      color: 'primary.main',
     },
     transition: 'all 0.2s',
   })
 
   return (
-    <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+    <AppBar
+      position="sticky"
+      elevation={0}
+      sx={{
+        bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.88)',
+        color: 'text.primary',
+        backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
       <Container maxWidth="lg">
         <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 0, sm: 2 } }}>
           {/* Logo/Nombre */}
@@ -74,8 +84,8 @@ export function Navbar() {
               sx={{
                 width: 32,
                 height: 32,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 1,
+                background: '#0F766E',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -84,10 +94,10 @@ export function Navbar() {
                 fontSize: '1.1rem',
               }}
             >
-              C
+              P
             </Box>
             <Typography variant="h6" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 700 }}>
-              Cotizador
+              PrecioFast
             </Typography>
           </Box>
 
@@ -174,7 +184,7 @@ export function Navbar() {
                   sx={{
                     width: 36,
                     height: 36,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    bgcolor: 'secondary.main',
                     cursor: 'pointer',
                     fontSize: '1rem',
                     fontWeight: 600,

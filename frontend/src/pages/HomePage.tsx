@@ -1,12 +1,21 @@
-import { Box, Container, Typography, Button, Grid, Card, CardContent, Paper } from '@mui/material'
-import StorefrontIcon from '@mui/icons-material/Storefront'
-import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
-import SaveIcon from '@mui/icons-material/Save'
-import SpeedIcon from '@mui/icons-material/Speed'
+import { Box, Button, Card, CardContent, Chip, Container, Divider, Grid, LinearProgress, Paper, Stack, Typography } from '@mui/material'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
+import ConstructionIcon from '@mui/icons-material/Construction'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import DevicesOtherIcon from '@mui/icons-material/DevicesOther'
+import Inventory2Icon from '@mui/icons-material/Inventory2'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
+import LocalShippingIcon from '@mui/icons-material/LocalShipping'
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
+import SaveIcon from '@mui/icons-material/Save'
+import SearchIcon from '@mui/icons-material/Search'
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
+import SpeedIcon from '@mui/icons-material/Speed'
+import StorefrontIcon from '@mui/icons-material/Storefront'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -20,53 +29,72 @@ type Props = {
   onSuggestProvider?: () => void
 }
 
-const PROVIDERS = [
-  { name: 'Dimeiggs', color: '#FF6B35', description: 'Papelería y útiles escolares' },
-  { name: 'Librería Nacional', color: '#004E89', description: 'Libros y artículos escolares' },
-  { name: 'Jamila', color: '#F77F00', description: 'Útiles y artículos de oficina' },
-  { name: 'Coloranimal', color: '#06A77D', description: 'Útiles escolares y artísticos' },
-  { name: 'Pronobel', color: '#D62828', description: 'Papelería y librería' },
-  { name: 'Prisa', color: '#6A4C93', description: 'Útiles escolares y oficina' },
-  { name: 'La Secretaria', color: '#1982C4', description: 'Artículos de oficina y escolares' },
+const SOURCES = [
+  { name: 'MercadoLibre', group: 'Marketplace', status: 'Activo' },
+  { name: 'SoloTodo', group: 'Comparador tech', status: 'Web' },
+  { name: 'Sodimac', group: 'Construcción', status: 'Web' },
+  { name: 'Falabella', group: 'Retail', status: 'Web' },
+  { name: 'Ripley', group: 'Retail', status: 'Web' },
+  { name: 'PC Factory', group: 'Tecnología', status: 'Web' },
+  { name: 'Paris', group: 'Retail', status: 'Web' },
+  { name: 'Lider', group: 'Supermercado', status: 'Web' },
+  { name: 'Jumbo', group: 'Supermercado', status: 'Web' },
+  { name: 'Dimeiggs', group: 'Papelería', status: 'Activo' },
+  { name: 'Librería Nacional', group: 'Educación', status: 'Activo' },
+  { name: 'Jamila', group: 'Oficina', status: 'Activo' },
+  { name: 'Búsqueda web', group: 'General', status: 'API' },
+]
+
+const USE_CASES = [
+  {
+    icon: <BusinessCenterIcon />,
+    title: 'Oficinas y pymes',
+    description: 'Papelería, aseo, tecnología, cafetería e insumos recurrentes.',
+  },
+  {
+    icon: <ConstructionIcon />,
+    title: 'Construcción y hogar',
+    description: 'Herramientas, materiales, fijaciones, pintura y proyectos menores.',
+  },
+  {
+    icon: <DevicesOtherIcon />,
+    title: 'Tecnología',
+    description: 'Periféricos, notebooks, cables, repuestos y accesorios.',
+  },
+  {
+    icon: <Inventory2Icon />,
+    title: 'Listas masivas',
+    description: 'Carga archivos, corrige cantidades y compara por fuente.',
+  },
 ]
 
 const FEATURES = [
   {
-    icon: <AutoAwesomeIcon sx={{ fontSize: 40 }} />,
-    title: 'Análisis con IA',
-    description: 'Extracción inteligente de útiles desde PDF, DOCX, Excel con tecnología de IA',
-    forAll: true,
+    icon: <AutoAwesomeIcon />,
+    title: 'Extracción con IA',
+    description: 'Lee PDFs, Excel, Word, imágenes o texto manual y convierte todo en items cotizables.',
   },
   {
-    icon: <CompareArrowsIcon sx={{ fontSize: 40 }} />,
-    title: 'Comparación Múltiple',
-    description: 'Cotiza en 7 tiendas simultáneamente y encuentra los mejores precios',
-    forAll: true,
+    icon: <CompareArrowsIcon />,
+    title: 'Multi-fuente',
+    description: 'Mezcla APIs, scrapers propios y búsqueda web para cubrir más rubros sin bloquear el flujo.',
   },
   {
-    icon: <SpeedIcon sx={{ fontSize: 40 }} />,
-    title: 'Rápido y Eficiente',
-    description: 'Resultados en minutos. Ahorra tiempo y dinero en tus compras escolares',
-    forAll: true,
+    icon: <TrendingUpIcon />,
+    title: 'Decisión comercial',
+    description: 'Muestra coincidencia, precio, fuente, pendientes y total estimado por proveedor.',
   },
   {
-    icon: <SaveIcon sx={{ fontSize: 40 }} />,
-    title: 'Ahorra Dinero',
-    description: 'Compara precios y selecciona los productos más convenientes para tu presupuesto',
-    forAll: true,
+    icon: <SaveIcon />,
+    title: 'Historial y recompra',
+    description: 'Guarda cotizaciones y prepara compras recurrentes para usuarios individuales o empresas.',
   },
-  {
-    icon: <TrendingUpIcon sx={{ fontSize: 40 }} />,
-    title: 'Guarda tus Cotizaciones',
-    description: 'Registrate para guardar y acceder a tus cotizaciones en cualquier momento',
-    forAll: false,
-  },
-  {
-    icon: <RocketLaunchIcon sx={{ fontSize: 40 }} />,
-    title: 'Fácil de Usar',
-    description: 'Interfaz intuitiva que funciona en cualquier dispositivo',
-    forAll: true,
-  },
+]
+
+const PREVIEW_ITEMS = [
+  { name: 'Taladro percutor 13mm', source: 'Sodimac', price: '$39.990', match: 86 },
+  { name: 'Resma carta 500 hojas', source: 'Dimeiggs', price: '$4.290', match: 94 },
+  { name: 'Monitor 27 pulgadas IPS', source: 'SoloTodo', price: '$129.990', match: 88 },
 ]
 
 export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestProvider }: Props) {
@@ -92,7 +120,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
     }
     loadSettings()
   }, [])
-  
+
   useEffect(() => {
     if (!settingsLoaded) return
 
@@ -110,30 +138,23 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
       setCurrentPlanId(null)
     }
   }, [user, plansEnabled, settingsLoaded])
-  
+
   const loadUserCurrentPlan = async () => {
     try {
       const res = await api.get('/user/subscription')
-      const planName = res.data.plan_name?.toLowerCase() || 'free'
-      const planId = res.data.plan_id || null
-      
-      console.log('[HomePage] Plan actual del usuario:', planName, 'ID:', planId)
-      console.log('[HomePage] Respuesta completa:', res.data)
-      
-      setCurrentUserPlan(planName)
-      setCurrentPlanId(planId)
+      setCurrentUserPlan(res.data.plan_name?.toLowerCase() || 'free')
+      setCurrentPlanId(res.data.plan_id || null)
     } catch (error) {
       console.error('Error loading user plan:', error)
       setCurrentUserPlan('free')
       setCurrentPlanId(null)
     }
   }
-  
+
   const loadPlans = async () => {
     if (!plansEnabled) return
     try {
       const res = await api.get('/plans')
-      console.log('[HomePage] Planes disponibles:', res.data)
       setPlans(res.data)
     } catch (error) {
       console.error('Error loading plans:', error)
@@ -146,277 +167,196 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
       return
     }
     if (planName === 'free') {
-      if (user) {
-        onStartClick()
-      } else {
-        onTrialClick()
-      }
+      if (user) onStartClick()
+      else onTrialClick()
+    } else if (user) {
+      navigate(`/dashboard?selectPlan=${planName}`)
     } else {
-      if (user) {
-        navigate(`/dashboard?selectPlan=${planName}`)
-      } else {
-        navigate(`/login?redirect=dashboard&selectPlan=${planName}`)
-      }
+      navigate(`/login?redirect=dashboard&selectPlan=${planName}`)
     }
   }
-  
+
   const isCurrentPlan = (plan: any) => {
     if (!user) return false
-    
-    // Comparar por ID primero (más confiable)
-    if (currentPlanId && plan.id === currentPlanId) {
-      console.log(`[HomePage] Plan ${plan.name} es el actual (por ID)`)
-      return true
-    }
-    
-    // Fallback: comparar por nombre
-    const planNameLower = plan.name.toLowerCase()
-    const isMatch = currentUserPlan === planNameLower
-    console.log(`[HomePage] Comparando ${planNameLower} con ${currentUserPlan}: ${isMatch}`)
-    return isMatch
+    if (currentPlanId && plan.id === currentPlanId) return true
+    return currentUserPlan === plan.name.toLowerCase()
   }
 
-  const handlePrimaryCtaClick = () => {
-    // No-auth users siempre van al app completo sin límites
-    onStartClick()
-  }
+  const primaryCtaLabel = 'Cotizar ahora'
 
-  const primaryCtaLabel = "Cotizar Gratis"
-  
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Hero Section - Mejorado */}
-      <Box
-        sx={{
-          bgcolor: 'primary.main',
-          color: 'white',
-          py: { xs: 6, sm: 8, md: 10 },
-          backgroundImage: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          position: 'relative',
-          overflow: 'hidden',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            width: '50%',
-            height: '100%',
-            background: 'radial-gradient(circle at top right, rgba(255,255,255,0.1), transparent)',
-            pointerEvents: 'none',
-          }
-        }}
-      >
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-          <Grid container spacing={4} alignItems="center">
+    <Box sx={{ minHeight: '100vh', bgcolor: '#F6F8FB' }}>
+      <Box sx={{ bgcolor: '#0B1220', color: 'white', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
+          <Grid container spacing={5} alignItems="center">
             <Grid item xs={12} md={6}>
-              <Typography 
-                variant="h2" 
-                fontWeight={800} 
-                gutterBottom
-                sx={{ 
-                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
-                  lineHeight: { xs: 1.2, md: 1.3 }
-                }}
-              >
-                Cotiza Útiles Escolares
-              </Typography>
-              <Typography 
-                variant="h5" 
-                sx={{ 
-                  mb: 1, 
-                  opacity: 0.95,
-                  fontSize: { xs: '1rem', sm: '1.25rem' },
-                  fontWeight: 500
-                }}
-              >
-                Compara precios en 7 tiendas simultáneamente y ahorra dinero en útiles escolares
-              </Typography>
-              <Typography 
-                variant="body1" 
-                sx={{ 
-                  mb: 4, 
-                  opacity: 0.85,
-                  fontSize: { xs: '0.95rem', sm: '1.1rem' },
-                  fontWeight: 400
-                }}
-              >
-                ✅ Totalmente gratis • 🔒 Sin necesidad de registrarse • 💰 Compara en minutos
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                {user ? (
-                  <>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      onClick={onStartClick}
-                      startIcon={<RocketLaunchIcon />}
-                      sx={{
-                        bgcolor: 'white',
-                        color: 'primary.main',
-                        px: { xs: 2, sm: 4 },
-                        py: 1.5,
-                        fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                        fontWeight: 600,
-                        '&:hover': {
-                          bgcolor: 'grey.100',
-                        },
-                      }}
-                    >
-                      Cotizar Ahora
-                    </Button>
+              <Stack spacing={3}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label="PrecioFast" sx={{ bgcolor: 'rgba(45, 212, 191, 0.14)', color: '#5EEAD4', fontWeight: 700 }} />
+                  <Chip label="Para listas y productos sueltos" sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: 'white' }} />
+                </Stack>
+
+                <Box>
+                  <Typography
+                    variant="h1"
+                    fontWeight={800}
+                    sx={{
+                      fontSize: { xs: '2.5rem', md: '4.35rem' },
+                      lineHeight: 1.02,
+                      mb: 2,
+                    }}
+                  >
+                    Cotiza cualquier compra en minutos
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: 'rgba(255,255,255,0.76)',
+                      lineHeight: 1.65,
+                      maxWidth: 620,
+                      fontWeight: 400,
+                    }}
+                  >
+                    Sube una lista, fotografía un pedido o escribe un producto. PrecioFast extrae los items, compara fuentes y te muestra dónde conviene comprar.
+                  </Typography>
+                </Box>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={onStartClick}
+                    startIcon={<RocketLaunchIcon />}
+                    sx={{
+                      bgcolor: '#14B8A6',
+                      color: '#031617',
+                      py: 1.45,
+                      px: 3,
+                      '&:hover': { bgcolor: '#2DD4BF' },
+                    }}
+                  >
+                    {primaryCtaLabel}
+                  </Button>
+                  {user ? (
                     <Button
                       variant="outlined"
                       size="large"
                       onClick={() => navigate('/dashboard')}
                       startIcon={<DashboardIcon />}
-                      sx={{
-                        borderColor: 'white',
-                        color: 'white',
-                        px: { xs: 2, sm: 4 },
-                        py: 1.5,
-                        fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                        fontWeight: 600,
-                        '&:hover': {
-                          borderColor: 'grey.100',
-                          bgcolor: 'rgba(255,255,255,0.1)',
-                        },
-                      }}
+                      sx={{ borderColor: 'rgba(255,255,255,0.28)', color: 'white', py: 1.45, px: 3 }}
                     >
-                      Mi Cuenta
+                      Mi cuenta
                     </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      onClick={handlePrimaryCtaClick}
-                      sx={{
-                        bgcolor: 'white',
-                        color: 'primary.main',
-                        px: { xs: 2, sm: 4 },
-                        py: 1.5,
-                        fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                        fontWeight: 600,
-                        '&:hover': {
-                          bgcolor: 'grey.100',
-                        },
-                      }}
-                    >
-                      {primaryCtaLabel}
-                    </Button>
+                  ) : (
                     <Button
                       variant="outlined"
                       size="large"
                       onClick={onLoginClick}
-                      sx={{
-                        borderColor: 'white',
-                        color: 'white',
-                        px: { xs: 2, sm: 4 },
-                        py: 1.5,
-                        fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                        fontWeight: 600,
-                        '&:hover': {
-                          borderColor: 'white',
-                          bgcolor: 'rgba(255, 255, 255, 0.1)',
-                        },
-                      }}
+                      sx={{ borderColor: 'rgba(255,255,255,0.28)', color: 'white', py: 1.45, px: 3 }}
                     >
-                      Registrarse
+                      Crear cuenta
                     </Button>
-                  </>
-                )}
-              </Box>
+                  )}
+                </Stack>
+
+                <Grid container spacing={2} sx={{ pt: 1 }}>
+                  {[
+                    ['12+', 'fuentes listas'],
+                    ['4', 'rubros base'],
+                    ['IA', 'extracción asistida'],
+                  ].map(([value, label]) => (
+                    <Grid item xs={4} key={label}>
+                      <Typography variant="h5" fontWeight={800}>{value}</Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.62)' }}>{label}</Typography>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Stack>
             </Grid>
-            <Grid item xs={12} md={6} sx={{ display: { xs: 'none', md: 'block' } }}>
-              <Box
+
+            <Grid item xs={12} md={6}>
+              <Paper
+                variant="outlined"
                 sx={{
-                  fontSize: '5rem',
-                  textAlign: 'center',
-                  animation: 'float 3s ease-in-out infinite',
-                  '@keyframes float': {
-                    '0%, 100%': { transform: 'translateY(0)' },
-                    '50%': { transform: 'translateY(-20px)' },
-                  }
+                  bgcolor: 'rgba(255,255,255,0.96)',
+                  borderColor: 'rgba(255,255,255,0.16)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  boxShadow: '0 24px 70px rgba(0,0,0,0.30)',
                 }}
               >
-                📊
-              </Box>
+                <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Cotización en curso</Typography>
+                    <Typography variant="h6" color="text.primary" fontWeight={800}>Compra oficina y mantención</Typography>
+                  </Box>
+                  <Chip label="3 fuentes" color="success" variant="outlined" />
+                </Box>
+
+                <Box sx={{ p: 2.5 }}>
+                  <Stack spacing={1.5}>
+                    {PREVIEW_ITEMS.map((item) => (
+                      <Box
+                        key={item.name}
+                        sx={{
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          p: 1.5,
+                          bgcolor: '#fff',
+                        }}
+                      >
+                        <Stack direction="row" justifyContent="space-between" spacing={2}>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight={700} color="text.primary">{item.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">{item.source}</Typography>
+                          </Box>
+                          <Typography variant="body2" fontWeight={800} color="primary.main">{item.price}</Typography>
+                        </Stack>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                          <LinearProgress
+                            variant="determinate"
+                            value={item.match}
+                            sx={{ flex: 1, height: 6, borderRadius: 1, bgcolor: '#E5E7EB', '& .MuiLinearProgress-bar': { bgcolor: '#14B8A6' } }}
+                          />
+                          <Typography variant="caption" color="text.secondary">{item.match}%</Typography>
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Stack>
+
+                  <Divider sx={{ my: 2.5 }} />
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2" color="text.secondary">Subtotal estimado</Typography>
+                    <Typography variant="h5" fontWeight={800} color="text.primary">$53.270</Typography>
+                  </Stack>
+                </Box>
+              </Paper>
             </Grid>
           </Grid>
         </Container>
       </Box>
 
-      {/* Features Section - Mejorado */}
-      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
-        <Box sx={{ textAlign: 'center', mb: 6 }}>
-          <Typography 
-            variant="h4" 
-            fontWeight={700} 
-            gutterBottom
-            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-          >
-            ¿Por qué Cotizador de Útiles?
-          </Typography>
-          <Typography 
-            variant="body1" 
-            color="text.secondary"
-            sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' } }}
-          >
-            Características disponibles para todos, mejoras si te registras
-          </Typography>
-        </Box>
+      <Box sx={{ bgcolor: '#FFFFFF', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Container maxWidth="lg" sx={{ py: 3 }}>
+          <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Rubros:</Typography>
+            {['Oficina', 'Ferretería', 'Tecnología', 'Aseo', 'Supermercado', 'Educación', 'Hogar', 'Mascotas'].map((label) => (
+              <Chip key={label} label={label} variant="outlined" size="small" />
+            ))}
+          </Stack>
+        </Container>
+      </Box>
 
-        <Grid container spacing={3}>
-          {FEATURES.map((feature, idx) => (
-            <Grid item xs={12} sm={6} md={4} key={idx}>
-              <Card
-                sx={{
-                  height: '100%',
-                  textAlign: 'center',
-                  p: 3,
-                  transition: 'all 0.3s ease',
-                  border: '2px solid',
-                  borderColor: feature.forAll ? 'divider' : 'primary.main',
-                  position: 'relative',
-                  bgcolor: feature.forAll ? 'background.paper' : 'primary.light',
-                  opacity: feature.forAll ? 1 : 0.95,
-                  '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 4,
-                    borderColor: 'primary.main',
-                  },
-                }}
-              >
-                {!feature.forAll && (
-                  <Box 
-                    sx={{
-                      position: 'absolute',
-                      top: -12,
-                      right: 16,
-                      bgcolor: 'primary.main',
-                      color: 'white',
-                      px: 2,
-                      py: 0.5,
-                      borderRadius: 1,
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      zIndex: 1
-                    }}
-                  >
-                    PREMIUM
-                  </Box>
-                )}
-                <CardContent>
-                  <Box sx={{ color: 'primary.main', mb: 2, display: 'flex', justifyContent: 'center' }}>
-                    {feature.icon}
-                  </Box>
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
-                    {feature.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {feature.description}
-                  </Typography>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
+        <Grid container spacing={2.5}>
+          {USE_CASES.map((item) => (
+            <Grid item xs={12} sm={6} md={3} key={item.title}>
+              <Card variant="outlined" sx={{ height: '100%', borderRadius: 1, boxShadow: 'none' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Box sx={{ color: '#0F766E', mb: 1.5 }}>{item.icon}</Box>
+                  <Typography variant="h6" fontWeight={800} gutterBottom>{item.title}</Typography>
+                  <Typography variant="body2" color="text.secondary">{item.description}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -424,455 +364,178 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         </Grid>
       </Container>
 
-      {/* Registration Benefits Section - NEW */}
-      <Box sx={{ bgcolor: 'primary.light', py: { xs: 6, md: 10 } }}>
+      <Box sx={{ bgcolor: '#EEF2F6', py: { xs: 6, md: 9 } }}>
         <Container maxWidth="lg">
-          <Grid container spacing={4} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <Typography 
-                variant="h4" 
-                fontWeight={700} 
-                gutterBottom
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' }, mb: 3 }}
-              >
-                ¿Qué ganas si te registras?
+          <Grid container spacing={5} alignItems="center">
+            <Grid item xs={12} md={5}>
+              <Typography variant="overline" color="primary" fontWeight={800}>Fuentes conectables</Typography>
+              <Typography variant="h3" fontWeight={850} sx={{ mt: 1, mb: 2, fontSize: { xs: '2rem', md: '2.7rem' } }}>
+                Marketplace, comparadores, retail, construcción, tecnología y búsqueda web
               </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {[
-                  {
-                    title: '💾 Guarda todas tus cotizaciones',
-                    desc: 'Accede a tus búsquedas previas en cualquier momento'
-                  },
-                  {
-                    title: '✏️ Edita tus compras',
-                    desc: 'Modifica cantidades y proveedores después de cotizar'
-                  },
-                  {
-                    title: '📊 Historial de precios',
-                    desc: 'Monitorea tendencias de precios en el tiempo'
-                  },
-                  {
-                    title: '🎯 Planes personalizados',
-                    desc: 'Accede a más tiendas, más items y cotizaciones ilimitadas'
-                  },
-                ].map((benefit, idx) => (
-                  <Box key={idx} sx={{ display: 'flex', gap: 2 }}>
-                    <Box sx={{ color: 'primary.main', fontWeight: 700, fontSize: '1.5rem' }}>
-                      {benefit.title.split(' ')[0]}
-                    </Box>
-                    <Box>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1rem' }}>
-                        {benefit.title.split(' ').slice(1).join(' ')}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {benefit.desc}
-                      </Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={onLoginClick}
-                sx={{ mt: 4, px: 4, py: 1.5, fontWeight: 600 }}
-              >
-                Crear Cuenta Gratis
-              </Button>
+              <Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                MercadoLibre queda activo como marketplace general. SoloTodo funciona como referencia tipo comparador para productos individuales de tecnología. Sodimac, Falabella, Ripley, PC Factory, Paris, Lider y Jumbo se habilitan mediante SerpAPI para evitar scrapers frágiles cuando no hay API oficial estable.
+              </Typography>
+              <Stack direction="row" spacing={1.5} sx={{ mt: 3 }} flexWrap="wrap" useFlexGap>
+                <Chip icon={<CheckCircleOutlineIcon />} label="MercadoLibre activo" color="success" variant="outlined" />
+                <Chip icon={<SearchIcon />} label="SoloTodo para producto individual" variant="outlined" />
+                <Chip icon={<SearchIcon />} label="Retail web con SerpAPI" variant="outlined" />
+              </Stack>
             </Grid>
-            <Grid item xs={12} md={6} sx={{ display: { xs: 'none', md: 'block' } }}>
-              <Box
-                sx={{
-                  fontSize: '6rem',
-                  textAlign: 'center',
-                  animation: 'spin 8s linear infinite',
-                  '@keyframes spin': {
-                    '0%': { transform: 'rotate(0deg)' },
-                    '100%': { transform: 'rotate(360deg)' },
-                  }
-                }}
-              >
-                🔐
-              </Box>
+
+            <Grid item xs={12} md={7}>
+              <Grid container spacing={1.5}>
+                {SOURCES.map((source) => (
+                  <Grid item xs={6} sm={4} key={source.name}>
+                    <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 1, height: '100%' }}>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <StorefrontIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                        <Typography variant="subtitle2" fontWeight={800} noWrap>{source.name}</Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">{source.group}</Typography>
+                      <Box sx={{ mt: 1 }}>
+                        <Chip label={source.status} size="small" sx={{ height: 22 }} />
+                      </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
             </Grid>
           </Grid>
         </Container>
       </Box>
 
-      {/* Providers Section - Original */}
-      <Box sx={{ bgcolor: 'grey.50', py: { xs: 6, md: 10 } }}>
-        <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <Typography 
-              variant="h4" 
-              fontWeight={700} 
-              gutterBottom
-              sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-            >
-              Tiendas Participantes
-            </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' }, mb: 3 }}
-            >
-              Comparamos en los mejores sitios de útiles de Chile
-            </Typography>
-          </Box>
-
-          <Paper sx={{ p: { xs: 2, sm: 4 }, mb: 4 }}>
-            <Grid container spacing={2}>
-              {PROVIDERS.map((provider) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={provider.name}>
-                  <Card
-                    sx={{
-                      height: '100%',
-                      bgcolor: provider.color,
-                      color: 'white',
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: 6,
-                      },
-                    }}
-                  >
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <StorefrontIcon />
-                        <Typography variant="h6" fontWeight={600}>
-                          {provider.name}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        {provider.description}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Paper>
-
-          <Box sx={{ textAlign: 'center', display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handlePrimaryCtaClick}
-              sx={{ px: { xs: 2, sm: 4 }, py: 1.5, fontWeight: 600 }}
-            >
-              {primaryCtaLabel}
-            </Button>
-            {user && (
-              <Button
-                variant="outlined"
-                size="large"
-                startIcon={<LightbulbIcon />}
-                onClick={onSuggestProvider}
-                sx={{ px: { xs: 2, sm: 4 }, py: 1.5, fontWeight: 600 }}
-              >
-                Sugerir Tienda
-              </Button>
-            )}
-          </Box>
-        </Container>
-      </Box>
-
-      {plansEnabled && (
-        <Box sx={{ py: { xs: 6, md: 10 }, bgcolor: 'background.default' }}>
-          <Container maxWidth="lg">
-            <Box sx={{ textAlign: 'center', mb: 6 }}>
-              <Typography 
-                variant="h4" 
-                fontWeight={700} 
-                gutterBottom
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                Planes que se adaptan a ti
-              </Typography>
-              <Typography 
-                variant="body1" 
-                color="text.secondary"
-                sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' } }}
-              >
-                Elige el plan que mejor se adapte a tus necesidades
-              </Typography>
-            </Box>
-
-            <Grid container spacing={3} justifyContent="center">
-              {plans.map((plan) => (
-                <Grid item xs={12} sm={6} md={4} key={plan.id}>
-                  <Card 
-                    sx={{ 
-                      height: '100%', 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      borderRadius: 3,
-                      boxShadow: plan.name === 'pro' ? 4 : 1,
-                      border: plan.name === 'pro' ? 3 : 1,
-                      borderColor: plan.name === 'pro' ? 'primary.main' : 'divider',
-                      position: 'relative',
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        boxShadow: 6,
-                        transform: 'translateY(-4px)'
-                      }
-                    }}
-                  >
-                    {plan.name === 'pro' && (
-                      <Box 
-                        sx={{ 
-                          position: 'absolute', 
-                          top: -15, 
-                          left: '50%', 
-                          transform: 'translateX(-50%)',
-                          bgcolor: 'primary.main',
-                          color: 'white',
-                          px: 2.5,
-                          py: 0.75,
-                          borderRadius: 2,
-                          fontSize: '0.85rem',
-                          fontWeight: 700,
-                          zIndex: 1
-                        }}
-                      >
-                        ⭐ MÁS POPULAR
-                      </Box>
-                    )}
-                    <CardContent sx={{ flexGrow: 1, pt: plan.name === 'pro' ? 5 : 3 }}>
-                      <Typography variant="h6" fontWeight={700} gutterBottom sx={{ textTransform: 'uppercase', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                        {plan.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 3 }}>
-                        <Typography variant="h3" color="primary" fontWeight={700} sx={{ fontSize: { xs: '2rem', sm: '2.5rem' } }}>
-                          {plan.price === 0 ? 'Gratis' : `$${(plan.price / 1000).toFixed(0)}K`}
-                        </Typography>
-                        {plan.price > 0 && (
-                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                            {plan.billing_cycle === 'monthly' ? '/mes' : ''}
-                          </Typography>
-                        )}
-                      </Box>
-                      
-                      <Box sx={{ mt: 3, mb: 3 }}>
-                        {[
-                          {
-                            label: plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
-                          },
-                          {
-                            label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
-                          },
-                          {
-                            label: plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
-                          },
-                        ].map((feature, idx) => (
-                          <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-                            <Box 
-                              sx={{ 
-                                width: 24, 
-                                height: 24, 
-                                borderRadius: '50%', 
-                                bgcolor: 'success.main',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                mr: 1.5,
-                                color: 'white',
-                                fontSize: '0.75rem',
-                                fontWeight: 'bold',
-                                flexShrink: 0
-                              }}
-                            >
-                              ✓
-                            </Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {feature.label}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    </CardContent>
-                    <Box sx={{ p: 2, pt: 0 }}>
-                      {(() => {
-                        const isPlanCurrent = isCurrentPlan(plan)
-                        console.log(`[HomePage RENDER] Plan: ${plan.name}, isCurrentPlan: ${isPlanCurrent}, user: ${!!user}`)
-                        return (
-                          <>
-                            {isPlanCurrent && (
-                              <Box sx={{ mb: 1, textAlign: 'center' }}>
-                                <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
-                                  ✓ Tu plan actual
-                                </Typography>
-                              </Box>
-                            )}
-                            <Button
-                              fullWidth
-                              variant={plan.name === 'pro' ? 'contained' : 'outlined'}
-                              size="large"
-                              onClick={() => handlePlanSelect(plan.name)}
-                              disabled={isPlanCurrent}
-                              sx={{ 
-                                py: 1.5, 
-                                fontWeight: 600,
-                                textTransform: 'none',
-                                fontSize: { xs: '0.9rem', sm: '1rem' }
-                              }}
-                            >
-                              {isPlanCurrent
-                                ? 'Plan Actual' 
-                                : plan.name === 'free' 
-                                ? 'Comenzar Gratis' 
-                                : 'Contratar'}
-                            </Button>
-                          </>
-                        )
-                      })()}
-                    </Box>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Container>
-        </Box>
-      )}
-
-      {/* Steps Section - Mejorado */}
-      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
-        <Box sx={{ textAlign: 'center', mb: 6 }}>
-          <Typography 
-            variant="h4" 
-            fontWeight={700} 
-            gutterBottom
-            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-          >
-            Cotiza en 4 Pasos Simples
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
+        <Stack spacing={1} sx={{ mb: 4 }}>
+          <Typography variant="overline" color="primary" fontWeight={800}>Sistema completo</Typography>
+          <Typography variant="h3" fontWeight={850} sx={{ fontSize: { xs: '2rem', md: '2.7rem' } }}>
+            Diseñado para vender cotizaciones, no solo mostrar resultados
           </Typography>
-          <Typography 
-            variant="body1" 
-            color="text.secondary"
-            sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' } }}
-          >
-            Desde subir tu lista hasta obtener los mejores precios
-          </Typography>
-        </Box>
-
-        <Grid container spacing={3}>
-          {[
-            {
-              step: '1',
-              title: 'Elige las tiendas',
-              description: 'Selecciona en qué tiendas quieres cotizar',
-            },
-            {
-              step: '2',
-              title: 'Sube tu lista',
-              description: 'PDF, DOCX o Excel con tus útiles',
-            },
-            {
-              step: '3',
-              title: 'Revisa y ajusta',
-              description: 'Verifica productos y cantidades',
-            },
-            {
-              step: '4',
-              title: 'Obtén resultados',
-              description: 'Compara precios y ahorra dinero',
-            },
-          ].map((item) => (
-            <Grid item xs={12} sm={6} md={3} key={item.step}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Box
-                  sx={{
-                    width: 70,
-                    height: 70,
-                    borderRadius: '50%',
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '2rem',
-                    fontWeight: 700,
-                    mx: 'auto',
-                    mb: 2,
-                    boxShadow: 3
-                  }}
-                >
-                  {item.step}
-                </Box>
-                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.1rem' } }}>
-                  {item.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {item.description}
-                </Typography>
-              </Box>
+        </Stack>
+        <Grid container spacing={2.5}>
+          {FEATURES.map((feature) => (
+            <Grid item xs={12} sm={6} md={3} key={feature.title}>
+              <Card variant="outlined" sx={{ height: '100%', borderRadius: 1, boxShadow: 'none' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Box sx={{ color: '#0F766E', mb: 1.5 }}>{feature.icon}</Box>
+                  <Typography variant="h6" fontWeight={800} gutterBottom>{feature.title}</Typography>
+                  <Typography variant="body2" color="text.secondary">{feature.description}</Typography>
+                </CardContent>
+              </Card>
             </Grid>
           ))}
         </Grid>
       </Container>
 
-      {/* Footer CTA - Mejorado */}
-      <Box
-        sx={{
-          bgcolor: 'primary.main',
-          color: 'white',
-          py: { xs: 6, md: 8 },
-          backgroundImage: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-          textAlign: 'center',
-        }}
-      >
-        <Container maxWidth="md">
-          <Typography 
-            variant="h4" 
-            fontWeight={700} 
-            gutterBottom
-            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-          >
-            ¿Listo para ahorrar?
-          </Typography>
-          <Typography 
-            variant="body1" 
-            sx={{ mb: 4, opacity: 0.95, fontSize: { xs: '1rem', sm: '1.1rem' } }}
-          >
-            Empieza ahora y encuentra los mejores precios en minutos
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handlePrimaryCtaClick}
-              sx={{
-                bgcolor: 'white',
-                color: 'primary.main',
-                px: { xs: 2, sm: 4 },
-                py: 1.5,
-                fontWeight: 600,
-                '&:hover': {
-                  bgcolor: 'grey.100',
-                },
-              }}
-            >
-              {primaryCtaLabel}
-            </Button>
-            <Button
-              variant="outlined"
-              size="large"
-              onClick={onLoginClick}
-              sx={{
-                borderColor: 'white',
-                color: 'white',
-                px: { xs: 2, sm: 4 },
-                py: 1.5,
-                fontWeight: 600,
-                '&:hover': {
-                  borderColor: 'white',
-                  bgcolor: 'rgba(255, 255, 255, 0.1)',
-                },
-              }}
-            >
-              Registrarse
-            </Button>
+      <Box sx={{ bgcolor: '#FFFFFF', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
+          <Grid container spacing={4}>
+            {[
+              { icon: <ReceiptLongIcon />, title: '1. Sube o escribe', text: 'Archivo, foto, Excel o producto individual.' },
+              { icon: <AutoAwesomeIcon />, title: '2. IA ordena', text: 'Detecta cantidades, detalles y posibles categorías.' },
+              { icon: <ShoppingCartIcon />, title: '3. Cotiza fuentes', text: 'Consulta APIs, tiendas propias y búsqueda web.' },
+              { icon: <LocalShippingIcon />, title: '4. Decide compra', text: 'Compara total, pendientes y mejor coincidencia.' },
+            ].map((step) => (
+              <Grid item xs={12} sm={6} md={3} key={step.title}>
+                <Stack spacing={1.25}>
+                  <Box sx={{ color: 'primary.main' }}>{step.icon}</Box>
+                  <Typography variant="h6" fontWeight={800}>{step.title}</Typography>
+                  <Typography variant="body2" color="text.secondary">{step.text}</Typography>
+                </Stack>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {plansEnabled && (
+        <Container maxWidth="lg" sx={{ py: { xs: 6, md: 9 } }}>
+          <Box sx={{ textAlign: 'center', mb: 5 }}>
+            <Typography variant="overline" color="primary" fontWeight={800}>Planes</Typography>
+            <Typography variant="h3" fontWeight={850} sx={{ fontSize: { xs: '2rem', md: '2.7rem' } }}>
+              Monetiza por volumen y fuentes
+            </Typography>
+            <Typography color="text.secondary" sx={{ mt: 1 }}>
+              Ideal para usuarios puntuales, pymes y equipos con compras recurrentes.
+            </Typography>
           </Box>
+
+          <Grid container spacing={2.5} justifyContent="center">
+            {plans.map((plan) => {
+              const current = isCurrentPlan(plan)
+              const highlighted = plan.name === 'pro'
+              return (
+                <Grid item xs={12} sm={6} md={4} key={plan.id}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      height: '100%',
+                      borderRadius: 1,
+                      borderColor: highlighted ? 'primary.main' : 'divider',
+                      boxShadow: highlighted ? '0 18px 45px rgba(37, 99, 235, 0.16)' : 'none',
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                        <Typography variant="h6" fontWeight={850} sx={{ textTransform: 'uppercase' }}>{plan.name}</Typography>
+                        {highlighted && <Chip label="Popular" color="primary" size="small" />}
+                      </Stack>
+                      <Typography variant="h3" color="primary" fontWeight={850} sx={{ mb: 2 }}>
+                        {plan.price === 0 ? 'Gratis' : `$${(plan.price / 1000).toFixed(0)}K`}
+                      </Typography>
+                      <Stack spacing={1.2} sx={{ mb: 3 }}>
+                        {[
+                          plan.max_items ? `Hasta ${plan.max_items} items` : 'Items ilimitados',
+                          plan.max_providers ? `${plan.max_providers} fuentes` : 'Fuentes ilimitadas',
+                          plan.monthly_limit ? `${plan.monthly_limit} cotizaciones/mes` : 'Cotizaciones ilimitadas',
+                        ].map((label) => (
+                          <Stack direction="row" spacing={1} alignItems="center" key={label}>
+                            <CheckCircleOutlineIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                            <Typography variant="body2">{label}</Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                      <Button
+                        fullWidth
+                        variant={highlighted ? 'contained' : 'outlined'}
+                        size="large"
+                        onClick={() => handlePlanSelect(plan.name)}
+                        disabled={current}
+                      >
+                        {current ? 'Plan actual' : plan.name === 'free' ? 'Comenzar gratis' : 'Contratar'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )
+            })}
+          </Grid>
+        </Container>
+      )}
+
+      <Box sx={{ bgcolor: '#0B1220', color: 'white' }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 5, md: 7 } }}>
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={8}>
+              <Typography variant="h3" fontWeight={850} sx={{ fontSize: { xs: '2rem', md: '2.6rem' } }}>
+                Empieza con una lista real y descubre qué rubro conviene atacar primero.
+              </Typography>
+              <Typography sx={{ color: 'rgba(255,255,255,0.7)', mt: 1.5 }}>
+                El sistema ya está preparado para crecer por fuentes, categorías y planes.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Stack direction={{ xs: 'column', sm: 'row', md: 'column' }} spacing={1.5}>
+                <Button variant="contained" size="large" onClick={onStartClick} startIcon={<SpeedIcon />}>
+                  Cotizar ahora
+                </Button>
+                {user && (
+                  <Button variant="outlined" size="large" startIcon={<LightbulbIcon />} onClick={onSuggestProvider} sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.28)' }}>
+                    Sugerir fuente
+                  </Button>
+                )}
+              </Stack>
+            </Grid>
+          </Grid>
         </Container>
       </Box>
     </Box>

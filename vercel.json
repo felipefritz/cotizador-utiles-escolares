@@ -12,7 +12,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://tu-backend.railway.app/api/$1"
+      "dest": "https://cotizador-utiles-escolares.onrender.com/api/$1"
     },
     {
       "handle": "filesystem"

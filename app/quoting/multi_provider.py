@@ -15,6 +15,10 @@ from app.quoting.coloranimal_quote import quote_coloranimal
 from app.quoting.pronobel_quote import quote_pronobel
 from app.quoting.prisa_quote import quote_prisa
 from app.quoting.lasecretaria_quote import quote_lasecretaria
+from app.quoting.mercadolibre_quote import quote_mercadolibre
+from app.quoting.provider_registry import available_providers
+from app.quoting.retail_web_quote import RETAILERS, quote_retail_web
+from app.quoting.web_shopping_quote import quote_web_shopping
 import re
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -90,6 +94,32 @@ def _quote_dimeiggs(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], 
     
     except Exception as e:
         return "dimeiggs", [], str(e)
+
+
+def _quote_mercadolibre(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
+    """Ejecuta búsqueda en MercadoLibre Chile usando su API pública."""
+    try:
+        result = quote_mercadolibre(query, limit=limit)
+        if result["status"] in ("ok", "not_found"):
+            hits = []
+            for hit in result.get("hits", []):
+                relevance = _token_overlap(query, hit.get("title", ""))
+                hits.append({
+                    "title": hit.get("title"),
+                    "url": hit.get("url"),
+                    "price": hit.get("price"),
+                    "available": hit.get("available", True),
+                    "provider": "mercadolibre",
+                    "merchant": hit.get("merchant"),
+                    "relevance": relevance,
+                    "sku": hit.get("sku"),
+                    "image_url": hit.get("image_url"),
+                    "condition": hit.get("condition"),
+                })
+            return "mercadolibre", hits, None
+        return "mercadolibre", [], result.get("error", "unknown")
+    except Exception as e:
+        return "mercadolibre", [], str(e)
 
 
 def _quote_jumbo(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
@@ -260,6 +290,58 @@ def _quote_lasecretaria(query: str, limit: int) -> Tuple[str, List[Dict[str, Any
         return "lasecretaria", [], str(e)
 
 
+def _quote_web_shopping(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
+    """Ejecuta búsqueda amplia en Google Shopping vía SerpAPI."""
+    try:
+        result = quote_web_shopping(query, limit=limit)
+        if result["status"] in ("ok", "not_found"):
+            hits = []
+            for hit in result.get("hits", []):
+                relevance = _token_overlap(query, hit.get("title", ""))
+                hits.append({
+                    "title": hit.get("title"),
+                    "url": hit.get("url"),
+                    "price": hit.get("price"),
+                    "available": hit.get("available", True),
+                    "provider": "web_shopping",
+                    "merchant": hit.get("merchant"),
+                    "relevance": relevance,
+                    "image_url": hit.get("image_url"),
+                    "rating": hit.get("rating"),
+                    "reviews": hit.get("reviews"),
+                })
+            return "web_shopping", hits, None
+        return "web_shopping", [], result.get("error", "unknown")
+    except Exception as e:
+        return "web_shopping", [], str(e)
+
+
+def _quote_retail_web(provider: str, query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
+    """Ejecuta búsqueda web/Shopping filtrada para retailers generales."""
+    try:
+        result = quote_retail_web(provider, query, limit=limit)
+        if result["status"] in ("ok", "not_found"):
+            hits = []
+            for hit in result.get("hits", []):
+                relevance = _token_overlap(query, hit.get("title", ""))
+                hits.append({
+                    "title": hit.get("title"),
+                    "url": hit.get("url"),
+                    "price": hit.get("price"),
+                    "available": hit.get("available", True),
+                    "provider": provider,
+                    "merchant": hit.get("merchant"),
+                    "relevance": relevance,
+                    "image_url": hit.get("image_url"),
+                    "rating": hit.get("rating"),
+                    "reviews": hit.get("reviews"),
+                })
+            return provider, hits, None
+        return provider, [], result.get("error", "unknown")
+    except Exception as e:
+        return provider, [], str(e)
+
+
 def quote_multi_providers(
     query: str,
     providers: List[str] = None,
@@ -273,8 +355,9 @@ def quote_multi_providers(
         query: Término de búsqueda.
         providers: Lista de proveedores a usar. 
                    Opciones: "dimeiggs", "jumbo", "lider", "lapiz_lopez", "libreria_nacional",
-                             "jamila", "coloranimal", "pronobel", "prisa", "lasecretaria"
-                   Si None, usa todos los funcionales.
+                             "mercadolibre", "jamila", "coloranimal", "pronobel", "prisa", "lasecretaria",
+                             "web_shopping" si SERPAPI_API_KEY esta configurada.
+                   Si None, usa todos los funcionales/configurados.
         limit_per_provider: Máximo de resultados por proveedor.
         max_results: Máximo de resultados consolidados a devolver.
 
@@ -300,8 +383,8 @@ def quote_multi_providers(
         }
     """
     if providers is None:
-        # Todos los proveedores funcionales
-        providers = ["dimeiggs", "libreria_nacional", "jamila", "coloranimal", "pronobel", "prisa", "lasecretaria"]
+        # Todos los proveedores funcionales y fuentes externas configuradas.
+        providers = available_providers()
 
     providers = [p.lower() for p in providers]
     all_hits: List[Dict[str, Any]] = []
@@ -310,6 +393,7 @@ def quote_multi_providers(
 
     # Mapeo de proveedores a funciones
     provider_funcs = {
+        "mercadolibre": lambda: _quote_mercadolibre(query, limit_per_provider),
         "dimeiggs": lambda: _quote_dimeiggs(query, limit_per_provider),
         "jumbo": lambda: _quote_jumbo(query, limit_per_provider),
         "lider": lambda: _quote_lider(query, limit_per_provider),
@@ -320,7 +404,11 @@ def quote_multi_providers(
         "pronobel": lambda: _quote_pronobel(query, limit_per_provider),
         "prisa": lambda: _quote_prisa(query, limit_per_provider),
         "lasecretaria": lambda: _quote_lasecretaria(query, limit_per_provider),
+        "web_shopping": lambda: _quote_web_shopping(query, limit_per_provider),
     }
+
+    for retail_provider in RETAILERS:
+        provider_funcs[retail_provider] = lambda p=retail_provider: _quote_retail_web(p, query, limit_per_provider)
 
     # Ejecuta búsquedas EN PARALELO usando ThreadPoolExecutor
     # Usar max_workers = número de proveedores para máximo paralelismo

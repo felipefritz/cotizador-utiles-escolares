@@ -73,12 +73,22 @@ export const SavedQuotesManager: React.FC = () => {
   const getProviderUrl = (provider: string): string => {
     const urls: Record<string, string> = {
       dimeiggs: 'https://www.dimeiggs.cl',
+      mercadolibre: 'https://www.mercadolibre.cl',
       libreria_nacional: 'https://nacional.cl',
       jamila: 'https://www.jamila.cl',
       coloranimal: 'https://www.coloranimal.cl',
       pronobel: 'https://pronobel.cl',
       prisa: 'https://www.prisa.cl',
       lasecretaria: 'https://lasecretaria.cl',
+      web_shopping: 'https://www.google.com/search?tbm=shop',
+      solotodo: 'https://www.solotodo.cl',
+      sodimac: 'https://www.sodimac.cl',
+      falabella: 'https://www.falabella.com/falabella-cl',
+      ripley: 'https://simple.ripley.cl',
+      pcfactory: 'https://www.pcfactory.cl',
+      paris: 'https://www.paris.cl',
+      lider_web: 'https://www.lider.cl',
+      jumbo_web: 'https://www.jumbo.cl',
       jumbo_lider: 'https://www.jumbo.cl',
       lapiz_lopez: 'https://www.lapizlopez.com'
     }

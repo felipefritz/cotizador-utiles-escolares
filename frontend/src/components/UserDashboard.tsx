@@ -275,7 +275,7 @@ export const UserDashboard: React.FC = () => {
                               available: true
                             },
                             { 
-                              label: plan.max_providers ? `${plan.max_providers} proveedores` : 'Proveedores ilimitados',
+                              label: plan.max_providers ? `${plan.max_providers} fuentes` : 'Fuentes ilimitadas',
                               available: true
                             },
                             { 
@@ -365,7 +365,7 @@ export const UserDashboard: React.FC = () => {
                       • Máx {subscription.max_items || '∞'} items por cotización
                     </Typography>
                     <Typography variant="body2">
-                      • {subscription.max_providers} proveedores
+                      • {subscription.max_providers} fuentes
                     </Typography>
                     <Typography variant="body2">
                       • {subscription.monthly_limit ? `${subscription.monthly_limit} cotizaciones/mes` : 'Ilimitadas cotizaciones'}

@@ -57,7 +57,7 @@ interface UserLimits {
   }
 }
 
-const FOUND_STATUSES = ['ok', 'ok_with_price']
+const FOUND_STATUSES = ['ok', 'ok_with_price', 'partial']
 const MATCH_THRESHOLD = 0.4
 
 function isFound(q: { status?: string } | undefined): boolean {
@@ -286,6 +286,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
   // Definir funciones ANTES de usarlas en useMemo
   const getProviderName = (provider: string): string => {
     const names: Record<string, string> = {
+      mercadolibre: 'MercadoLibre',
       dimeiggs: 'Dimeiggs',
       libreria_nacional: 'Librería Nacional',
       jamila: 'Jamila',
@@ -293,12 +294,22 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
       pronobel: 'Pronobel',
       prisa: 'Prisa',
       lasecretaria: 'La Secretaria',
+      web_shopping: 'Búsqueda web',
+      solotodo: 'SoloTodo',
+      sodimac: 'Sodimac',
+      falabella: 'Falabella',
+      ripley: 'Ripley',
+      pcfactory: 'PC Factory',
+      paris: 'Paris',
+      lider_web: 'Lider',
+      jumbo_web: 'Jumbo',
     }
     return names[provider] || provider
   }
 
   const getProviderColor = (provider: string): string => {
     const colors: Record<string, string> = {
+      mercadolibre: '#B79500',
       dimeiggs: '#2196F3',
       libreria_nacional: '#7B1FA2',
       jamila: '#00897B',
@@ -306,6 +317,15 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
       pronobel: '#5E35B1',
       prisa: '#C2185B',
       lasecretaria: '#455A64',
+      web_shopping: '#2E7D32',
+      solotodo: '#111827',
+      sodimac: '#005D36',
+      falabella: '#6B8E00',
+      ripley: '#6F2DBD',
+      pcfactory: '#F37021',
+      paris: '#0077A3',
+      lider_web: '#005CB9',
+      jumbo_web: '#0B7F3A',
     }
     return colors[provider] || '#757575'
   }
@@ -505,7 +525,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
       {!quoted ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.primary" sx={{ mb: 3 }}>
-            {results.length} artículos listos para cotizar en {sources.length} {sources.length === 1 ? 'tienda' : 'tiendas'}.
+            {results.length} items listos para cotizar en {sources.length} {sources.length === 1 ? 'fuente' : 'fuentes'}.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
             <Button variant="outlined" onClick={onEditSelection}>
@@ -828,9 +848,9 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
             <DialogTitle>Como leer esta tabla</DialogTitle>
             <DialogContent dividers>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                Esta tabla muestra, para cada item, el mejor precio encontrado entre las tiendas seleccionadas.
+                Esta tabla muestra, para cada item, el mejor precio encontrado entre las fuentes seleccionadas.
                 Si un item no supera el umbral de coincidencia (40%), no se incluye en el total y se muestra
-                como baja coincidencia en el detalle por proveedor.
+                como baja coincidencia en el detalle por fuente.
               </Typography>
               <Typography variant="body2">
                 Click en "Ver opciones" para ver todas las alternativas encontradas para ese item.
@@ -896,7 +916,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
           {isMultiProvider && Object.keys(providerTotals).length > 0 && (
             <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.primary' }}>
-                📦 Resumen por Proveedor
+                Resumen por fuente
               </Typography>
               <Divider sx={{ mb: 3 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
@@ -953,12 +973,22 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                             variant="contained"
                             endIcon={<ShoppingCartIcon sx={{ fontSize: 16 }} />}
                             href={`https://${providerKey === 'dimeiggs' ? 'www.dimeiggs.cl' : 
+                                       providerKey === 'mercadolibre' ? 'www.mercadolibre.cl' :
                                        providerKey === 'libreria_nacional' ? 'nacional.cl' :
                                        providerKey === 'jamila' ? 'www.jamila.cl' :
                                        providerKey === 'coloranimal' ? 'www.coloranimal.cl' :
                                        providerKey === 'pronobel' ? 'pronobel.cl' :
                                        providerKey === 'prisa' ? 'www.prisa.cl' :
-                                       providerKey === 'lasecretaria' ? 'lasecretaria.cl' : ''}`}
+                                       providerKey === 'lasecretaria' ? 'lasecretaria.cl' :
+                                       providerKey === 'web_shopping' ? 'www.google.com/search?tbm=shop' :
+                                       providerKey === 'solotodo' ? 'www.solotodo.cl' :
+                                       providerKey === 'sodimac' ? 'www.sodimac.cl' :
+                                       providerKey === 'falabella' ? 'www.falabella.com/falabella-cl' :
+                                       providerKey === 'ripley' ? 'simple.ripley.cl' :
+                                       providerKey === 'pcfactory' ? 'www.pcfactory.cl' :
+                                       providerKey === 'paris' ? 'www.paris.cl' :
+                                       providerKey === 'lider_web' ? 'www.lider.cl' :
+                                       providerKey === 'jumbo_web' ? 'www.jumbo.cl' : ''}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             sx={{
@@ -1019,16 +1049,16 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
           {quoted && Object.keys(providerTotals).length > 0 && (
             <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
               <Typography variant="h6" gutterBottom>
-                Comparación total por proveedor (todos los productos)
+                Comparación total por fuente (todos los productos)
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Suma el mejor precio encontrado por proveedor para cada ítem. Útil para comparar el total completo entre tiendas.
+                Suma el mejor precio encontrado por fuente para cada ítem. Sirve para comparar el total completo entre fuentes.
               </Typography>
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: (t) => t.palette.mode === 'dark' ? 'background.paper' : 'grey.100' }}>
-                      <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Proveedor</TableCell>
+                      <TableCell sx={{ color: 'text.primary', fontWeight: 700 }}>Fuente</TableCell>
                       <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Ítems con precio</TableCell>
                       <TableCell align="center" sx={{ color: 'text.primary', fontWeight: 700 }}>Ítems sin precio</TableCell>
                       <TableCell align="right" sx={{ color: 'text.primary', fontWeight: 700 }}>Total estimado</TableCell>
@@ -1252,7 +1282,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                         Items sin cotizar ({providerTotals[providerModalKey].missingItems.length})
                       </Typography>
                       <Alert severity="error" sx={{ mb: 1, fontSize: '0.875rem' }}>
-                        Estos items no fueron encontrados en este proveedor.
+                        Estos items no fueron encontrados en esta fuente.
                       </Alert>
                       {providerTotals[providerModalKey].missingItems.map((row, idx) => {
                         const originalName = row.item.item.detalle || row.item.item.item_original
@@ -1277,13 +1307,13 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                    providerTotals[providerModalKey].lowMatchItems.length === 0 && 
                    providerTotals[providerModalKey].missingItems.length === 0 && (
                     <Typography variant="body2" color="text.secondary">
-                      No hay items para este proveedor.
+                      No hay items para esta fuente.
                     </Typography>
                   )}
                 </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  No hay información disponible para este proveedor.
+                  No hay información disponible para esta fuente.
                 </Typography>
               )}
             </DialogContent>
@@ -1580,7 +1610,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
             fullWidth
             value={quoteTitle}
             onChange={(e) => setQuoteTitle(e.target.value)}
-            placeholder="Ej: Cotización Colegio 1, Útiles Marzo 2026"
+            placeholder="Ej: Cotización oficina marzo, compra ferretería o lista escolar"
             autoFocus
             disabled={saving}
             onKeyPress={(e) => {
@@ -1644,7 +1674,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
             fullWidth
             value={quoteTitle}
             onChange={(e) => setQuoteTitle(e.target.value)}
-            placeholder="Ej: Cotización Colegio 1, Útiles Marzo 2026"
+            placeholder="Ej: Cotización oficina marzo, compra ferretería o lista escolar"
             autoFocus
             disabled={saving}
             onKeyPress={(e) => {

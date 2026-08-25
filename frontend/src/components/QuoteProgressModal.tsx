@@ -104,7 +104,7 @@ export function QuoteProgressModal({
 
         {(remaining > 0 || indeterminate) && (
           <Alert severity="info" sx={{ mb: 2, fontSize: '0.875rem' }}>
-            ⏱️ Este proceso puede tomar algunos minutos. Por favor espera mientras cotizamos en {sources.length} {sources.length === 1 ? 'tienda' : 'tiendas'}...
+            Este proceso puede tomar algunos minutos. Por favor espera mientras cotizamos en {sources.length} {sources.length === 1 ? 'fuente' : 'fuentes'}...
             {indeterminate && ' (procesando en servidor)'}
           </Alert>
         )}
