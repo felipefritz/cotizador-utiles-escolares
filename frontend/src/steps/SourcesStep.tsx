@@ -44,8 +44,8 @@ type Props = {
 interface UserLimits {
   plan: string
   limits: {
-    max_items: number
-    max_providers: number
+    max_items: number | null
+    max_providers: number | null
     monthly_limit: number | null
   }
   usage: {
@@ -140,6 +140,7 @@ export function SourcesStep({ selected, onSelectionChange, area, onAreaChange, o
   const availableSourceCount = areaSources.filter((src) => src.available).length
   const maxProviders = maxProvidersLimit ?? availableSourceCount
   const isLimitedUser = maxProvidersLimit !== null && maxProvidersLimit < availableSourceCount
+  const isFreePlan = limits?.plan === 'free'
 
   const toggle = (id: SourceId) => {
     onSelectionChange(toggleSource(selected, sourceList.find((x) => x.id === id), maxProvidersLimit))
@@ -201,9 +202,11 @@ export function SourcesStep({ selected, onSelectionChange, area, onAreaChange, o
       ) : (
         <>
           {isLimitedUser && (
-            <Alert severity="info" sx={{ mb: 2 }}>
+            <Alert severity={isFreePlan ? 'warning' : 'info'} sx={{ mb: 2 }}>
+              {isFreePlan && <><strong>Plan Gratis:</strong> no se consultan todas las fuentes del área. </>}
               Tu plan permite cotizar en máximo <strong>{maxProviders} fuentes</strong> {selected.length > 0 && `(${selected.length} seleccionadas)`}.
               {selected.length < maxProviders && ` Puedes seleccionar ${maxProviders - selected.length} más.`}
+              {' '}Las fuentes no seleccionadas no cuentan como “sin resultados”; simplemente no fueron consultadas.
             </Alert>
           )}
 

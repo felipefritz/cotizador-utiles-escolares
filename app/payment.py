@@ -7,7 +7,7 @@ import requests
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
-from app.database import Payment, Subscription, Plan, PaymentStatus, SubscriptionStatus
+from app.database import Payment, Subscription, Plan, User, PaymentStatus, SubscriptionStatus
 from app.settings import get_setting_bool
 
 # Mercado Pago SDK
@@ -271,6 +271,22 @@ def process_webhook(data: dict, db: Session) -> bool:
 def get_user_subscription(user_id: int, db: Session) -> Optional[dict]:
     """Obtiene la suscripción activa del usuario"""
     try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.is_admin:
+            pro_plan = db.query(Plan).filter(Plan.name == "pro").first()
+            return {
+                "id": None,
+                "plan_name": "pro",
+                "plan_id": pro_plan.id if pro_plan else None,
+                "status": "active",
+                "started_at": user.created_at.isoformat() if user.created_at else None,
+                "expires_at": None,
+                "max_items": None,
+                "max_providers": None,
+                "monthly_limit": None,
+                "is_admin_override": True,
+            }
+
         subscription = db.query(Subscription).filter(
             Subscription.user_id == user_id
         ).first()
@@ -328,6 +344,12 @@ def has_active_subscription(user_id: int, db: Session) -> bool:
 def get_user_limits(user_id: int, db: Session) -> dict:
     """Obtiene los límites del usuario según su plan"""
     try:
+        # Ser administrador implica siempre acceso Pro, incluso si no existe
+        # una fila de suscripción o quedó asociada a un plan antiguo.
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.is_admin:
+            return {"max_items": None, "max_providers": None, "monthly_limit": None}
+
         if not get_setting_bool(db, "plans_enabled", True):
             return {"max_items": None, "max_providers": None, "monthly_limit": None}
 

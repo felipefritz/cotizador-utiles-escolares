@@ -58,8 +58,8 @@ type Props = {
 interface UserLimits {
   plan: string
   limits: {
-    max_items: number
-    max_providers: number
+    max_items: number | null
+    max_providers: number | null
     monthly_limit: number | null
   }
 }
@@ -132,6 +132,10 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
     }
     return results.slice(0, limits.limits.max_items)
   }, [results, limits])
+
+  const isFreePlan = limits?.plan === 'free'
+  const excludedItems = Math.max(0, results.length - allowedResults.length)
+  const excludedSources = Math.max(0, sources.length - allowedSources.length)
 
   const handleQuote = useCallback(async () => {
     if (!allowedResults.length) return
@@ -564,6 +568,15 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
 
       {!quoted ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+          {isFreePlan && (
+            <Alert severity="warning" sx={{ mb: 3, textAlign: 'left' }}>
+              <strong>Plan Gratis:</strong> esta cotización usa {allowedResults.length} producto(s) de tu lista y
+              {` ${allowedSources.length} fuente(s)`}.
+              {excludedItems > 0 && ` Quedaron ${excludedItems} productos fuera por el límite del plan.`}
+              {excludedSources > 0 && ` Quedaron ${excludedSources} fuentes sin consultar.`}
+              {' '}Los elementos excluidos no deben interpretarse como productos no encontrados.
+            </Alert>
+          )}
           <Typography color="text.primary" sx={{ mb: 3 }}>
             {results.length} items listos para cotizar en {sources.length} {sources.length === 1 ? 'fuente' : 'fuentes'}.
           </Typography>
@@ -605,6 +618,14 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
             onShippingCostChange={setShippingCost}
             onUpgradeClick={() => navigate('/dashboard')}
           />
+
+          {isFreePlan && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              Estás viendo una cotización limitada por el plan Gratis. Los conteos por fuente indican cuántos
+              productos de <strong>tu lista</strong> fueron cotizados; no representan todas las alternativas que
+              vende cada tienda. Usa “Ver opciones” para revisar las coincidencias disponibles.
+            </Alert>
+          )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Typography variant="subtitle2" color="text.secondary">
@@ -967,6 +988,10 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.primary' }}>
                 Resumen por fuente
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                “Cotizados” cuenta productos de tu lista encontrados en esa fuente. Por ejemplo, si buscaste un
+                solo producto, mostrará 1 aunque existan varias alternativas en “Ver opciones”.
+              </Typography>
               <Divider sx={{ mb: 3 }} />
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                 {Object.entries(providerTotals).map(([providerKey, providerData]) => {
@@ -1047,7 +1072,7 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
                               {totalItems}
                             </Typography>
                             <Typography variant="caption" color="success.dark">
-                              Cotizados
+                              De tu lista cotizados
                             </Typography>
                           </Box>
                           {providerData.lowMatches > 0 && (
@@ -1141,7 +1166,7 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
                     <Box sx={{ mb: 3 }}>
                       <Typography variant="subtitle2" fontWeight={700} color="success.main" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-                        Items cotizados ({providerTotals[providerModalKey].items.length})
+                        Productos de tu lista cotizados ({providerTotals[providerModalKey].items.length})
                       </Typography>
                       {providerTotals[providerModalKey].items.map((row, idx) => {
                         const matchPercent = Math.round(row.relevance * 100)

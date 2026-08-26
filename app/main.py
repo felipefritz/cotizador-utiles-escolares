@@ -223,7 +223,7 @@ def _quote_single_item(
     item_dict: Dict[str, Any],
     providers: List[str],
     limit_per_provider: int = 5,
-    max_results: int = 8,
+    max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Cotiza un item individual en múltiples proveedores.
@@ -241,12 +241,13 @@ def _quote_single_item(
         return item_dict
 
     try:
+        effective_max_results = max_results or max(1, len(providers) * limit_per_provider)
         # Busca en múltiples proveedores
         q = quote_multi_providers(
             query,
             providers=providers,
             limit_per_provider=limit_per_provider,
-            max_results=max_results,
+            max_results=effective_max_results,
         )
         
         item_dict["quote"] = q
@@ -954,7 +955,7 @@ async def quote_multi_endpoint(
     Busca un producto en múltiples proveedores (EN PARALELO - MÁS RÁPIDO).
     
     MODO DEMO (sin auth): 2 fuentes; en Supermercado, todas las cadenas
-    MODO COMPLETO (con auth): Todas las fuentes disponibles
+    MODO AUTENTICADO: fuentes según el plan; administradores usan Pro sin límites
     
     Payload:
     {
@@ -974,7 +975,10 @@ async def quote_multi_endpoint(
 
         providers = payload.get("providers")  # None = dimeiggs + libreria_nacional
         area = (payload.get("area") or "general").strip().lower()
-        limit_per_provider = payload.get("limit_per_provider", 5)
+        try:
+            limit_per_provider = max(1, min(int(payload.get("limit_per_provider", 5)), 10))
+        except (TypeError, ValueError):
+            limit_per_provider = 5
 
         # MODO DEMO: supermercado compara todas sus cadenas; las demás áreas
         # conservan el límite de dos fuentes.
@@ -986,12 +990,14 @@ async def quote_multi_endpoint(
             if not providers:
                 raise HTTPException(400, f"No hay fuentes válidas para el área '{area}'.")
         providers_limited_by_plan = False
+        has_unlimited_results = False
         db = SessionLocal()
         try:
             plans_enabled = get_setting_bool(db, "plans_enabled", True)
             is_demo_mode = current_user is None and plans_enabled
 
             if not plans_enabled:
+                has_unlimited_results = True
                 if not providers:
                     providers = all_providers
             elif is_demo_mode:
@@ -1008,6 +1014,7 @@ async def quote_multi_endpoint(
                 limits = get_user_limits(current_user.id, db)
                 max_providers = limits["max_providers"]
                 if max_providers is None:
+                    has_unlimited_results = True
                     if not providers:
                         providers = all_providers
                 else:
@@ -1028,11 +1035,13 @@ async def quote_multi_endpoint(
 
         # Búsqueda paralela - mucho más rápida
         print(f"[DEBUG] Iniciando búsqueda: {query} en {providers}")
+        full_result_limit = max(1, len(providers) * limit_per_provider)
+        result_limit = full_result_limit if has_unlimited_results else min(15, full_result_limit)
         result = quote_multi_providers(
             query,
             providers=providers,
             limit_per_provider=limit_per_provider,
-            max_results=15,
+            max_results=result_limit,
         )
         result["area"] = area
         print(f"[DEBUG] Búsqueda completada: {len(result.get('hits', []))} resultados")
@@ -1049,6 +1058,12 @@ async def quote_multi_endpoint(
         if providers_limited_by_plan:
             result["was_limited"] = True
             result["limited_message"] = f"Se limitó a {len(providers)} fuentes según tu plan. Actualiza tu plan para acceder a más."
+        if not has_unlimited_results:
+            result["plan_results_notice"] = (
+                "Tu plan puede limitar la cantidad de fuentes o productos de la lista cotizados. "
+                "El contador por fuente mide productos de tu lista, no todas las alternativas de la tienda."
+            )
+            result["result_limit"] = result_limit
 
         return JSONResponse(result)
     except HTTPException:
@@ -1085,7 +1100,10 @@ async def quote_multi_batch_endpoint(
 
         providers = payload.get("providers")
         area = (payload.get("area") or "general").strip().lower()
-        limit_per_provider = payload.get("limit_per_provider", 5)
+        try:
+            limit_per_provider = max(1, min(int(payload.get("limit_per_provider", 5)), 10))
+        except (TypeError, ValueError):
+            limit_per_provider = 5
 
         all_providers = available_providers(area)
         if not all_providers:
@@ -1095,6 +1113,7 @@ async def quote_multi_batch_endpoint(
             if not providers:
                 raise HTTPException(400, f"No hay fuentes válidas para el área '{area}'.")
         providers_limited_by_plan = False
+        has_unlimited_results = False
 
         db = SessionLocal()
         try:
@@ -1102,6 +1121,7 @@ async def quote_multi_batch_endpoint(
             is_demo_mode = current_user is None and plans_enabled
 
             if not plans_enabled:
+                has_unlimited_results = True
                 if not providers:
                     providers = all_providers
             elif is_demo_mode:
@@ -1117,6 +1137,7 @@ async def quote_multi_batch_endpoint(
                 limits = get_user_limits(current_user.id, db)
                 max_providers = limits["max_providers"]
                 if max_providers is None:
+                    has_unlimited_results = True
                     if not providers:
                         providers = all_providers
                 else:
@@ -1155,6 +1176,9 @@ async def quote_multi_batch_endpoint(
         if not normalized_items:
             raise HTTPException(400, "No hay items válidos para cotizar.")
 
+        full_result_limit = max(1, len(providers) * limit_per_provider)
+        result_limit = full_result_limit if has_unlimited_results else min(15, full_result_limit)
+
         results: List[Dict[str, Any]] = [None] * len(normalized_items)
         max_workers = min(6, len(normalized_items))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -1164,6 +1188,7 @@ async def quote_multi_batch_endpoint(
                     item,
                     providers,
                     limit_per_provider,
+                    result_limit,
                 ): idx
                 for idx, item in enumerate(normalized_items)
             }
@@ -1198,6 +1223,12 @@ async def quote_multi_batch_endpoint(
         if providers_limited_by_plan:
             response["was_limited"] = True
             response["limited_message"] = f"Se limitó a {len(providers)} fuentes según tu plan. Actualiza tu plan para acceder a más."
+        if not has_unlimited_results:
+            response["plan_results_notice"] = (
+                "Tu plan puede limitar la cantidad de fuentes o productos de la lista cotizados. "
+                "El contador por fuente mide productos de tu lista, no todas las alternativas de la tienda."
+            )
+            response["result_limit_per_item"] = result_limit
 
         return JSONResponse(response)
     except HTTPException:
@@ -1221,7 +1252,7 @@ async def parse_ai_and_quote_multi_providers(
     
     MODO DEMO (sin auth): Máximo 5 productos y 2 fuentes; en Supermercado,
     todas las cadenas
-    MODO COMPLETO (con auth): Sin límites
+    MODO AUTENTICADO: límites según el plan; administradores usan Pro sin límites
     
     Query params:
     - providers: CSV de proveedores (e.g., "dimeiggs,libreria_nacional,siemprelistos")
@@ -1258,13 +1289,24 @@ async def parse_ai_and_quote_multi_providers(
     db = SessionLocal()
     try:
         plans_enabled = get_setting_bool(db, "plans_enabled", True)
+        plan_limits = None
+        effective_plan = "demo"
+        if current_user is not None and plans_enabled:
+            from app.payment import get_user_limits, get_user_subscription
+
+            plan_limits = get_user_limits(current_user.id, db)
+            subscription = get_user_subscription(current_user.id, db)
+            effective_plan = subscription.get("plan_name", "free") if subscription else "free"
+        elif not plans_enabled:
+            effective_plan = "unlimited"
     finally:
         db.close()
 
     is_demo_mode = current_user is None and plans_enabled
     original_item_count = len(merged)
-    if is_demo_mode and len(merged) > 5:
-        merged = merged[:5]
+    max_items_for_plan = 5 if is_demo_mode else (plan_limits or {}).get("max_items")
+    if max_items_for_plan is not None and len(merged) > max_items_for_plan:
+        merged = merged[:max_items_for_plan]
     
     final_items = [ParsedItem(**x).model_dump() for x in merged]
 
@@ -1277,17 +1319,27 @@ async def parse_ai_and_quote_multi_providers(
     provider_list = [provider for provider in provider_list if provider in area_providers]
     if not provider_list:
         provider_list = area_providers
+    original_provider_count = len(provider_list)
     
     # MODO DEMO: supermercado compara todas sus cadenas; otras áreas, dos.
     if is_demo_mode:
         provider_list = provider_list[:demo_provider_limit(area)]
+    elif plan_limits and plan_limits.get("max_providers") is not None:
+        provider_list = provider_list[:plan_limits["max_providers"]]
+
+    has_unlimited_results = (
+        not plans_enabled
+        or (plan_limits is not None and plan_limits.get("max_providers") is None)
+    )
+    full_result_limit = max(1, len(provider_list) * 5)
+    result_limit = full_result_limit if has_unlimited_results else min(15, full_result_limit)
 
     # ---- COTIZACIÓN MULTI-PROVEEDOR EN PARALELO ----
     # Usa ThreadPoolExecutor para cotizar múltiples items simultáneamente
     with ThreadPoolExecutor(max_workers=min(4, len(final_items))) as executor:
         # Submit todas las tareas de cotización
         futures = [
-            executor.submit(_quote_single_item, item, provider_list)
+            executor.submit(_quote_single_item, item, provider_list, 5, result_limit)
             for item in final_items
         ]
         # Recolecta resultados a medida que terminan
@@ -1320,6 +1372,7 @@ async def parse_ai_and_quote_multi_providers(
         "currency": "CLP",
         "providers_used": provider_list,
         "is_demo_mode": is_demo_mode,
+        "plan": effective_plan,
     }
     
     # Agregar mensaje de demo si aplica
@@ -1331,6 +1384,15 @@ async def parse_ai_and_quote_multi_providers(
         )
         resume["demo_items_limit_applied"] = original_item_count > 5
         resume["total_items_found"] = original_item_count
+    elif not has_unlimited_results:
+        resume["plan_limit_applied"] = (
+            (max_items_for_plan is not None and original_item_count > max_items_for_plan)
+            or original_provider_count > len(provider_list)
+        )
+        resume["total_items_found"] = original_item_count
+        resume["plan_results_notice"] = (
+            "El plan limita productos o fuentes consultadas. Los elementos excluidos no son resultados fallidos."
+        )
 
     return JSONResponse({
         "raw_text_preview": raw[:1500],
@@ -1473,7 +1535,7 @@ async def get_user_plan_limits(
 
     if not get_setting_bool(db, "plans_enabled", True):
         return {
-            "plan": "unlimited",
+            "plan": "pro" if current_user.is_admin else "unlimited",
             "limits": {
                 "max_items": None,
                 "max_providers": None,

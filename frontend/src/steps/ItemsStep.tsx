@@ -27,8 +27,9 @@ import type { SelectedItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 
 interface UserLimits {
+  plan: string
   limits: {
-    max_items: number
+    max_items: number | null
   }
 }
 
@@ -224,6 +225,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   }
 
   const canProceed = selectedCount > 0
+  const isFreePlan = limits?.plan === 'free'
 
   if (loadingLimits) {
     return (
@@ -238,6 +240,14 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
       <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
         Marca los productos que quieres cotizar y ajusta la cantidad
       </Typography>
+
+      {isFreePlan && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <strong>Plan Gratis:</strong> no se cotiza automáticamente toda una lista extensa. Puedes incluir
+          hasta <strong>{maxItems} productos por cotización</strong>. Los demás productos permanecen visibles,
+          pero quedan fuera de la búsqueda hasta que los selecciones en otra cotización o actualices tu plan.
+        </Alert>
+      )}
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -271,7 +281,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
       </Paper>
 
       {items.length > maxItems && (
-        <Alert severity="info" sx={{ mb: 2 }}>
+        <Alert severity="warning" sx={{ mb: 2 }}>
           Tu plan permite cotizar máximo <strong>{maxItems} items</strong> por cotización. Se detectaron {items.length} items. Solo podrás seleccionar {maxItems}.
         </Alert>
       )}

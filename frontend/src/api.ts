@@ -187,6 +187,11 @@ export type MultiProviderResponse = {
   providers_failed: Array<[string, string]>
   hits: MultiProviderHit[]
   error: string | null
+  is_demo_mode?: boolean
+  was_limited?: boolean
+  limited_message?: string
+  plan_results_notice?: string
+  result_limit?: number
 }
 
 export type MultiProviderBatchItem = {
@@ -204,6 +209,8 @@ export type MultiProviderBatchResponse = {
   demo_message?: string
   was_limited?: boolean
   limited_message?: string
+  plan_results_notice?: string
+  result_limit_per_item?: number
 }
 
 export type ParseAiQuoteMultiResponse = ParseAiQuoteResponse & {

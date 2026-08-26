@@ -118,8 +118,8 @@ async def get_users(
             Subscription.user_id == u.id
         ).first()
         
-        current_plan = None
-        if subscription:
+        current_plan = "pro" if u.is_admin else None
+        if subscription and not u.is_admin:
             plan = db.query(Plan).filter(Plan.id == subscription.plan_id).first()
             if plan:
                 current_plan = plan.name.lower()
