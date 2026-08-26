@@ -96,14 +96,13 @@ async def health():
 async def unhandled_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
         raise exc
-    tb = traceback.format_exc()
+    # El detalle queda en los logs del servidor; nunca exponer rutas, código ni
+    # configuración interna al navegador.
+    print(f"[ERROR] {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": str(exc),
-            "type": type(exc).__name__,
-            "traceback": tb,
-        },
+        content={"detail": "Error interno del servidor"},
     )
 
 
