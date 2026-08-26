@@ -15,14 +15,12 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: cotizador-db
-          property: connectionString
+        sync: false
+      - key: FRONTEND_URL
+        value: https://preciofast.cl
+      - key: BACKEND_URL
+        value: https://cotizador-utiles-escolares.onrender.com
+      - key: GOOGLE_REDIRECT_URI
+        value: https://cotizador-utiles-escolares.onrender.com/api/auth/google/callback
     healthCheckPath: /health
     autoDeploy: true
-
-databases:
-  - name: cotizador-db
-    plan: free
-    databaseName: cotizador
-    user: cotizador

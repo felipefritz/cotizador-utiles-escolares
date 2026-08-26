@@ -6,9 +6,12 @@ Ejecutar: python scripts/migrate_add_purchase_tracking.py
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Agregar el directorio raíz al path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+load_dotenv(root_dir / ".env")
 
 from sqlalchemy import text
 from app.database import engine

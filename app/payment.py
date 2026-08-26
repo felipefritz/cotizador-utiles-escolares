@@ -21,7 +21,8 @@ except ImportError:
 # Configuración
 MERCADO_PAGO_ACCESS_TOKEN = os.getenv("MERCADO_PAGO_ACCESS_TOKEN", "")
 MERCADO_PAGO_PUBLIC_KEY = os.getenv("MERCADO_PAGO_PUBLIC_KEY", "")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
+BACKEND_URL = os.getenv("BACKEND_URL", os.getenv("BASE_URL", "http://localhost:8000")).rstrip("/")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 # URLs de Mercado Pago
 MP_API_URL = "https://api.mercadopago.com"
@@ -56,8 +57,8 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
             return None
         
         # Datos de la preferencia
-        # Asegurar que BASE_URL use HTTPS en producción
-        webhook_url = BASE_URL
+        # Mercado Pago necesita una URL pública del backend para las notificaciones.
+        webhook_url = BACKEND_URL
         if not webhook_url.startswith("https://"):
             webhook_url = webhook_url.replace("http://", "https://")
         
@@ -74,9 +75,9 @@ def create_payment_preference(plan: Plan, user_id: int, db: Session) -> Optional
                 "email": "",  # Se obtendrá del usuario después
             },
             "back_urls": {
-                "success": f"{BASE_URL}/#/dashboard?payment=success",
-                "failure": f"{BASE_URL}/#/dashboard?payment=failure",
-                "pending": f"{BASE_URL}/#/dashboard?payment=pending",
+                "success": f"{FRONTEND_URL}/dashboard?payment=success",
+                "failure": f"{FRONTEND_URL}/dashboard?payment=failure",
+                "pending": f"{FRONTEND_URL}/dashboard?payment=pending",
             },
             "auto_return": "approved",
             "external_reference": f"user_{user_id}_plan_{plan.id}_{int(datetime.utcnow().timestamp())}",

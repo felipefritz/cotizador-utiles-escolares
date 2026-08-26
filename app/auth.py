@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import os
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import bcrypt
 from app.database import get_db, User
 
 # Configuración JWT
-SECRET_KEY = "tu-clave-secreta-super-segura-cambiar-en-produccion"
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 días
 
@@ -175,6 +177,23 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
     """Obtiene un usuario por su username"""
     return db.query(User).filter(User.username == username).first()
+
+
+def get_user_by_login(db: Session, identifier: str) -> Optional[User]:
+    """Busca un usuario por username y, si no aparece, por email.
+
+    El registro pide usuario Y email, así que la gente intenta entrar con
+    cualquiera de los dos. Antes solo se aceptaba el username y el email
+    devolvía "usuario o contraseña inválidos", que no da ninguna pista.
+    Se prioriza username para no alterar el comportamiento previo.
+    """
+    identifier = (identifier or "").strip()
+    if not identifier:
+        return None
+    user = db.query(User).filter(User.username == identifier).first()
+    if user:
+        return user
+    return db.query(User).filter(func.lower(User.email) == identifier.lower()).first()
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:

@@ -9,10 +9,12 @@ Uso:
 
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Agregar el directorio raíz al path
 root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
+load_dotenv(root_dir / ".env")
 
 from app.database import init_db, engine, Base
 from sqlalchemy import inspect

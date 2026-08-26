@@ -2,7 +2,12 @@
 """Script para actualizar los límites de los planes existentes"""
 
 import sys
-sys.path.insert(0, '/Users/felipe/Documents/proyectos/cotizador-utiles')
+from pathlib import Path
+from dotenv import load_dotenv
+
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+load_dotenv(root_dir / ".env")
 
 from app.database import SessionLocal, Plan
 

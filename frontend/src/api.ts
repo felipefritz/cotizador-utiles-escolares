@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
+export const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 // Helper para obtener el token
 function getAuthHeaders(): HeadersInit {
@@ -181,6 +181,7 @@ export type MultiProviderHit = {
 
 export type MultiProviderResponse = {
   query: string
+  area?: string
   status: 'ok' | 'partial' | 'no_results' | 'error'
   providers_queried: string[]
   providers_failed: Array<[string, string]>
@@ -198,6 +199,7 @@ export type MultiProviderBatchItem = {
 export type MultiProviderBatchResponse = {
   items: MultiProviderBatchItem[]
   providers: string[]
+  area?: string
   is_demo_mode?: boolean
   demo_message?: string
   was_limited?: boolean
@@ -216,6 +218,7 @@ export async function quoteMultiProviders(
   query: string,
   providers?: string[],
   limitPerProvider?: number,
+  area = 'general',
 ): Promise<MultiProviderResponse> {
   const res = await fetch(`${API_BASE}/quote/multi-providers`, {
     method: 'POST',
@@ -225,7 +228,8 @@ export async function quoteMultiProviders(
     },
     body: JSON.stringify({
       query: query.trim(),
-      providers: providers || ['mercadolibre', 'dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
+      providers,
+      area,
       limit_per_provider: limitPerProvider || 5,
     }),
   })
@@ -240,6 +244,7 @@ export async function quoteMultiProvidersBatch(
   items: Array<{ detalle: string; cantidad: number; item_original?: string | null }>,
   providers?: string[],
   limitPerProvider?: number,
+  area = 'general',
 ): Promise<MultiProviderBatchResponse> {
   const res = await fetch(`${API_BASE}/quote/multi-providers/batch`, {
     method: 'POST',
@@ -249,7 +254,8 @@ export async function quoteMultiProvidersBatch(
     },
     body: JSON.stringify({
       items,
-      providers: providers || ['mercadolibre', 'dimeiggs', 'libreria_nacional', 'jamila', 'coloranimal', 'pronobel', 'prisa', 'lasecretaria'],
+      providers,
+      area,
       limit_per_provider: limitPerProvider || 5,
     }),
   })
@@ -267,6 +273,7 @@ export async function quoteMultiProvidersBatch(
 export async function parseAiQuoteMultiProviders(
   file: File,
   providers?: string,
+  area = 'general',
 ): Promise<ParseAiQuoteMultiResponse> {
   const form = new FormData()
   form.append('file', file)
@@ -275,6 +282,7 @@ export async function parseAiQuoteMultiProviders(
   if (providers) {
     url.searchParams.append('providers', providers)
   }
+  url.searchParams.append('area', area)
   
   const res = await fetch(url.toString(), {
     method: 'POST',
@@ -347,4 +355,101 @@ export const api = {
     }
     return { data: await res.json() }
   },
+}
+
+// ============ PLAN DE COMPRA ============
+
+export type PurchasePlanLine = {
+  detalle: string | null
+  cantidad: number
+  provider: string
+  price: number
+  line_total: number
+  title: string | null
+  url: string | null
+  /** `false` cuando el ítem no está en las tiendas del plan y hay que traerlo aparte. */
+  in_plan: boolean
+}
+
+export type PurchasePlanMissing = {
+  detalle: string | null
+  cantidad: number
+  reason: 'sin_precio' | 'fuera_del_plan'
+  provider?: string
+}
+
+export type PurchasePlan = {
+  stores: string[]
+  extra_stores: string[]
+  store_count: number
+  items_in_plan: number
+  items_total: number
+  missing: PurchasePlanMissing[]
+  subtotal: number
+  shipping: number
+  total: number
+  lines: PurchasePlanLine[]
+}
+
+export type PurchasePlanBaseline = {
+  stores?: string[]
+  store_count: number
+  items_in_plan?: number
+  items_total?: number
+  subtotal?: number
+  shipping?: number
+  total: number
+  lines?: PurchasePlanLine[]
+}
+
+export type PurchasePlanResponse = {
+  status: 'ok' | 'no_results'
+  /** `true` para usuarios sin plan pagado: llega el ahorro, no el detalle. */
+  locked?: boolean
+  shipping_cost_per_store: number
+  baseline: PurchasePlanBaseline | null
+  plans: PurchasePlan[]
+  recommended: PurchasePlan | null
+  savings: number
+  stores_saved: number
+  /** Solo en la versión bloqueada: en cuántas tiendas quedaría la compra. */
+  store_count?: number | null
+}
+
+export type PurchasePlanItem = {
+  detalle: string
+  cantidad: number
+  hits: Array<{
+    provider: string
+    price: number | null
+    title?: string | null
+    url?: string | null
+    available?: boolean
+  }>
+}
+
+/**
+ * Calcula en qué tiendas conviene comprar la lista completa, comparando el
+ * mínimo por ítem contra comprar todo en 1, 2 o 3 tiendas con su despacho.
+ */
+export async function fetchPurchasePlan(
+  items: PurchasePlanItem[],
+  shippingCost?: number,
+): Promise<PurchasePlanResponse> {
+  const res = await fetch(`${API_BASE}/quote/purchase-plan`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      items,
+      ...(shippingCost !== undefined ? { shipping_cost: shippingCost } : {}),
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `Error ${res.status}`)
+  }
+  return res.json()
 }

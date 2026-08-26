@@ -23,19 +23,25 @@ python run.py                         # uvicorn 127.0.0.1:8000 con reload
 uvicorn app.main:app --reload         # equivalente
 python scripts/init_db.py             # crea tablas + planes por defecto (también corre en startup)
 python scripts/update_plans.py        # actualiza límites de planes existentes
-python make_admin.py <email>          # marca usuario como admin
+python make_admin.py <email>          # marca como admin a un usuario que ya existe
+python scripts/create_admin.py --email X --password Y --plan pro   # lo crea desde cero
 python check_plans.py                 # imprime límites actuales de los planes
 ```
 
-Tests backend — no hay `pytest.ini`; `tests/` tiene un solo test y los `test_*.py` de la raíz son
+Tests backend — no hay `pytest.ini`; `tests/` cubre parsers de tiendas, relevancia y el contrato del
+registro de fuentes (todo offline, con `monkeypatch`). Los `test_*.py` de la **raíz** son
 **scripts ejecutables**, no tests de pytest (hacen requests reales / tocan la BD real):
 
 ```bash
-pytest tests/                         # suite pytest (mínima)
-python tests/test_openai_extraction.py   # verifica config LLM y extracción real
-python test_payment_flow.py           # script manual: flujo Mercado Pago contra la BD local
+pytest tests/                          # suite pytest (offline, rápida)
+python scripts/validate_sources.py     # smoke test EN VIVO de las 69 fuentes publicadas
+python tests/test_openai_extraction.py # verifica config LLM y extracción real
+python test_payment_flow.py            # script manual: flujo Mercado Pago contra la BD local
 python -c "from app.main import app"   # check de imports; es lo que valida el CI
 ```
+
+`.env` apunta a la base de producción (Neon) y `venv/` no trae `psycopg2`: para levantar el backend
+en local hay que sobrescribir `DATABASE_URL` con un SQLite.
 
 Frontend:
 
@@ -81,38 +87,72 @@ parsean y cotizan en una sola llamada.
 
 ### Capa de proveedores
 
-Dos familias de fuentes, ambas normalizadas al mismo contrato de *hit*:
+Las fuentes son scrapers o APIs públicas directas, normalizadas al mismo contrato de *hit*.
+`CORE_PROVIDERS` en `app/quoting/provider_registry.py` es la lista publicada (69 fuentes; ver
+[SOURCES.md](SOURCES.md)). El proyecto consulta cada tienda directamente, sin metabuscadores.
 
-- **Scrapers/APIs propias** (`CORE_PROVIDERS` en `app/quoting/provider_registry.py`): mercadolibre,
-  dimeiggs, libreria_nacional, jamila, coloranimal, pronobel, prisa, lasecretaria. Siempre activas.
-- **Fuentes vía SerpAPI**, activas **solo si `SERPAPI_API_KEY` está seteada**: `web_shopping`
-  (Google Shopping amplio) y los retailers de `RETAILERS` en `retail_web_quote.py` (solotodo,
-  sodimac, falabella, ripley, pcfactory, paris, lider_web, jumbo_web).
+La mayoría de las tiendas corre sobre una plataforma de e-commerce conocida, así que
+`app/providers/structured_stores.py` tiene **un parser genérico por plataforma** (Shopify,
+WooCommerce, Jumpseller, Magento, PrestaShop, Tiendanube, VTEX) y las tiendas se declaran como
+`id -> url base` en `SHOPIFY_STORES`, `WOOCOMMERCE_STORES`, `JUMPSELLER_STORES`, `MAGENTO_STORES`,
+`PRESTASHOP_STORES` y `TIENDANUBE_STORES`. `STRUCTURED_PROVIDERS` deriva de esos diccionarios y es lo que
+`multi_provider.py` registra automáticamente.
 
 `available_providers()` es la única fuente de verdad de qué fuentes existen, y se expone al frontend
 por `GET /api/settings/public` — el frontend pinta como disponibles solo los ids que vengan ahí.
 
-`quote_multi_providers()` lanza todos los proveedores en paralelo (`ThreadPoolExecutor`, máx 10
+`quote_multi_providers()` lanza todos los proveedores en paralelo (`ThreadPoolExecutor`, máx 32
 threads, `timeout=15` por futuro), consolida los hits y los ordena por `relevance` descendente
-(`_token_overlap` entre query y título) y luego precio ascendente. Un proveedor que falla se agrega a
-`providers_failed` sin romper la respuesta; el `status` global es `ok` / `partial` / `no_results` / `error`.
+(`_token_overlap` entre query y título) y luego precio ascendente. `_relevant_tokens` conserva las
+cifras cortas: en una lista escolar "12 colores" y "100 hojas" son lo que distingue un producto del
+siguiente. Un proveedor que falla se agrega a `providers_failed` sin romper la respuesta; el `status`
+global es `ok` / `partial` / `no_results` / `error`.
 
 **Contrato de hit** que toda función de proveedor debe devolver:
 `{title, url, price (int CLP | None), available, provider, relevance, image_url, merchant?, sku?}`.
 
-**Para agregar un proveedor hay que tocar 4 lugares:**
-1. `app/quoting/<nombre>_quote.py` con `quote_<nombre>(query, limit) -> {query, status, hits, error}`
-   (y, si necesita scraping propio, un cliente en `app/providers/<nombre>.py`).
-2. Un wrapper `_quote_<nombre>(query, limit) -> (nombre, hits, error)` en `multi_provider.py`,
-   registrado en el dict `provider_funcs`.
-3. El id en `CORE_PROVIDERS` (o en `SERPAPI_RETAIL_PROVIDERS` + `RETAILERS` si va por SerpAPI).
-4. Frontend: el union `SourceId` y el array `SOURCES` en `frontend/src/types.ts`, y el array
-   `PROVIDERS` de `frontend/src/components/DemoQuoteModal.tsx`.
+**Para agregar una tienda sobre una plataforma ya soportada** (el caso normal): una línea en el
+diccionario de `structured_stores.py`, el id en `CORE_PROVIDERS` + `PROVIDER_AREAS`, una consulta de
+control en `scripts/validate_sources.py`, y el id en el union `SourceId` y el array `SOURCES` de
+`frontend/src/types.ts`. `DemoQuoteModal` y `SourcesStep` derivan de `SOURCES`, no hace falta
+tocarlos. `tests/test_provider_registry.py` falla si alguno de esos lugares queda desincronizado.
+
+**Para agregar una fuente con scraping propio**: además, `app/quoting/<nombre>_quote.py` con
+`quote_<nombre>(query, limit) -> {query, status, hits, error}`, un cliente en
+`app/providers/<nombre>.py` si hace falta, y un wrapper `_quote_<nombre>(query, limit) ->
+(nombre, hits, error)` registrado en `build_provider_funcs()` de `multi_provider.py`.
+
+Antes de publicar una fuente nueva conviene sondear la plataforma del dominio: los grandes retailers
+chilenos (Falabella, Paris, Ripley, Sodimac, Líder, Jumbo, Dimerc, PC Factory) están detrás de
+Cloudflare/PerimeterX/Akamai y no son integrables por esta vía.
 
 Varios módulos de `quoting/` están fuera del registry y solo se alcanzan por nombre explícito
 (`jumbo`, `lider`, `lapiz_lopez`) o son versiones duplicadas (`libreria_nacional_quote_v2.py`).
 Todo request HTTP externo debe pasar por `request_kwargs()` de `app/quoting/http_utils.py` (resuelve
 el bundle de certificados; sin eso falla SSL en macOS).
+
+**Rate limiting**: Shopify limita `/search/suggest.json` por IP, y como 20 fuentes corren sobre
+Shopify, al excederlo caen todas juntas con 429 por 5-10 minutos. `_get()` reintenta una vez ante
+429/503 y el validador corre con concurrencia baja para no gatillarlo. Ver SOURCES.md.
+
+### Plan de compra (función de plan pagado)
+
+`app/quoting/purchase_plan.py` responde "¿dónde compro todo?". El cotizador entrega el mínimo de cada
+ítem por separado, pero ese óptimo reparte una lista escolar entre siete u ocho tiendas, con un
+despacho por cada una. `build_purchase_plans()` evalúa todas las combinaciones de hasta 3 tiendas
+(exacto, no heurístico: el espacio es chico) y las ordena por total **con despacho incluido**.
+
+Reglas que sostienen la comparación:
+
+- Un plan que no cubre algún ítem **no** se muestra más barato por eso: el ítem se suma al mejor
+  precio disponible más un despacho extra, porque el usuario igual va a tener que comprarlo.
+- El despacho es un supuesto (`DEFAULT_SHIPPING_COST`, 3990), no un dato de las tiendas. Se informa
+  siempre en la respuesta y el frontend deja ajustarlo.
+- Las ofertas sin stock o sin precio válido se descartan; los ítems sin precio en ninguna fuente se
+  reportan en `missing`, no se inventan.
+
+`POST /api/quote/purchase-plan` lo expone. Sin plan pagado devuelve `teaser()`: el monto del ahorro
+y en cuántas tiendas quedaría, sin el detalle. Con `plans_enabled` en `false` todos ven todo.
 
 ### Rutas y auth
 
@@ -181,8 +221,7 @@ modelo sobre una BD existente exige escribir uno.
 Backend (`.env` en la raíz): `LLM_PROVIDER` (`groq`|`openai`), `GROQ_API_KEY` / `OPENAI_API_KEY`,
 `GROQ_MODEL`, `DATABASE_URL`, `SECRET_KEY`, `FRONTEND_URL`, `BASE_URL`, OAuth de Google/GitHub/Twitter
 (`*_CLIENT_ID`, `*_CLIENT_SECRET`, `*_REDIRECT_URI`), `MERCADO_PAGO_ACCESS_TOKEN`,
-`MERCADO_PAGO_PUBLIC_KEY`, `RESEND_API_KEY`, y las de fuentes generales: `SERPAPI_API_KEY`,
-`SERPAPI_GL`, `SERPAPI_HL`, `SERPAPI_GOOGLE_DOMAIN`, `SERPAPI_LOCATION`, `MERCADOLIBRE_SITE_ID`,
+`MERCADO_PAGO_PUBLIC_KEY`, `RESEND_API_KEY`, `MERCADOLIBRE_SITE_ID` y
 `MERCADOLIBRE_ACCESS_TOKEN`.
 
 Frontend (`frontend/.env.*`): `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`, `VITE_WHATSAPP_NUMBER`.

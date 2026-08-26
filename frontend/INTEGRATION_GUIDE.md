@@ -33,7 +33,7 @@ export const SOURCES = [
   { id: 'lapiz_lopez', name: 'Lápiz López', available: true },  // ✅ activado
   { id: 'jumbo', name: 'Jumbo', available: true },               // ✅ activado
   { id: 'lider', name: 'Lider', available: true },               // ✅ activado
-  { id: 'falabella', name: 'Falabella', available: false },
+  { id: 'nueva_fuente', name: 'Nueva fuente', available: false },
   { id: 'walmart', name: 'Walmart', available: false },
 ]
 ```

@@ -24,7 +24,7 @@ from app.schemas import ParsedList, ParsedItem, ProviderSuggestionCreate, Provid
 
 from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.multi_provider import quote_multi_providers
-from app.quoting.provider_registry import available_providers, web_shopping_enabled
+from app.quoting.provider_registry import available_providers, public_areas
 
 # Autenticación
 from app.database import get_db, init_db, User, SessionLocal, ProviderSuggestion, Plan, Subscription
@@ -327,9 +327,10 @@ async def login(
     db: Session = Depends(get_db)
 ):
     """Login con usuario/contraseña"""
-    from app.auth import get_user_by_username, verify_password
-    
-    user = get_user_by_username(db, request.username)
+    from app.auth import get_user_by_login, verify_password
+
+    # Acepta username o email: el registro pide ambos y la gente usa cualquiera.
+    user = get_user_by_login(db, request.username)
     if not user or not user.password_hash:
         raise HTTPException(401, "Usuario o contraseña inválidos")
     
@@ -961,7 +962,8 @@ async def quote_multi_endpoint(
     Payload:
     {
         "query": "carpeta azul",
-        "providers": ["dimeiggs", "libreria_nacional", "jamila", "coloranimal", "pronobel", "prisa", "lasecretaria"],  # opcional
+        "area": "oficina",
+        "providers": ["dimeiggs", "libreria_nacional", "siemprelistos", "prisa"],  # opcional
         "limit_per_provider": 5,  # opcional, default 5
     }
     
@@ -974,10 +976,17 @@ async def quote_multi_endpoint(
             raise HTTPException(400, "Falta 'query'.")
 
         providers = payload.get("providers")  # None = dimeiggs + libreria_nacional
+        area = (payload.get("area") or "general").strip().lower()
         limit_per_provider = payload.get("limit_per_provider", 5)
 
         # MODO DEMO: Limitar a 2 proveedores si no está autenticado
-        all_providers = available_providers()
+        all_providers = available_providers(area)
+        if not all_providers:
+            raise HTTPException(400, f"Área desconocida o sin fuentes disponibles: '{area}'.")
+        if providers:
+            providers = [provider for provider in providers if provider in all_providers]
+            if not providers:
+                raise HTTPException(400, f"No hay fuentes válidas para el área '{area}'.")
         providers_limited_by_plan = False
         db = SessionLocal()
         try:
@@ -992,7 +1001,7 @@ async def quote_multi_endpoint(
                     providers = providers[:2]
                     providers_limited_by_plan = True
                 else:
-                    providers = ["mercadolibre", "dimeiggs"]  # Default para demo: marketplace + tienda local
+                    providers = all_providers[:2]
             else:
                 # Usuario autenticado: verificar límites y auto-limitar si es necesario
                 from app.payment import get_user_limits
@@ -1012,7 +1021,7 @@ async def quote_multi_endpoint(
                         if max_providers >= 5:
                             providers = all_providers[:max_providers]
                         else:
-                            providers = ["mercadolibre", "dimeiggs"][:max_providers]
+                            providers = all_providers[:max_providers]
         finally:
             db.close()
         
@@ -1026,7 +1035,8 @@ async def quote_multi_endpoint(
             limit_per_provider=limit_per_provider,
             max_results=15,
         )
-        print(f"[DEBUG] Búsqueda completada: {len(result.get('consolidated', []))} resultados")
+        result["area"] = area
+        print(f"[DEBUG] Búsqueda completada: {len(result.get('hits', []))} resultados")
         
         # Agregar info de modo demo y limitación a la respuesta
         result["is_demo_mode"] = is_demo_mode
@@ -1071,9 +1081,16 @@ async def quote_multi_batch_endpoint(
             raise HTTPException(400, "Falta 'items' o está vacío.")
 
         providers = payload.get("providers")
+        area = (payload.get("area") or "general").strip().lower()
         limit_per_provider = payload.get("limit_per_provider", 5)
 
-        all_providers = available_providers()
+        all_providers = available_providers(area)
+        if not all_providers:
+            raise HTTPException(400, f"Área desconocida o sin fuentes disponibles: '{area}'.")
+        if providers:
+            providers = [provider for provider in providers if provider in all_providers]
+            if not providers:
+                raise HTTPException(400, f"No hay fuentes válidas para el área '{area}'.")
         providers_limited_by_plan = False
 
         db = SessionLocal()
@@ -1089,7 +1106,7 @@ async def quote_multi_batch_endpoint(
                     providers = providers[:2]
                     providers_limited_by_plan = True
                 else:
-                    providers = ["mercadolibre", "dimeiggs"]
+                    providers = all_providers[:2]
             else:
                 from app.payment import get_user_limits
 
@@ -1109,7 +1126,7 @@ async def quote_multi_batch_endpoint(
                         if max_providers >= 5:
                             providers = all_providers[:max_providers]
                         else:
-                            providers = ["mercadolibre", "dimeiggs"][:max_providers]
+                            providers = all_providers[:max_providers]
         finally:
             db.close()
 
@@ -1164,6 +1181,7 @@ async def quote_multi_batch_endpoint(
         response = {
             "items": results,
             "providers": providers,
+            "area": area,
             "is_demo_mode": is_demo_mode,
         }
 
@@ -1187,6 +1205,7 @@ async def quote_multi_batch_endpoint(
 async def parse_ai_and_quote_multi_providers(
     file: UploadFile = File(...),
     providers: str = "",  # CSV list; empty = fuentes disponibles/configuradas
+    area: str = "general",
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
@@ -1196,7 +1215,8 @@ async def parse_ai_and_quote_multi_providers(
     MODO COMPLETO (con auth): Sin límites
     
     Query params:
-    - providers: CSV de proveedores (e.g., "dimeiggs,libreria_nacional,web_shopping")
+    - providers: CSV de proveedores (e.g., "dimeiggs,libreria_nacional,siemprelistos")
+    - area: área de compra que restringe las fuentes compatibles
     """
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx", ".xlsx", ".xls"):
@@ -1240,9 +1260,14 @@ async def parse_ai_and_quote_multi_providers(
     final_items = [ParsedItem(**x).model_dump() for x in merged]
 
     # Parse providers
+    area = (area or "general").strip().lower()
+    area_providers = available_providers(area)
+    if not area_providers:
+        raise HTTPException(400, f"Área desconocida o sin fuentes disponibles: '{area}'.")
     provider_list = [p.strip().lower() for p in providers.split(",") if p.strip()]
+    provider_list = [provider for provider in provider_list if provider in area_providers]
     if not provider_list:
-        provider_list = available_providers()
+        provider_list = area_providers
     
     # MODO DEMO: Limitar a 2 proveedores si no está autenticado
     if is_demo_mode:
@@ -1299,6 +1324,7 @@ async def parse_ai_and_quote_multi_providers(
         "lines_count": len(lines),
         "dubious_sent_to_ai": len(dub_lines),
         "resume": resume,
+        "area": area,
         "items": final_items,
         "llm_error": llm_error,
     })
@@ -1335,14 +1361,24 @@ async def get_cart_urls(
         "pronobel": "https://pronobel.cl/",
         "prisa": "https://www.prisa.cl/",
         "lasecretaria": "https://lasecretaria.cl/",
-        "web_shopping": "https://www.google.com/search?tbm=shop",
-        "sodimac": "https://www.sodimac.cl/",
-        "falabella": "https://www.falabella.com/falabella-cl",
-        "ripley": "https://simple.ripley.cl/",
-        "pcfactory": "https://www.pcfactory.cl/",
-        "paris": "https://www.paris.cl/",
-        "lider_web": "https://www.lider.cl/",
-        "jumbo_web": "https://www.jumbo.cl/",
+        "siemprelistos": "https://www.siemprelistos.cl/",
+        "construfer": "https://www.construfer.cl/",
+        "kitchencenter": "https://www.kitchencenter.cl/",
+        "homemobili": "https://homemobili.cl/",
+        "alltec": "https://www.alltec.cl/",
+        "arteideas": "https://libreriaarteideas.cl/",
+        "papelaria": "https://www.papelaria.cl/",
+        "libreriaacuario": "https://libreriacuario.cl/",
+        "bazarte": "https://libreriabazarte.cl/",
+        "fissman": "https://fissman.cl/",
+        "kitchenhouse": "https://kitchenhouse.cl/",
+        "weitzler": "https://www.weitzler.cl/",
+        "santamariana": "https://santamariana.cl/",
+        "maxitech": "https://tiendamaxitech.cl/",
+        "apishop": "https://apishop.cl/",
+        "ferreteriaprat": "https://ferreteriaprat.cl/",
+        "hangar77": "https://hangar77.cl/",
+        "casaroyal": "https://www.casaroyal.cl/",
     }
     
     if provider not in urls:
@@ -1376,8 +1412,8 @@ async def get_public_settings(db: Session = Depends(get_db)):
     """Obtiene settings publicos para el frontend."""
     return {
         "plans_enabled": get_setting_bool(db, "plans_enabled", True),
-        "web_shopping_enabled": web_shopping_enabled(),
         "available_providers": available_providers(),
+        "areas": public_areas(),
     }
 
 @api_router.get("/plans")
@@ -1467,6 +1503,62 @@ async def get_user_plan_limits(
             "monthly_remaining": limits["monthly_limit"] - quotes_this_month if limits["monthly_limit"] else None,
         },
     }
+
+
+@api_router.post("/quote/purchase-plan")
+async def purchase_plan_endpoint(
+    payload: dict,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Calcula en qué tiendas conviene comprar la lista completa.
+
+    El cotizador entrega el precio más barato de cada ítem por separado, lo que
+    reparte la compra entre muchas tiendas. Acá se compara ese mínimo contra
+    comprar todo en 1, 2 o 3 tiendas, sumando el despacho estimado.
+
+    Payload:
+    {
+        "items": [{"detalle": "...", "cantidad": 2, "hits": [...]}],
+        "shipping_cost": 3990,   # opcional
+        "max_stores": 3          # opcional
+    }
+
+    Es una función de plan pagado: sin plan, se devuelve solo el ahorro
+    posible (`locked: true`) y no el detalle de las tiendas.
+    """
+    from app.payment import get_user_limits
+    from app.quoting.purchase_plan import DEFAULT_SHIPPING_COST, build_purchase_plans, teaser
+
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        raise HTTPException(400, "Falta 'items'.")
+
+    shipping_cost = payload.get("shipping_cost", DEFAULT_SHIPPING_COST)
+    try:
+        shipping_cost = int(shipping_cost)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "'shipping_cost' debe ser un número.")
+    if shipping_cost < 0:
+        raise HTTPException(400, "'shipping_cost' no puede ser negativo.")
+
+    result = build_purchase_plans(
+        items,
+        shipping_cost=shipping_cost,
+        max_stores=payload.get("max_stores", 3),
+    )
+
+    # Con el kill switch apagado no hay planes ni límites: acceso completo.
+    if not get_setting_bool(db, "plans_enabled", True):
+        return JSONResponse(result)
+
+    if current_user is None:
+        return JSONResponse(teaser(result))
+
+    # `max_providers = None` es el plan sin tope, o sea un plan pagado.
+    limits = get_user_limits(current_user.id, db)
+    has_paid_plan = limits.get("max_providers") is None
+    return JSONResponse(result if has_paid_plan else teaser(result))
 
 
 # ============ PROVIDER SUGGESTIONS ENDPOINTS ============

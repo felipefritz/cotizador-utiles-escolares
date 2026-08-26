@@ -183,11 +183,49 @@ def is_header(line: str) -> bool:
     up = re.sub(r"\s+", " ", line.strip().upper())
     return any(re.match(p, up) for p in HEADER_PATTERNS)
 
+#: Conectores que sobran al principio del detalle una vez removida la unidad
+#: ("1 caja **de** témpera" -> "témpera").
+LEADING_CONNECTORS = {"de", "del", "con", "para"}
+
+
+def strip_leading_connector(text: str) -> str:
+    """Quita el conector que queda colgando tras separar la unidad del detalle."""
+    parts = text.split(maxsplit=1)
+    if len(parts) == 2 and parts[0].lower() in LEADING_CONNECTORS:
+        return parts[1].strip()
+    return text
+
+
 def section_only(line: str) -> Optional[str]:
+    """Devuelve el título de sección si la línea es un encabezado, no un item.
+
+    Además de la lista conocida se reconocen encabezados por su forma, porque
+    ninguna lista fija cubre lo que las escuelas escriben de verdad
+    ("ARTES VISUALES", "USO GENERAL", "Educación Física:"). El criterio es
+    conservador: se exige que la línea no tenga cantidad —o sea, que
+    `parse_item_line` la descarte— así que solo se reclasifican líneas que
+    antes se perdían.
+    """
     up = re.sub(r"\s+", " ", line.strip().upper())
     if up in SECTION_WORDS:
         return up
-    return None
+
+    stripped = line.strip()
+    if not stripped or is_header(stripped):
+        return None
+
+    heading = stripped.rstrip(":").strip()
+    ends_with_colon = stripped.endswith(":")
+    if not heading or any(char.isdigit() for char in heading):
+        return None
+    if len(heading.split()) > 4:
+        return None
+    if not (heading.isupper() or ends_with_colon):
+        return None
+    # Si la línea sí trae cantidad es un item, no un encabezado.
+    if parse_item_line(stripped) is not None:
+        return None
+    return re.sub(r"\s+", " ", heading.upper())
 
 def parse_item_line(line: str) -> Optional[Dict[str, Any]]:
     original = line.strip()
@@ -221,7 +259,7 @@ def parse_item_line(line: str) -> Optional[Dict[str, Any]]:
                                    detail, flags=re.IGNORECASE)
             if m_unit_only:
                 unit = UNIT_MAP.get(m_unit_only.group(1).lower(), None) or m_unit_only.group(1).lower()
-                detail = m_unit_only.group(2).strip()
+                detail = strip_leading_connector(m_unit_only.group(2).strip())
             else:
                 # Detectar unidad en el texto: "3 Pinceles 2, 6 y 8" → unit basado en contexto
                 if re.search(r"\bresma(s)?\b", detail, re.IGNORECASE):
@@ -245,7 +283,7 @@ def parse_item_line(line: str) -> Optional[Dict[str, Any]]:
                             original, flags=re.IGNORECASE)
     if m_unit_start:
         unit = UNIT_MAP.get(m_unit_start.group(1).lower(), None) or m_unit_start.group(1).lower()
-        detail = m_unit_start.group(2).strip()
+        detail = strip_leading_connector(m_unit_start.group(2).strip())
         
         # Buscar cantidad al final: "Pack Separadores 5"
         m_qty = re.search(r"(\d{1,3})\s*$", detail)

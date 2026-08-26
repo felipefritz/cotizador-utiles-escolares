@@ -30,17 +30,17 @@ class LasecretariaClient:
         if not query:
             return []
 
-        try:
-            # URL de búsqueda correcta para PrestaShop
-            search_url = f"{self.base_url}/busqueda?controller=search&orderby=position&orderway=desc&search_category=all&s={query}&submit_search="
-            r = self.session.get(search_url, timeout=self.timeout)
-            r.raise_for_status()
-            
-            hits = self._parse_results(r.text, limit)
-            return hits
-            
-        except Exception as e:
-            return []
+        # Los errores se propagan a `quote_lasecretaria`, que los convierte en
+        # status "error". Tragarlos acá haría que una caída de la tienda se
+        # viera como "sin resultados" y la fuente nunca aparecería en
+        # `providers_failed`.
+        search_url = (
+            f"{self.base_url}/busqueda?controller=search&orderby=position"
+            f"&orderway=desc&search_category=all&s={query}&submit_search="
+        )
+        r = self.session.get(search_url, timeout=self.timeout)
+        r.raise_for_status()
+        return self._parse_results(r.text, limit)
 
     def _parse_results(self, html: str, limit: int) -> List[Dict[str, Any]]:
         """Extrae productos de resultados de búsqueda."""

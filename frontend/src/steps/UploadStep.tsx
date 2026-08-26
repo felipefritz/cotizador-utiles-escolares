@@ -134,7 +134,7 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
           Producto individual
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Ideal para comparar algo puntual al estilo SoloTodo: notebook, monitor, celular, herramienta o repuesto.
+          Ideal para comparar algo puntual: notebook, monitor, artículo de cocina, herramienta o repuesto.
         </Typography>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField

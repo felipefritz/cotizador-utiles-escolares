@@ -35,16 +35,23 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import SaveIcon from '@mui/icons-material/Save'
 import DeleteIcon from '@mui/icons-material/Delete'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
-import type { ItemQuote, SourceId } from '../types'
+import { getSourceColor, getSourceName, getSourceUrl, type AreaId, type ItemQuote, type SourceId } from '../types'
 import { formatCLP } from '../utils/format'
-import { quoteMultiProviders, api } from '../api'
+import { fetchPurchasePlan, quoteMultiProviders, api } from '../api'
+import type { PurchasePlanResponse } from '../api'
+import { PurchasePlanCard } from '../components/PurchasePlanCard'
 import { QuoteProgressModal } from '../components/QuoteProgressModal'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
+
+/** Items cotizados en paralelo. Equilibra el tiempo total y la carga sobre cada tienda. */
+const QUOTE_CONCURRENCY = 4
 
 type Props = {
   results: ItemQuote[]
   onReset: () => void
   sources: SourceId[]
+  area: AreaId
   onEditSelection: () => void
 }
 
@@ -64,7 +71,7 @@ function isFound(q: { status?: string } | undefined): boolean {
   return !!q && FOUND_STATUSES.includes(q.status || '')
 }
 
-export function QuoteStep({ results, onReset, sources, onEditSelection }: Props) {
+export function QuoteStep({ results, onReset, sources, area, onEditSelection }: Props) {
   const { token } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +80,11 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [showProgress, setShowProgress] = useState(false)
   const [quotedCount, setQuotedCount] = useState(0)
+  const [purchasePlan, setPurchasePlan] = useState<PurchasePlanResponse | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planError, setPlanError] = useState<string | null>(null)
+  const [shippingCost, setShippingCost] = useState(3990)
+  const navigate = useNavigate()
   const [workingItems, setWorkingItems] = useState<ItemQuote[]>([])
   const [batchMode, setBatchMode] = useState(false)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
@@ -132,23 +144,24 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
     setBatchMode(false)
     
     try {
-      const updated: ItemQuote[] = []
+      // Cada item consulta todas las fuentes elegidas, así que en serie una
+      // lista escolar tarda minutos. Se cotizan varios items a la vez, con un
+      // tope para no golpear a cada tienda con demasiadas consultas paralelas.
+      const updated: ItemQuote[] = new Array(allowedResults.length)
+      let done = 0
+      let nextIndex = 0
 
-      for (let i = 0; i < allowedResults.length; i += 1) {
-        const item = allowedResults[i]
+      const quoteItemAt = async (index: number) => {
+        const item = allowedResults[index]
         const query = item.item.detalle || item.item.item_original
 
         try {
-          const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
-          updated.push({
-            item: item.item,
-            quantity: item.quantity,
-            multi: quote,
-          })
+          const quote = await quoteMultiProviders(query, allowedSources, 5, area)
+          updated[index] = { item: item.item, quantity: item.quantity, multi: quote }
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'Error al cotizar'
           setError(msg)
-          updated.push({
+          updated[index] = {
             item: item.item,
             quantity: item.quantity,
             multi: {
@@ -159,13 +172,28 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
               hits: [],
               error: msg,
             },
-          })
+          }
         }
 
-        setQuotedResults([...updated])
-        setQuotedCount(i + 1)
+        done += 1
+        // Se muestran solo los items ya resueltos, en su orden original.
+        setQuotedResults(updated.filter(Boolean))
+        setQuotedCount(done)
       }
 
+      const runWorker = async () => {
+        while (nextIndex < allowedResults.length) {
+          const index = nextIndex
+          nextIndex += 1
+          await quoteItemAt(index)
+        }
+      }
+
+      await Promise.all(
+        Array.from({ length: Math.min(QUOTE_CONCURRENCY, allowedResults.length) }, runWorker)
+      )
+
+      setQuotedResults(updated)
       setQuoted(true)
       setShowProgress(false)
     } catch (e) {
@@ -174,7 +202,52 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
     } finally {
       setLoading(false)
     }
-  }, [allowedResults, allowedSources])
+  }, [allowedResults, allowedSources, area])
+
+  // El plan se recalcula cuando cambian los resultados o el despacho estimado.
+  useEffect(() => {
+    if (!quoted || quotedResults.length === 0) {
+      setPurchasePlan(null)
+      return
+    }
+    const items = quotedResults
+      .map((result) => ({
+        detalle: result.item.detalle || result.item.item_original || '',
+        cantidad: result.quantity,
+        hits: (result.multi?.hits ?? []).map((hit) => ({
+          provider: hit.provider,
+          price: hit.price,
+          title: hit.title,
+          url: hit.url,
+          available: hit.available,
+        })),
+      }))
+      .filter((item) => item.detalle)
+
+    if (items.length === 0) {
+      setPurchasePlan(null)
+      return
+    }
+
+    let cancelled = false
+    setPlanLoading(true)
+    setPlanError(null)
+    fetchPurchasePlan(items, shippingCost)
+      .then((response) => {
+        if (!cancelled) setPurchasePlan(response)
+      })
+      .catch((e) => {
+        if (!cancelled) setPlanError(e instanceof Error ? e.message : 'Error al calcular el plan')
+      })
+      .finally(() => {
+        if (!cancelled) setPlanLoading(false)
+      })
+
+    // Un cambio de despacho durante el cálculo no debe pisar el resultado nuevo.
+    return () => {
+      cancelled = true
+    }
+  }, [quoted, quotedResults, shippingCost])
 
   const handleEditItem = (index: number, newName: string) => {
     const newItems = [...workingItems]
@@ -192,7 +265,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
     try {
       const item = workingItems[index]
       const query = item.item.detalle || item.item.item_original
-      const quote = await quoteMultiProviders(query, allowedSources, item.quantity)
+      const quote = await quoteMultiProviders(query, allowedSources, 5, area)
       
       const newResults = [...quotedResults]
       newResults[index] = {
@@ -207,6 +280,11 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
   }
 
   const handleSaveQuote = async () => {
+    // El backend exige sesión; sin ella no tiene sentido llegar al POST.
+    if (!token) {
+      navigate('/login')
+      return
+    }
     if (!quoteTitle.trim()) {
       alert('Por favor ingresa un nombre para la cotización')
       return
@@ -285,49 +363,11 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
   
   // Definir funciones ANTES de usarlas en useMemo
   const getProviderName = (provider: string): string => {
-    const names: Record<string, string> = {
-      mercadolibre: 'MercadoLibre',
-      dimeiggs: 'Dimeiggs',
-      libreria_nacional: 'Librería Nacional',
-      jamila: 'Jamila',
-      coloranimal: 'Coloranimal',
-      pronobel: 'Pronobel',
-      prisa: 'Prisa',
-      lasecretaria: 'La Secretaria',
-      web_shopping: 'Búsqueda web',
-      solotodo: 'SoloTodo',
-      sodimac: 'Sodimac',
-      falabella: 'Falabella',
-      ripley: 'Ripley',
-      pcfactory: 'PC Factory',
-      paris: 'Paris',
-      lider_web: 'Lider',
-      jumbo_web: 'Jumbo',
-    }
-    return names[provider] || provider
+    return getSourceName(provider)
   }
 
   const getProviderColor = (provider: string): string => {
-    const colors: Record<string, string> = {
-      mercadolibre: '#B79500',
-      dimeiggs: '#2196F3',
-      libreria_nacional: '#7B1FA2',
-      jamila: '#00897B',
-      coloranimal: '#6D4C41',
-      pronobel: '#5E35B1',
-      prisa: '#C2185B',
-      lasecretaria: '#455A64',
-      web_shopping: '#2E7D32',
-      solotodo: '#111827',
-      sodimac: '#005D36',
-      falabella: '#6B8E00',
-      ripley: '#6F2DBD',
-      pcfactory: '#F37021',
-      paris: '#0077A3',
-      lider_web: '#005CB9',
-      jumbo_web: '#0B7F3A',
-    }
-    return colors[provider] || '#757575'
+    return getSourceColor(provider)
   }
   
   const { subtotal, itemsConPrecio, itemsPendientes, pendientes } = useMemo(() => {
@@ -557,6 +597,15 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
         </Paper>
       ) : (
         <>
+          <PurchasePlanCard
+            plan={purchasePlan}
+            loading={planLoading}
+            error={planError}
+            shippingCost={shippingCost}
+            onShippingCostChange={setShippingCost}
+            onUpgradeClick={() => navigate('/dashboard')}
+          />
+
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Typography variant="subtitle2" color="text.secondary">
               Resumen por item (mejor precio)
@@ -972,23 +1021,7 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
                             size="small"
                             variant="contained"
                             endIcon={<ShoppingCartIcon sx={{ fontSize: 16 }} />}
-                            href={`https://${providerKey === 'dimeiggs' ? 'www.dimeiggs.cl' : 
-                                       providerKey === 'mercadolibre' ? 'www.mercadolibre.cl' :
-                                       providerKey === 'libreria_nacional' ? 'nacional.cl' :
-                                       providerKey === 'jamila' ? 'www.jamila.cl' :
-                                       providerKey === 'coloranimal' ? 'www.coloranimal.cl' :
-                                       providerKey === 'pronobel' ? 'pronobel.cl' :
-                                       providerKey === 'prisa' ? 'www.prisa.cl' :
-                                       providerKey === 'lasecretaria' ? 'lasecretaria.cl' :
-                                       providerKey === 'web_shopping' ? 'www.google.com/search?tbm=shop' :
-                                       providerKey === 'solotodo' ? 'www.solotodo.cl' :
-                                       providerKey === 'sodimac' ? 'www.sodimac.cl' :
-                                       providerKey === 'falabella' ? 'www.falabella.com/falabella-cl' :
-                                       providerKey === 'ripley' ? 'simple.ripley.cl' :
-                                       providerKey === 'pcfactory' ? 'www.pcfactory.cl' :
-                                       providerKey === 'paris' ? 'www.paris.cl' :
-                                       providerKey === 'lider_web' ? 'www.lider.cl' :
-                                       providerKey === 'jumbo_web' ? 'www.jumbo.cl' : ''}`}
+                            href={getSourceUrl(providerKey)}
                             target="_blank"
                             rel="noopener noreferrer"
                             sx={{
@@ -1598,78 +1631,28 @@ export function QuoteStep({ results, onReset, sources, onEditSelection }: Props)
           <Button variant="contained" onClick={onReset}>
             Nueva cotización
           </Button>
-          <Button 
-            variant="contained" 
-            color="success"
-            startIcon={<SaveIcon />}
-            onClick={() => setSaveDialogOpen(true)}
-          >
-            Guardar cotización
-          </Button>
-        </Box>
-      )}
-
-      <QuoteProgressModal
-        open={showProgress}
-        items={workingItems}
-        quotedCount={quotedCount}
-        sources={sources}
-        indeterminate={batchMode}
-        onEditItem={handleEditItem}
-        onRetryItem={handleRetryItem}
-        onClose={() => setShowProgress(false)}
-      />
-
-      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Guardar cotización</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <TextField
-            label="Nombre de la cotización"
-            fullWidth
-            value={quoteTitle}
-            onChange={(e) => setQuoteTitle(e.target.value)}
-            placeholder="Ej: Cotización oficina marzo, compra ferretería o lista escolar"
-            autoFocus
-            disabled={saving}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && quoteTitle.trim()) {
-                handleSaveQuote()
-              }
-            }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Usa un nombre descriptivo para identificar esta cotización fácilmente después
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveDialogOpen(false)} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button 
-            onClick={handleSaveQuote} 
-            variant="contained" 
-            color="success"
-            disabled={!quoteTitle.trim() || saving}
-            startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-          >
-            {saving ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {quoted && (
-        <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-          <Button variant="contained" onClick={onReset}>
-            Nueva cotización
-          </Button>
-          <Button 
-            variant="contained" 
-            color="success"
-            startIcon={<SaveIcon />}
-            onClick={() => setSaveDialogOpen(true)}
-          >
-            Guardar cotización
-          </Button>
+          {token ? (
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<SaveIcon />}
+              onClick={() => setSaveDialogOpen(true)}
+            >
+              Guardar cotización
+            </Button>
+          ) : (
+            // Guardar exige sesión (el backend responde 401). Se ofrece el
+            // registro en vez del botón, para no llevar al usuario a llenar
+            // un diálogo que va a fallar.
+            <Button
+              variant="outlined"
+              color="success"
+              startIcon={<SaveIcon />}
+              onClick={() => navigate('/login')}
+            >
+              Regístrate para guardar
+            </Button>
+          )}
         </Box>
       )}
 

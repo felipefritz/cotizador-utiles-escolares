@@ -30,19 +30,16 @@ type Props = {
 }
 
 const SOURCES = [
-  { name: 'MercadoLibre', group: 'Marketplace', status: 'Activo' },
-  { name: 'SoloTodo', group: 'Comparador tech', status: 'Web' },
-  { name: 'Sodimac', group: 'Construcción', status: 'Web' },
-  { name: 'Falabella', group: 'Retail', status: 'Web' },
-  { name: 'Ripley', group: 'Retail', status: 'Web' },
-  { name: 'PC Factory', group: 'Tecnología', status: 'Web' },
-  { name: 'Paris', group: 'Retail', status: 'Web' },
-  { name: 'Lider', group: 'Supermercado', status: 'Web' },
-  { name: 'Jumbo', group: 'Supermercado', status: 'Web' },
   { name: 'Dimeiggs', group: 'Papelería', status: 'Activo' },
   { name: 'Librería Nacional', group: 'Educación', status: 'Activo' },
-  { name: 'Jamila', group: 'Oficina', status: 'Activo' },
-  { name: 'Búsqueda web', group: 'General', status: 'API' },
+  { name: 'Construfer', group: 'Construcción', status: 'Activo' },
+  { name: 'Ferretería Prat', group: 'Construcción', status: 'Activo' },
+  { name: 'Kitchen Center', group: 'Hogar', status: 'Activo' },
+  { name: 'Fissman', group: 'Hogar', status: 'Activo' },
+  { name: 'Alltec', group: 'Tecnología', status: 'Activo' },
+  { name: 'Casa Royal', group: 'Tecnología', status: 'Activo' },
+  { name: 'La Papelaria', group: 'Oficina', status: 'Activo' },
+  { name: 'Apishop', group: 'Supermercado', status: 'Activo' },
 ]
 
 const USE_CASES = [
@@ -92,9 +89,9 @@ const FEATURES = [
 ]
 
 const PREVIEW_ITEMS = [
-  { name: 'Taladro percutor 13mm', source: 'Sodimac', price: '$39.990', match: 86 },
+  { name: 'Taladro percutor 13mm', source: 'Ferretería Prat', price: '$179.352', match: 86 },
   { name: 'Resma carta 500 hojas', source: 'Dimeiggs', price: '$4.290', match: 94 },
-  { name: 'Monitor 27 pulgadas IPS', source: 'SoloTodo', price: '$129.990', match: 88 },
+  { name: 'Monitor 27 pulgadas IPS', source: 'Casa Royal', price: '$149.990', match: 88 },
 ]
 
 export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestProvider }: Props) {
@@ -385,15 +382,14 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
             <Grid item xs={12} md={5}>
               <Typography variant="overline" color="primary" fontWeight={800}>Fuentes conectables</Typography>
               <Typography variant="h3" fontWeight={850} sx={{ mt: 1, mb: 2, fontSize: { xs: '2rem', md: '2.7rem' } }}>
-                Marketplace, comparadores, retail, construcción, tecnología y búsqueda web
+                Tiendas directas de oficina, hogar, construcción, tecnología y supermercado
               </Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>
-                MercadoLibre queda activo como marketplace general. SoloTodo funciona como referencia tipo comparador para productos individuales de tecnología. Sodimac, Falabella, Ripley, PC Factory, Paris, Lider y Jumbo se habilitan mediante SerpAPI para evitar scrapers frágiles cuando no hay API oficial estable.
+                Consultamos directamente búsquedas públicas de cada tienda. Las fuentes que no entregan precios verificables o bloquean consultas automatizadas no se publican en el cotizador.
               </Typography>
               <Stack direction="row" spacing={1.5} sx={{ mt: 3 }} flexWrap="wrap" useFlexGap>
-                <Chip icon={<CheckCircleOutlineIcon />} label="MercadoLibre activo" color="success" variant="outlined" />
-                <Chip icon={<SearchIcon />} label="SoloTodo para producto individual" variant="outlined" />
-                <Chip icon={<SearchIcon />} label="Retail web con SerpAPI" variant="outlined" />
+                <Chip icon={<CheckCircleOutlineIcon />} label="Fuentes directas validadas" color="success" variant="outlined" />
+                <Chip icon={<SearchIcon />} label="Precios y enlaces reales" variant="outlined" />
               </Stack>
             </Grid>
 

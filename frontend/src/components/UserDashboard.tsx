@@ -395,7 +395,7 @@ export const UserDashboard: React.FC = () => {
             variant="contained"
             startIcon={<AddIcon />}
             size="large"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/?cotizar=1')}
             sx={{ 
               px: 3,
               boxShadow: 2,

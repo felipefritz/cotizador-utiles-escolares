@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Box, Container, Paper, Stepper, Step, StepLabel, Typography, CircularProgress, Button, Avatar } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
 import HomeIcon from '@mui/icons-material/Home'
@@ -20,9 +20,9 @@ import { SourcesStep } from './steps/SourcesStep'
 import { QuoteStep } from './steps/QuoteStep'
 import { useAuth } from './contexts/AuthContext'
 import type { ParsedItem } from './api'
-import type { ItemQuote, SelectedItem, SourceId } from './types'
+import type { AreaId, ItemQuote, SelectedItem, SourceId } from './types'
 
-const STEPS = ['Elegir fuentes', 'Producto o lista', 'Seleccionar productos', 'Cotización']
+const STEPS = ['Área y fuentes', 'Producto o lista', 'Seleccionar productos', 'Cotización']
 
 function buildSelectedItems(items: ParsedItem[]): SelectedItem[] {
   return (items || []).map((item) => ({
@@ -34,22 +34,28 @@ function buildSelectedItems(items: ParsedItem[]): SelectedItem[] {
 
 function MainApp() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout } = useAuth()
-  const [showHome, setShowHome] = useState(true)
+  const [showHome, setShowHome] = useState(() => new URLSearchParams(location.search).get('cotizar') !== '1')
   const [showDemoModal, setShowDemoModal] = useState(false)
   const [showSuggestionForm, setShowSuggestionForm] = useState(false)
   const [step, setStep] = useState(0)
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
-  const [sources, setSources] = useState<SourceId[]>([
-    'mercadolibre',
-    'dimeiggs',
-    'libreria_nacional',
-    'jamila',
-    'coloranimal',
-    'pronobel',
-    'prisa',
-    'lasecretaria',
-  ])
+  const [area, setArea] = useState<AreaId>('general')
+  const [sources, setSources] = useState<SourceId[]>(['dimeiggs'])
+
+  // `?cotizar=1` puede llegar en cualquier navegación (por ejemplo desde "Nueva
+  // Cotización" en el dashboard), no solo al montar. Leerlo únicamente en el
+  // estado inicial dejaba el landing puesto cuando el componente ya estaba
+  // montado o cuando la URL no cambiaba. Se depende de `location.key` para
+  // reaccionar incluso al navegar a la misma URL.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('cotizar') !== '1') return
+    setShowHome(false)
+    // Se consume el parámetro: si queda pegado, la URL dice "cotizar" mientras
+    // el usuario ya volvió al inicio, y ambos estados se desincronizan.
+    navigate('/', { replace: true })
+  }, [location.key, location.search, navigate])
 
   const onItemsParsed = useCallback((items: ParsedItem[]) => {
     setSelectedItems(buildSelectedItems(items))
@@ -72,16 +78,8 @@ function MainApp() {
     setShowHome(true)
     setStep(0)
     setSelectedItems([])
-    setSources([
-      'mercadolibre',
-      'dimeiggs',
-      'libreria_nacional',
-      'jamila',
-      'coloranimal',
-      'pronobel',
-      'prisa',
-      'lasecretaria',
-    ])
+    setArea('general')
+    setSources(['dimeiggs'])
   }, [])
 
   const handleTrialClick = useCallback(() => {
@@ -230,6 +228,8 @@ function MainApp() {
             <SourcesStep
               selected={sources}
               onSelectionChange={setSources}
+              area={area}
+              onAreaChange={setArea}
               onNext={goNext}
               hideBack
             />
@@ -248,6 +248,7 @@ function MainApp() {
               results={resultsForQuoteStep}
               onReset={onReset}
               sources={sources}
+              area={area}
               onEditSelection={() => setStep(2)}
             />
           )}

@@ -27,31 +27,16 @@ import {
   TableRow,
   Paper,
   Link,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import CloseIcon from '@mui/icons-material/Close'
 import LockOpenIcon from '@mui/icons-material/LockOpen'
 import { api, parseAiItemsOnly, quoteMultiProviders, type ParsedItem, type MultiProviderResponse } from '../api'
+import { AREAS, RECOMMENDED_SOURCE_BY_AREA, SOURCES, getSourceName, type AreaId } from '../types'
 
 const DEMO_STEPS = ['Subir lista', 'Seleccionar items y fuentes', 'Resultados']
-
-const PROVIDERS = [
-  { id: 'mercadolibre', name: 'MercadoLibre', color: '#FFE600' },
-  { id: 'dimeiggs', name: 'Dimeiggs', color: '#FF6B35' },
-  { id: 'libreria_nacional', name: 'Librería Nacional', color: '#004E89' },
-  { id: 'jamila', name: 'Jamila', color: '#F77F00' },
-  { id: 'coloranimal', name: 'Coloranimal', color: '#06A77D' },
-  { id: 'pronobel', name: 'Pronobel', color: '#D62828' },
-  { id: 'prisa', name: 'Prisa', color: '#6A4C93' },
-  { id: 'lasecretaria', name: 'La Secretaria', color: '#1982C4' },
-  { id: 'web_shopping', name: 'Búsqueda web', color: '#2E7D32' },
-  { id: 'solotodo', name: 'SoloTodo', color: '#111827' },
-  { id: 'sodimac', name: 'Sodimac', color: '#005D36' },
-  { id: 'falabella', name: 'Falabella', color: '#AAD500' },
-  { id: 'ripley', name: 'Ripley', color: '#6F2DBD' },
-  { id: 'pcfactory', name: 'PC Factory', color: '#F37021' },
-  { id: 'paris', name: 'Paris', color: '#00A3E0' },
-]
 
 type Props = {
   open: boolean
@@ -74,14 +59,17 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<SelectableItem[]>([])
+  const [area, setArea] = useState<AreaId>('general')
   const [selectedProviders, setSelectedProviders] = useState<string[]>([])
   const [quotedItems, setQuotedItems] = useState<QuoteResult[]>([])
   const [quoting, setQuoting] = useState(false)
   const [plansEnabled, setPlansEnabled] = useState(true)
-  const [availableProviderIds, setAvailableProviderIds] = useState<string[]>(['mercadolibre', 'dimeiggs', 'libreria_nacional'])
+  const [availableProviderIds, setAvailableProviderIds] = useState<string[]>(['dimeiggs', 'libreria_nacional', 'kitchencenter'])
 
   const maxDemoItems = plansEnabled ? 5 : Number.POSITIVE_INFINITY
-  const availableProviders = PROVIDERS.filter((provider) => availableProviderIds.includes(provider.id))
+  const availableProviders = SOURCES.filter(
+    (provider) => provider.areas.includes(area) && availableProviderIds.includes(provider.id)
+  )
   const maxDemoProviders = plansEnabled ? 2 : availableProviders.length
   const selectedCount = items.filter(item => item.selected).length
 
@@ -186,7 +174,8 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
         const quote = await quoteMultiProviders(
           item.detalle,
           selectedProviders,
-          3 // Limitar resultados por fuente
+          3, // Limitar resultados por fuente
+          area,
         )
         results.push({ item, quote })
       } catch (e) {
@@ -197,12 +186,13 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     setQuotedItems(results)
     setStep(2)
     setQuoting(false)
-  }, [items, selectedProviders])
+  }, [items, selectedProviders, area])
 
   const handleReset = () => {
     setStep(0)
     setFile(null)
     setItems([])
+    setArea('general')
     setSelectedProviders([])
     setQuotedItems([])
     setError(null)
@@ -341,7 +331,28 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             </Paper>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-              {plansEnabled ? 'Selecciona hasta 2 fuentes (máximo en modo prueba):' : 'Selecciona las fuentes para cotizar:'}
+              Selecciona el área:
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
+              value={area}
+              onChange={(_, value: AreaId | null) => {
+                if (!value) return
+                setArea(value)
+                const recommendedId = RECOMMENDED_SOURCE_BY_AREA[value]
+                setSelectedProviders(availableProviderIds.includes(recommendedId) ? [recommendedId] : [])
+              }}
+              sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2, '& .MuiToggleButtonGroup-grouped': { borderRadius: '8px !important', border: '1px solid !important', borderColor: 'divider !important' } }}
+            >
+              {AREAS.map((item) => (
+                <ToggleButton key={item.id} value={item.id} size="small" sx={{ textTransform: 'none' }}>
+                  {item.name}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+
+            <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+              {plansEnabled ? 'Selecciona hasta 2 fuentes relacionadas:' : 'Selecciona las fuentes relacionadas:'}
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" color="text.secondary">
@@ -430,7 +441,7 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                           <TableCell>
                             {bestHit ? (
                               <Chip
-                                label={PROVIDERS.find(p => p.id === bestHit.provider)?.name || bestHit.provider}
+                                label={getSourceName(bestHit.provider)}
                                 size="small"
                                 sx={{
                                   bgcolor: 'primary.main',

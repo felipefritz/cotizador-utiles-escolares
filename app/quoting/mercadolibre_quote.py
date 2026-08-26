@@ -41,10 +41,6 @@ def quote_mercadolibre(query: str, limit: int = 8) -> Dict[str, Any]:
         response.raise_for_status()
         data = response.json()
     except Exception as exc:
-        if os.getenv("SERPAPI_API_KEY", "").strip():
-            from app.quoting.retail_web_quote import quote_retail_web
-
-            return quote_retail_web("mercadolibre", query, limit=limit)
         return {
             "query": query,
             "status": "error",
