@@ -22,5 +22,9 @@ services:
         value: https://cotizador-utiles-escolares.onrender.com
       - key: GOOGLE_REDIRECT_URI
         value: https://cotizador-utiles-escolares.onrender.com/api/auth/google/callback
+      - key: GOOGLE_CLIENT_ID
+        value: 985947049129-gj8jjsj8nkdn7736bo8mgnu5t4op71qs.apps.googleusercontent.com
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
     healthCheckPath: /health
     autoDeploy: true

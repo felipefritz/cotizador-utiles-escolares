@@ -1,8 +1,10 @@
 from pathlib import Path
 from uuid import uuid4
+from urllib.parse import urlencode
 import re
 import traceback
 import os
+import secrets
 from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -354,77 +356,86 @@ async def login(
     }
 
 
+def _google_redirect_uri(request: Request) -> str:
+    """Calcula el callback desde el host que inició OAuth para evitar desajustes."""
+    redirect_uri = str(request.url_for("google_callback"))
+    hostname = request.url.hostname or ""
+    if hostname not in {"localhost", "127.0.0.1"} and redirect_uri.startswith("http://"):
+        redirect_uri = f"https://{redirect_uri.removeprefix('http://')}"
+    return redirect_uri
+
+
+def _frontend_login_url(error: Optional[str] = None) -> str:
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    return f"{frontend_url}/login" + (f"?error={error}" if error else "")
+
+
 @api_router.get("/auth/google")
-async def google_login():
-    """Redirige a Google OAuth"""
-    from oauth_providers import GOOGLE_CLIENT_ID, GOOGLE_REDIRECT_URI
-    google_auth_url = (
-        f"https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={GOOGLE_CLIENT_ID}&"
-        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
-        f"response_type=code&"
-        f"scope=openid%20email%20profile&"
-        f"access_type=offline"
-    )
-    return {"url": google_auth_url}
+async def google_login(request: Request, intent: str = "login"):
+    """Inicia login o registro con Google usando la configuración del backend."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+    if not client_id or not client_secret:
+        return RedirectResponse(url=_frontend_login_url("google_not_configured"))
+
+    intent = intent if intent in {"login", "register"} else "login"
+    state = secrets.token_urlsafe(32)
+    params = urlencode({
+        "client_id": client_id,
+        "redirect_uri": _google_redirect_uri(request),
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "online",
+        "prompt": "select_account",
+        "state": state,
+    })
+    response = RedirectResponse(url=f"https://accounts.google.com/o/oauth2/v2/auth?{params}")
+    secure_cookie = request.url.scheme == "https" or request.url.hostname not in {"localhost", "127.0.0.1"}
+    cookie_options = {
+        "max_age": 600,
+        "httponly": True,
+        "secure": secure_cookie,
+        "samesite": "lax",
+        "path": "/api/auth/google",
+    }
+    response.set_cookie("google_oauth_state", state, **cookie_options)
+    response.set_cookie("google_oauth_intent", intent, **cookie_options)
+    return response
 
 
 @api_router.get("/auth/google/callback")
-async def google_callback(code: str, db: Session = Depends(get_db)):
+async def google_callback(
+    request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     """Callback de Google OAuth (GET) - Google redirige aquí con el código"""
-    try:
-        print(f"[DEBUG] Google callback GET recibido con código: {code[:20]}...")
-        
-        # El redirect_uri debe ser EXACTAMENTE el mismo que se usó en el GET a Google
-        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
-        
-        print(f"[DEBUG] Intercambiando código con redirect_uri: {redirect_uri}")
-        
-        # Intercambiar código por token
-        import httpx
-        async with httpx.AsyncClient() as client:
-            token_response = await client.post(
-                "https://oauth2.googleapis.com/token",
-                data={
-                    "code": code,
-                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
-                    "redirect_uri": redirect_uri,
-                    "grant_type": "authorization_code",
-                },
-            )
-            print(f"[DEBUG] Token response status: {token_response.status_code}")
-            if token_response.status_code != 200:
-                print(f"[DEBUG] Error response: {token_response.text}")
-                raise Exception(f"Google token error: {token_response.text}")
-            
-            token_data = token_response.json()
-            access_token = token_data["access_token"]
-            print(f"[DEBUG] Token obtenido exitosamente")
+    intent = request.cookies.get("google_oauth_intent", "login")
 
-            # Obtener información del usuario
-            user_response = await client.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            user_response.raise_for_status()
-            user_data = user_response.json()
-        
-        print(f"[DEBUG] Datos del usuario obtenidos: {user_data.get('email')}")
-        
-        # Procesar datos del usuario
-        email = user_data.get("email")
-        name = user_data.get("name")
-        picture = user_data.get("picture")
-        provider_id = user_data.get("id")
+    def redirect_to_frontend(url: str) -> RedirectResponse:
+        response = RedirectResponse(url=url)
+        response.delete_cookie("google_oauth_state", path="/api/auth/google")
+        response.delete_cookie("google_oauth_intent", path="/api/auth/google")
+        return response
+
+    try:
+        if error:
+            return redirect_to_frontend(_frontend_login_url("google_access_denied"))
+        expected_state = request.cookies.get("google_oauth_state")
+        if not code or not state or not expected_state or not secrets.compare_digest(state, expected_state):
+            return redirect_to_frontend(_frontend_login_url("google_invalid_state"))
+
+        user_data = await get_google_user_info(code, _google_redirect_uri(request))
         
         user = get_or_create_user(
             db=db,
-            email=email,
+            email=user_data.email,
             provider="google",
-            provider_id=provider_id,
-            name=name,
-            avatar_url=picture,
+            provider_id=user_data.provider_id,
+            name=user_data.name,
+            avatar_url=user_data.avatar_url,
         )
         
         from datetime import datetime
@@ -432,22 +443,13 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         db.commit()
         
         jwt_token = create_access_token(data={"sub": str(user.id)})
-        print(f"[DEBUG] Usuario autenticado: {user.id}, token JWT creado")
-        
-        # Redirigir al frontend con el token
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5174")
-        redirect_url = f"{frontend_url}/auth/callback?token={jwt_token}"
-        print(f"[DEBUG] Redirigiendo a: {redirect_url}")
-        return RedirectResponse(url=redirect_url)
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+        redirect_url = f"{frontend_url}/auth/callback?{urlencode({'token': jwt_token, 'intent': intent})}"
+        return redirect_to_frontend(redirect_url)
         
     except Exception as e:
-        print(f"[ERROR] En Google callback: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5174")
-        return RedirectResponse(
-            url=f"{frontend_url}/login?error=google_auth_failed"
-        )
+        print(f"[ERROR] Google OAuth falló: {type(e).__name__}: {e}")
+        return redirect_to_frontend(_frontend_login_url("google_auth_failed"))
 
 
 @api_router.get("/auth/github")

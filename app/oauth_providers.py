@@ -24,32 +24,33 @@ class OAuthUserInfo(BaseModel):
     provider_id: str
 
 
-async def get_google_user_info(code: str) -> OAuthUserInfo:
+async def get_google_user_info(
+    code: str,
+    redirect_uri: Optional[str] = None,
+) -> OAuthUserInfo:
     """Obtiene información del usuario de Google OAuth"""
+    effective_redirect_uri = redirect_uri or GOOGLE_REDIRECT_URI
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+    if not client_id or not client_secret:
+        raise RuntimeError("google_not_configured")
+
     async with httpx.AsyncClient() as client:
         # Intercambiar código por token
-        print(f"[DEBUG] Intentando intercambiar código...")
-        print(f"[DEBUG] Code: {code[:20]}...")
-        print(f"[DEBUG] Client ID: {GOOGLE_CLIENT_ID}")
-        print(f"[DEBUG] Redirect URI: {GOOGLE_REDIRECT_URI}")
-        
         try:
             token_response = await client.post(
                 "https://oauth2.googleapis.com/token",
                 data={
                     "code": code,
-                    "client_id": GOOGLE_CLIENT_ID,
-                    "client_secret": GOOGLE_CLIENT_SECRET,
-                    "redirect_uri": GOOGLE_REDIRECT_URI,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": effective_redirect_uri,
                     "grant_type": "authorization_code",
                 },
             )
-            print(f"[DEBUG] Token response status: {token_response.status_code}")
-            print(f"[DEBUG] Token response: {token_response.text}")
             token_response.raise_for_status()
-        except Exception as e:
-            print(f"[DEBUG] Error intercambiando código: {str(e)}")
-            raise
+        except httpx.HTTPError as exc:
+            raise RuntimeError("google_token_exchange_failed") from exc
         
         token_data = token_response.json()
         access_token = token_data["access_token"]
@@ -61,6 +62,9 @@ async def get_google_user_info(code: str) -> OAuthUserInfo:
         )
         user_response.raise_for_status()
         user_data = user_response.json()
+
+        if not user_data.get("email") or not user_data.get("id"):
+            raise RuntimeError("google_profile_incomplete")
 
         return OAuthUserInfo(
             email=user_data["email"],

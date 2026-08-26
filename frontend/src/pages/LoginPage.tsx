@@ -1,14 +1,21 @@
 import { Box, Container, Paper, Typography, Button, Stack, Divider, TextField, Alert } from '@mui/material'
 import GoogleIcon from '@mui/icons-material/Google'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+
+const GOOGLE_ERRORS: Record<string, string> = {
+  google_not_configured: 'Google no está configurado en el servidor. Contacta al administrador.',
+  google_access_denied: 'Cancelaste el acceso con Google.',
+  google_invalid_state: 'La sesión de Google expiró o no es válida. Intenta nuevamente.',
+  google_auth_failed: 'No pudimos autenticarte con Google. Intenta nuevamente.',
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
   const [tab, setTab] = useState<'oauth' | 'login' | 'register'>('oauth')
   const [username, setUsername] = useState('')
@@ -18,34 +25,17 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Flujo OAuth con redirección directa (Google redirige al backend)
-  const handleGoogleLogin = () => {
-    console.log('Google Client ID:', GOOGLE_CLIENT_ID)
-    
-    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === '') {
-      setError('Error: Google OAuth no está configurado. Por favor contacta al administrador.')
-      console.error('VITE_GOOGLE_CLIENT_ID no está configurado')
-      return
+  useEffect(() => {
+    const oauthError = searchParams.get('error')
+    if (oauthError) {
+      setError(GOOGLE_ERRORS[oauthError] || 'No pudimos completar la autenticación.')
     }
+  }, [searchParams])
 
-    // Redirigir directamente a Google
-    // Google redirigirá al backend (http://localhost:8000/api/auth/google/callback)
-    // El backend intercambiará el código y redirigirá al frontend con el token
-    const backendUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:8000'
-    const redirectUri = `${backendUrl}/api/auth/google/callback`
-    const scope = 'openid email profile'
-    
-    console.log('Redirigiendo a Google con redirect_uri:', redirectUri)
-    
-    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${GOOGLE_CLIENT_ID}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `response_type=code&` +
-      `scope=${encodeURIComponent(scope)}&` +
-      `access_type=offline`
-
-    console.log('URL de Google:', googleAuthUrl)
-    window.location.href = googleAuthUrl
+  // El backend genera la URL para que Client ID y redirect_uri siempre coincidan.
+  const handleGoogleAuth = (intent: 'login' | 'register') => {
+    setError('')
+    window.location.assign(`${API_BASE}/auth/google?intent=${intent}`)
   }
 
   const handleLocalLogin = async (e: React.FormEvent) => {
@@ -136,6 +126,8 @@ export function LoginPage() {
             Inicia sesión para guardar cotizaciones, comparar más fuentes y gestionar tus compras recurrentes
           </Typography>
 
+          {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
+
           {tab === 'oauth' && (
             <>
               <Stack spacing={2} sx={{ width: '100%', maxWidth: 360 }}>
@@ -144,7 +136,7 @@ export function LoginPage() {
                   size="large"
                   fullWidth
                   startIcon={<GoogleIcon />}
-                  onClick={handleGoogleLogin}
+                  onClick={() => handleGoogleAuth('login')}
                   sx={{
                     bgcolor: '#4285F4',
                     '&:hover': { bgcolor: '#357ae8' },
@@ -182,7 +174,6 @@ export function LoginPage() {
 
           {tab === 'login' && (
             <>
-              {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
               <form onSubmit={handleLocalLogin} style={{ width: '100%' }}>
                 <Stack spacing={2}>
                   <TextField
@@ -222,7 +213,27 @@ export function LoginPage() {
 
           {tab === 'register' && (
             <>
-              {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={<GoogleIcon />}
+                onClick={() => handleGoogleAuth('register')}
+                sx={{
+                  bgcolor: '#4285F4',
+                  '&:hover': { bgcolor: '#357ae8' },
+                  py: 1.5,
+                }}
+              >
+                Registrarse con Google
+              </Button>
+
+              <Divider sx={{ width: '100%', my: 3 }}>
+                <Typography variant="body2" color="text.secondary">
+                  o regístrate con email
+                </Typography>
+              </Divider>
+
               <form onSubmit={handleRegister} style={{ width: '100%' }}>
                 <Stack spacing={2}>
                   <TextField
