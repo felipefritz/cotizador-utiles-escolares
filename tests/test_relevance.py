@@ -1,7 +1,7 @@
 """Orden de resultados: lo que decide qué producto ve primero el usuario."""
 from __future__ import annotations
 
-from app.quoting.multi_provider import _token_overlap
+from app.quoting.multi_provider import _is_relevant_hit, _token_overlap
 
 
 def test_exact_match_scores_full() -> None:
@@ -31,3 +31,14 @@ def test_unrelated_title_scores_zero() -> None:
 
 def test_query_without_meaningful_tokens_scores_zero() -> None:
     assert _token_overlap("de la", "Cuaderno Universitario") == 0.0
+
+
+def test_spanish_plural_and_singular_are_equivalent() -> None:
+    assert _token_overlap("set de ollas", "Set Olla 6 piezas") == 1.0
+    assert _token_overlap("monitores", "Monitor Gamer 24 pulgadas") == 1.0
+    assert _token_overlap("lapices", "Lápiz grafito HB") == 1.0
+
+
+def test_unrelated_promoted_products_are_rejected() -> None:
+    assert _is_relevant_hit("notebook lenovo ideapad", "Mouse gamer inalámbrico") is False
+    assert _is_relevant_hit("notebook lenovo ideapad", "Notebook Lenovo Ideapad Slim 3") is True

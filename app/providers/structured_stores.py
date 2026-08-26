@@ -13,11 +13,12 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 import html
+import json
 import re
 import time
 from typing import Any, Dict, List
 import unicodedata
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -58,6 +59,10 @@ SHOPIFY_STORES = {
     "tiendacopec": "https://www.tiendacopec.cl",
     "homeonline": "https://homeonline.cl",
     "fullmuebles": "https://fullmuebles.cl",
+    # Mascotas. Predictive Search validado con alimento y accesorios reales.
+    "bpets": "https://www.bpets.cl",
+    "pethome": "https://pethome.cl",
+    "maximascotas": "https://maximascotas.cl",
 }
 
 WOOCOMMERCE_STORES = {
@@ -84,6 +89,14 @@ WOOCOMMERCE_STORES = {
     "prido": "https://www.prido.cl",
     "euromob": "https://www.euromob.cl",
     "dimensiona": "https://muebles.dimensiona.cl",
+    # Tecnología
+    "centralgamer": "https://centralgamer.cl",
+    "trulustore": "https://trulustore.cl",
+    "xtremecomponents": "https://xtremecomponents.cl",
+    # Mascotas
+    "patitasdemia": "https://www.patitasdemiapetshop.cl",
+    "animaladas": "https://animaladas.cl",
+    "bokapets": "https://www.bokapets.cl",
 }
 
 JUMPSELLER_STORES = {
@@ -98,6 +111,7 @@ JUMPSELLER_STORES = {
     "mabeduna": "https://www.libreriamabeduna.cl",
     "librerianene": "https://web.librerianene.cl",
     "outletdeaseo": "https://www.outletdeaseo.cl",
+    "todoparasumascota": "https://www.todoparasumascota.cl",
 }
 
 MAGENTO_STORES = {
@@ -198,7 +212,15 @@ def _retry_delay(response: Any, attempt: int) -> float:
     return min(0.8 * (attempt + 1), MAX_RETRY_DELAY)
 
 
-def _get(url: str, *, params: Dict[str, Any], headers: Dict[str, str], timeout: int = 20, retries: int = 1):
+def _get(
+    url: str,
+    *,
+    params: Dict[str, Any],
+    headers: Dict[str, str],
+    timeout: int = 20,
+    retries: int = 1,
+    retry_statuses: set[int] = THROTTLED_STATUS,
+):
     """GET con un reintento ante throttling.
 
     Cotizar una lista escolar dispara muchas consultas seguidas a la misma
@@ -207,7 +229,7 @@ def _get(url: str, *, params: Dict[str, Any], headers: Dict[str, str], timeout: 
     """
     for attempt in range(retries + 1):
         response = requests.get(url, params=params, headers=headers, timeout=timeout, **request_kwargs())
-        if response.status_code in THROTTLED_STATUS and attempt < retries:
+        if response.status_code in retry_statuses and attempt < retries:
             time.sleep(_retry_delay(response, attempt))
             continue
         response.raise_for_status()
@@ -499,6 +521,229 @@ def search_casaroyal(query: str, limit: int = 5) -> List[Dict[str, Any]]:
     return hits
 
 
+def search_petco(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Resultados públicos de Petco Chile (SAP Commerce, ``/search?q=``).
+
+    La vitrina genera una tarjeta de escritorio y otra móvil por producto. Se
+    deduplican por URL para no inflar la comparación con el mismo artículo.
+    """
+    base_url = "https://www.petco.cl"
+    response = _get(
+        f"{base_url}/search",
+        params={"q": query},
+        headers=HTML_HEADERS,
+        timeout=25,
+    )
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    hits: List[Dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    for card in soup.select(".product-item"):
+        link = card.select_one(".content-name a[href]") or card.select_one("a.thumb[href]")
+        title_element = card.select_one(".content-name")
+        price_element = (
+            card.select_one(".content-price-plp .discountedPrice")
+            or card.select_one(".content-price-plp .price")
+            or card.select_one(".content-price-plp")
+        )
+        if not link or not title_element or not price_element:
+            continue
+        url = urljoin(base_url, link.get("href"))
+        if url in seen_urls:
+            continue
+        title = title_element.get_text(" ", strip=True)
+        price = _clp_from_text(price_element.get_text(" ", strip=True))
+        if not title or not price:
+            continue
+        card_text = card.get_text(" ", strip=True).lower()
+        hits.append({
+            "title": title,
+            "url": url,
+            "price": price,
+            "available": "agotado" not in card_text,
+            "provider": "petco",
+            "image_url": _image_url(card.select_one("img"), base_url),
+        })
+        seen_urls.add(url)
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def _jsonld_product_hits(
+    soup: BeautifulSoup,
+    provider: str,
+    base_url: str,
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """Normaliza un ``ItemList`` Schema.org con productos y ofertas."""
+    entries: List[Dict[str, Any]] = []
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            payload = json.loads(script.string or script.get_text())
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and payload.get("@type") == "ItemList":
+            entries = payload.get("itemListElement") or []
+            break
+
+    hits: List[Dict[str, Any]] = []
+    for entry in entries:
+        product = entry.get("item") or entry
+        offer = product.get("offers") or {}
+        title = str(product.get("name") or entry.get("name") or "").strip()
+        url = product.get("url") or entry.get("url")
+        price = _int_price(offer.get("price"))
+        image = product.get("image")
+        if isinstance(image, list):
+            image = image[0] if image else None
+        if isinstance(image, dict):
+            image = image.get("url") or image.get("contentUrl")
+        if not title or not url or not price:
+            continue
+        availability = str(offer.get("availability") or "").lower()
+        hits.append({
+            "title": title,
+            "url": urljoin(base_url, url),
+            "price": price,
+            "available": not availability or availability.endswith("instock"),
+            "provider": provider,
+            "image_url": urljoin(base_url, image) if image else None,
+        })
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def search_jumbo(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Catálogo público de Jumbo expuesto como Schema.org ``ItemList``."""
+    base_url = "https://www.jumbo.cl"
+    response = _get(
+        f"{base_url}/busqueda",
+        params={"ft": query},
+        headers=HTML_HEADERS,
+        timeout=30,
+        # El CDN de Jumbo entrega ocasionalmente un 404 transitorio para la
+        # misma URL que responde 200 inmediatamente después.
+        retry_statuses={404, *THROTTLED_STATUS},
+    )
+    return _jsonld_product_hits(BeautifulSoup(response.text, "html.parser"), "jumbo", base_url, limit)
+
+
+def search_lider(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Páginas públicas de búsqueda de Líder, con productos Schema.org."""
+    base_url = "https://super.lider.cl"
+    slug = re.sub(r"[^a-z0-9]+", "-", _normalize_query(query)).strip("-")
+    response = _get(
+        f"{base_url}/v/{slug}",
+        params={},
+        headers=HTML_HEADERS,
+        timeout=25,
+    )
+    return _jsonld_product_hits(BeautifulSoup(response.text, "html.parser"), "lider", base_url, limit)
+
+
+def search_santaisabel(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Datos de vitrina de Santa Isabel incluidos en ``window.__renderData``."""
+    base_url = "https://www.santaisabel.cl"
+    response = _get(
+        # Esta vitrina responde 404 cuando los espacios llegan como `+`, que es
+        # la codificación normal de `requests` para query params. Se fuerza
+        # `%20`, igual que lo hace el navegador de Santa Isabel.
+        f"{base_url}/busqueda?ft={quote(query, safe='')}",
+        params={},
+        headers=HTML_HEADERS,
+        timeout=25,
+    )
+    soup = BeautifulSoup(response.text, "html.parser")
+    render_script = next(
+        (
+            script.string or script.get_text()
+            for script in soup.select("script")
+            if "window.__renderData" in (script.string or script.get_text())
+        ),
+        "",
+    )
+    encoded = re.search(
+        r'window\.__renderData\s*=\s*("(?:\\.|[^"\\])*")\s*;',
+        render_script,
+        re.S,
+    )
+    if not encoded:
+        return []
+    try:
+        data = json.loads(json.loads(encoded.group(1)))
+        products = data["plp"]["plp_products"]["products"]
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+    hits: List[Dict[str, Any]] = []
+    for product in products:
+        items = product.get("items") or []
+        item = items[0] if items else {}
+        sellers = item.get("sellers") or []
+        offer = (sellers[0].get("commertialOffer") or {}) if sellers else {}
+        title = str(product.get("productName") or item.get("name") or "").strip()
+        link_text = str(product.get("linkText") or "").strip("/")
+        price = _int_price(offer.get("Price"))
+        images = item.get("images") or []
+        if not title or not link_text or not price:
+            continue
+        hits.append({
+            "title": title,
+            "url": f"{base_url}/{link_text}/p",
+            "price": price,
+            "available": int(offer.get("AvailableQuantity") or 0) > 0,
+            "provider": "santaisabel",
+            "image_url": images[0].get("imageUrl") if images else None,
+        })
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def search_tottus(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Resultados de Tottus incluidos como datos de la página Next.js."""
+    base_url = "https://www.tottus.cl"
+    response = _get(
+        f"{base_url}/tottus-cl/buscar",
+        params={"Ntt": query},
+        headers=HTML_HEADERS,
+        timeout=30,
+    )
+    soup = BeautifulSoup(response.text, "html.parser")
+    next_data = soup.select_one("#__NEXT_DATA__")
+    if not next_data:
+        return []
+    try:
+        products = json.loads(next_data.string or next_data.get_text())["props"]["pageProps"]["results"]
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+    hits: List[Dict[str, Any]] = []
+    for product in products:
+        prices = product.get("prices") or []
+        selling_price = next((price for price in prices if not price.get("crossed")), None)
+        raw_price = "".join(str(part) for part in (selling_price or {}).get("price") or [])
+        price = _clp_from_text(raw_price)
+        title = str(product.get("displayName") or "").strip()
+        url = product.get("url")
+        images = product.get("mediaUrls") or []
+        if not title or not url or not price:
+            continue
+        hits.append({
+            "title": title,
+            "url": urljoin(base_url, url),
+            "price": price,
+            "available": True,
+            "provider": "tottus",
+            "image_url": images[0] if images else None,
+        })
+        if len(hits) >= limit:
+            break
+    return hits
+
+
 #: Todas las tiendas que resuelve `search_structured_store`, en orden de plataforma.
 STRUCTURED_PROVIDERS: List[str] = [
     *SHOPIFY_STORES,
@@ -508,6 +753,11 @@ STRUCTURED_PROVIDERS: List[str] = [
     *PRESTASHOP_STORES,
     *TIENDANUBE_STORES,
     "casaroyal",
+    "petco",
+    "jumbo",
+    "lider",
+    "santaisabel",
+    "tottus",
 ]
 
 
@@ -519,7 +769,19 @@ def store_base_url(provider: str) -> str | None:
     ):
         if provider in stores:
             return stores[provider]
-    return "https://www.casaroyal.cl" if provider == "casaroyal" else None
+    if provider == "casaroyal":
+        return "https://www.casaroyal.cl"
+    if provider == "petco":
+        return "https://www.petco.cl"
+    if provider == "jumbo":
+        return "https://www.jumbo.cl"
+    if provider == "lider":
+        return "https://super.lider.cl"
+    if provider == "santaisabel":
+        return "https://www.santaisabel.cl"
+    if provider == "tottus":
+        return "https://www.tottus.cl"
+    return None
 
 
 def search_structured_store(provider: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -540,4 +802,14 @@ def search_structured_store(provider: str, query: str, limit: int = 5) -> List[D
         return search_tiendanube(provider, query, limit)
     if provider == "casaroyal":
         return search_casaroyal(query, limit)
+    if provider == "petco":
+        return search_petco(query, limit)
+    if provider == "jumbo":
+        return search_jumbo(query, limit)
+    if provider == "lider":
+        return search_lider(query, limit)
+    if provider == "santaisabel":
+        return search_santaisabel(query, limit)
+    if provider == "tottus":
+        return search_tottus(query, limit)
     raise ValueError(f"Proveedor estructurado desconocido: {provider}")

@@ -70,7 +70,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
   const availableProviders = SOURCES.filter(
     (provider) => provider.areas.includes(area) && availableProviderIds.includes(provider.id)
   )
-  const maxDemoProviders = plansEnabled ? 2 : availableProviders.length
+  // En supermercado la prueba compara la canasta entre todas las cadenas.
+  // En otras áreas se conserva el límite comercial de dos fuentes.
+  const maxDemoProviders = plansEnabled && area !== 'supermercado' ? 2 : availableProviders.length
   const selectedCount = items.filter(item => item.selected).length
 
   useEffect(() => {
@@ -141,9 +143,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
     if (selectedProviders.includes(providerId)) {
       setSelectedProviders(selectedProviders.filter(p => p !== providerId))
     } else {
-      // Limitar a 2 fuentes en modo demo
+      // Supermercado permite todas sus cadenas; otras áreas mantienen 2.
       if (plansEnabled && selectedProviders.length >= maxDemoProviders) {
-        setError('En modo prueba solo puedes seleccionar 2 fuentes. Regístrate para acceso completo.')
+        setError(`En esta área puedes seleccionar hasta ${maxDemoProviders} fuentes en modo prueba.`)
         return
       }
       setSelectedProviders([...selectedProviders, providerId])
@@ -222,7 +224,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2">
             {plansEnabled
-              ? 'En modo prueba puedes seleccionar hasta 5 items de tu lista y cotizarlos en 2 fuentes. Regístrate gratis para acceso completo.'
+              ? area === 'supermercado'
+                ? 'En modo prueba puedes seleccionar hasta 5 items y comparar todas las cadenas de supermercado.'
+                : 'En modo prueba puedes seleccionar hasta 5 items de tu lista y cotizarlos en 2 fuentes. Regístrate gratis para acceso completo.'
               : 'Acceso completo habilitado: puedes cotizar todos tus items en todas las fuentes disponibles.'}
           </Typography>
         </Alert>
@@ -340,7 +344,14 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                 if (!value) return
                 setArea(value)
                 const recommendedId = RECOMMENDED_SOURCE_BY_AREA[value]
-                setSelectedProviders(availableProviderIds.includes(recommendedId) ? [recommendedId] : [])
+                const related = SOURCES.filter(
+                  (provider) => provider.areas.includes(value) && availableProviderIds.includes(provider.id)
+                )
+                setSelectedProviders(
+                  value === 'supermercado'
+                    ? related.map((provider) => provider.id)
+                    : availableProviderIds.includes(recommendedId) ? [recommendedId] : []
+                )
               }}
               sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2, '& .MuiToggleButtonGroup-grouped': { borderRadius: '8px !important', border: '1px solid !important', borderColor: 'divider !important' } }}
             >
@@ -352,7 +363,9 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
             </ToggleButtonGroup>
 
             <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
-              {plansEnabled ? 'Selecciona hasta 2 fuentes relacionadas:' : 'Selecciona las fuentes relacionadas:'}
+              {plansEnabled && area !== 'supermercado'
+                ? 'Selecciona hasta 2 fuentes relacionadas:'
+                : 'Selecciona las fuentes relacionadas:'}
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" color="text.secondary">
@@ -423,49 +436,59 @@ export function DemoQuoteModal({ open, onClose, onUpgradeClick }: Props) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {quotedItems.map((result, idx) => {
-                      const bestHit = result.quote?.hits?.[0]
-                      const matchPercent = typeof bestHit?.relevance === 'number'
-                        ? Math.round(bestHit.relevance * 100)
-                        : null
-                      return (
-                        <TableRow key={idx}>
-                          <TableCell sx={{ color: 'text.primary' }}>
-                            <Typography variant="body2">{result.item.detalle}</Typography>
-                            {matchPercent != null && (
-                              <Typography variant="caption" color="text.secondary">
-                                Coincidencia {matchPercent}%
+                    {quotedItems.flatMap((result, itemIndex) => {
+                      const perProvider: Record<string, number> = {}
+                      const visibleHits = (result.quote?.hits ?? []).filter((hit) => {
+                        const count = perProvider[hit.provider] ?? 0
+                        if (count >= 3) return false
+                        perProvider[hit.provider] = count + 1
+                        return true
+                      })
+                      const rows = visibleHits.length > 0 ? visibleHits : [null]
+
+                      return rows.map((hit, hitIndex) => {
+                        const matchPercent = typeof hit?.relevance === 'number'
+                          ? Math.round(hit.relevance * 100)
+                          : null
+                        return (
+                          <TableRow key={`${itemIndex}-${hit?.provider ?? 'missing'}-${hitIndex}`}>
+                            <TableCell sx={{ color: 'text.primary' }}>
+                              <Typography variant="body2" fontWeight={hit ? 600 : 400}>
+                                {hit?.title || result.item.detalle}
                               </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {bestHit ? (
-                              <Chip
-                                label={getSourceName(bestHit.provider)}
-                                size="small"
-                                sx={{
-                                  bgcolor: 'primary.main',
-                                  color: 'white',
-                                }}
-                              />
-                            ) : (
-                              <Typography sx={{ color: 'text.secondary' }}>—</Typography>
-                            )}
-                          </TableCell>
-                          <TableCell align="right" sx={{ color: 'text.primary' }}>
-                            {bestHit?.price ? `$${bestHit.price.toLocaleString()}` : '—'}
-                          </TableCell>
-                          <TableCell align="center">
-                            {bestHit?.url ? (
-                              <Link href={bestHit.url} target="_blank" rel="noopener" sx={{ color: 'primary.main' }}>
-                                Ver
-                              </Link>
-                            ) : (
-                              <Typography sx={{ color: 'text.secondary' }}>—</Typography>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
+                              {hit && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  Búsqueda: {result.item.detalle}
+                                  {matchPercent != null && ` · Coincidencia ${matchPercent}%`}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {hit ? (
+                                <Chip
+                                  label={getSourceName(hit.provider)}
+                                  size="small"
+                                  sx={{ bgcolor: 'primary.main', color: 'white' }}
+                                />
+                              ) : (
+                                <Typography sx={{ color: 'text.secondary' }}>—</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="right" sx={{ color: 'text.primary' }}>
+                              {hit?.price ? `$${hit.price.toLocaleString('es-CL')}` : '—'}
+                            </TableCell>
+                            <TableCell align="center">
+                              {hit?.url ? (
+                                <Link href={hit.url} target="_blank" rel="noopener" sx={{ color: 'primary.main' }}>
+                                  Ver
+                                </Link>
+                              ) : (
+                                <Typography sx={{ color: 'text.secondary' }}>—</Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     })}
                   </TableBody>
                 </Table>

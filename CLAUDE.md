@@ -34,7 +34,7 @@ registro de fuentes (todo offline, con `monkeypatch`). Los `test_*.py` de la **r
 
 ```bash
 pytest tests/                          # suite pytest (offline, rápida)
-python scripts/validate_sources.py     # smoke test EN VIVO de las 69 fuentes publicadas
+python scripts/validate_sources.py     # smoke test EN VIVO de las 84 fuentes publicadas
 python tests/test_openai_extraction.py # verifica config LLM y extracción real
 python test_payment_flow.py            # script manual: flujo Mercado Pago contra la BD local
 python -c "from app.main import app"   # check de imports; es lo que valida el CI
@@ -88,7 +88,7 @@ parsean y cotizan en una sola llamada.
 ### Capa de proveedores
 
 Las fuentes son scrapers o APIs públicas directas, normalizadas al mismo contrato de *hit*.
-`CORE_PROVIDERS` en `app/quoting/provider_registry.py` es la lista publicada (69 fuentes; ver
+`CORE_PROVIDERS` en `app/quoting/provider_registry.py` es la lista publicada (84 fuentes; ver
 [SOURCES.md](SOURCES.md)). El proyecto consulta cada tienda directamente, sin metabuscadores.
 
 La mayoría de las tiendas corre sobre una plataforma de e-commerce conocida, así que
@@ -122,16 +122,16 @@ tocarlos. `tests/test_provider_registry.py` falla si alguno de esos lugares qued
 `app/providers/<nombre>.py` si hace falta, y un wrapper `_quote_<nombre>(query, limit) ->
 (nombre, hits, error)` registrado en `build_provider_funcs()` de `multi_provider.py`.
 
-Antes de publicar una fuente nueva conviene sondear la plataforma del dominio: los grandes retailers
-chilenos (Falabella, Paris, Ripley, Sodimac, Líder, Jumbo, Dimerc, PC Factory) están detrás de
-Cloudflare/PerimeterX/Akamai y no son integrables por esta vía.
+Antes de publicar una fuente nueva conviene sondear la plataforma del dominio. Varias cadenas
+siguen detrás de Cloudflare/PerimeterX/Akamai, pero Jumbo, Líder, Santa Isabel y Tottus exponen
+datos de producto y oferta en el HTML público y tienen parsers dedicados en `structured_stores.py`.
 
 Varios módulos de `quoting/` están fuera del registry y solo se alcanzan por nombre explícito
-(`jumbo`, `lider`, `lapiz_lopez`) o son versiones duplicadas (`libreria_nacional_quote_v2.py`).
+(`lapiz_lopez`) o son versiones duplicadas (`libreria_nacional_quote_v2.py`).
 Todo request HTTP externo debe pasar por `request_kwargs()` de `app/quoting/http_utils.py` (resuelve
 el bundle de certificados; sin eso falla SSL en macOS).
 
-**Rate limiting**: Shopify limita `/search/suggest.json` por IP, y como 20 fuentes corren sobre
+**Rate limiting**: Shopify limita `/search/suggest.json` por IP, y como 23 fuentes corren sobre
 Shopify, al excederlo caen todas juntas con 429 por 5-10 minutos. `_get()` reintenta una vez ante
 429/503 y el validador corre con concurrencia baja para no gatillarlo. Ver SOURCES.md.
 
@@ -162,7 +162,8 @@ Todo cuelga de `api_router = APIRouter(prefix="/api")` en `app/main.py`, más `r
 
 - `Depends(get_current_user)` = requiere token; `get_current_user_optional` = endpoint público con
   modo demo.
-- **Modo demo**: `/api/quote/multi-providers` sin usuario limita a 2 fuentes y devuelve
+- **Modo demo**: `/api/quote/multi-providers` sin usuario limita a 2 fuentes, excepto
+  Supermercado, que compara todas sus cadenas; devuelve
   `is_demo_mode` + `demo_message` en la respuesta.
 - **Límites por plan**: `get_user_limits()` en `app/payment.py` (`max_items`, `max_providers`,
   `monthly_limit`; `None` = ilimitado). Los endpoints **recortan silenciosamente** la lista de
@@ -206,8 +207,9 @@ modelo sobre una BD existente exige escribir uno.
   usar `Depends(get_db)`. Para código nuevo, usar `get_db`.
 - Hay un `@app.exception_handler(Exception)` que devuelve el **traceback completo** en el JSON de
   error 500.
-- `vercel.json` de la raíz apunta a `https://tu-backend.railway.app` (placeholder); el deploy real
-  usa `frontend/vercel.json` con Root Directory `frontend` y `VITE_API_URL` como variable de entorno.
+- El backend se despliega en Render mediante `render.yaml`; el frontend se despliega en Vercel con
+  Root Directory `frontend`. `VITE_API_URL` debe apuntar a
+  `https://cotizador-utiles-escolares.onrender.com/api`.
 - El `Dockerfile` copia `.env.example` como `.env`, así que la configuración real debe venir de
   variables de entorno de la plataforma, no del archivo.
 - La raíz tiene ~25 archivos `*.md` de estado/implementación (ADMIN_*, MERCADO_PAGO_*,

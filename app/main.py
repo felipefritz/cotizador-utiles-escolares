@@ -24,7 +24,7 @@ from app.schemas import ParsedList, ParsedItem, ProviderSuggestionCreate, Provid
 
 from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.multi_provider import quote_multi_providers
-from app.quoting.provider_registry import available_providers, public_areas
+from app.quoting.provider_registry import available_providers, demo_provider_limit, public_areas
 
 # Autenticación
 from app.database import get_db, init_db, User, SessionLocal, ProviderSuggestion, Plan, Subscription
@@ -82,7 +82,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint para Railway/Render - Responde con 200 OK"""
+    """Health check endpoint para Render - Responde con 200 OK"""
     print("💚 Health check called")
     return JSONResponse(
         status_code=200,
@@ -112,10 +112,6 @@ app.add_middleware(
         # Desarrollo local
         "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000",
         "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175", "http://127.0.0.1:3000",
-        # Railway healthcheck
-        "http://healthcheck.railway.app",
-        "https://healthcheck.railway.app",
-        "healthcheck.railway.app",
         "https://preciofast.cl",
         "https://www.preciofast.cl",
         # Agrega tu dominio custom de Vercel aquí si quieres ser específico
@@ -956,7 +952,7 @@ async def quote_multi_endpoint(
     """
     Busca un producto en múltiples proveedores (EN PARALELO - MÁS RÁPIDO).
     
-    MODO DEMO (sin auth): Máximo 2 fuentes
+    MODO DEMO (sin auth): 2 fuentes; en Supermercado, todas las cadenas
     MODO COMPLETO (con auth): Todas las fuentes disponibles
     
     Payload:
@@ -979,7 +975,8 @@ async def quote_multi_endpoint(
         area = (payload.get("area") or "general").strip().lower()
         limit_per_provider = payload.get("limit_per_provider", 5)
 
-        # MODO DEMO: Limitar a 2 proveedores si no está autenticado
+        # MODO DEMO: supermercado compara todas sus cadenas; las demás áreas
+        # conservan el límite de dos fuentes.
         all_providers = available_providers(area)
         if not all_providers:
             raise HTTPException(400, f"Área desconocida o sin fuentes disponibles: '{area}'.")
@@ -997,11 +994,12 @@ async def quote_multi_endpoint(
                 if not providers:
                     providers = all_providers
             elif is_demo_mode:
+                max_demo_providers = demo_provider_limit(area)
                 if providers:
-                    providers = providers[:2]
-                    providers_limited_by_plan = True
+                    providers_limited_by_plan = len(providers) > max_demo_providers
+                    providers = providers[:max_demo_providers]
                 else:
-                    providers = all_providers[:2]
+                    providers = all_providers[:max_demo_providers]
             else:
                 # Usuario autenticado: verificar límites y auto-limitar si es necesario
                 from app.payment import get_user_limits
@@ -1041,7 +1039,11 @@ async def quote_multi_endpoint(
         # Agregar info de modo demo y limitación a la respuesta
         result["is_demo_mode"] = is_demo_mode
         if is_demo_mode:
-            result["demo_message"] = "Modo prueba: máximo 2 fuentes. Regístrate para acceso completo."
+            result["demo_message"] = (
+                "Modo prueba de supermercado: se compararon todas las cadenas disponibles."
+                if area == "supermercado"
+                else "Modo prueba: máximo 2 fuentes. Regístrate para acceso completo."
+            )
         
         if providers_limited_by_plan:
             result["was_limited"] = True
@@ -1102,11 +1104,12 @@ async def quote_multi_batch_endpoint(
                 if not providers:
                     providers = all_providers
             elif is_demo_mode:
+                max_demo_providers = demo_provider_limit(area)
                 if providers:
-                    providers = providers[:2]
-                    providers_limited_by_plan = True
+                    providers_limited_by_plan = len(providers) > max_demo_providers
+                    providers = providers[:max_demo_providers]
                 else:
-                    providers = all_providers[:2]
+                    providers = all_providers[:max_demo_providers]
             else:
                 from app.payment import get_user_limits
 
@@ -1186,7 +1189,11 @@ async def quote_multi_batch_endpoint(
         }
 
         if is_demo_mode:
-            response["demo_message"] = "Modo prueba: máximo 2 fuentes. Regístrate para acceso completo."
+            response["demo_message"] = (
+                "Modo prueba de supermercado: se compararon todas las cadenas disponibles."
+                if area == "supermercado"
+                else "Modo prueba: máximo 2 fuentes. Regístrate para acceso completo."
+            )
         if providers_limited_by_plan:
             response["was_limited"] = True
             response["limited_message"] = f"Se limitó a {len(providers)} fuentes según tu plan. Actualiza tu plan para acceder a más."
@@ -1211,7 +1218,8 @@ async def parse_ai_and_quote_multi_providers(
     """
     Parse + AI fix + cotización multi-proveedor en una llamada.
     
-    MODO DEMO (sin auth): Máximo 5 productos y 2 fuentes
+    MODO DEMO (sin auth): Máximo 5 productos y 2 fuentes; en Supermercado,
+    todas las cadenas
     MODO COMPLETO (con auth): Sin límites
     
     Query params:
@@ -1269,9 +1277,9 @@ async def parse_ai_and_quote_multi_providers(
     if not provider_list:
         provider_list = area_providers
     
-    # MODO DEMO: Limitar a 2 proveedores si no está autenticado
+    # MODO DEMO: supermercado compara todas sus cadenas; otras áreas, dos.
     if is_demo_mode:
-        provider_list = provider_list[:2]
+        provider_list = provider_list[:demo_provider_limit(area)]
 
     # ---- COTIZACIÓN MULTI-PROVEEDOR EN PARALELO ----
     # Usa ThreadPoolExecutor para cotizar múltiples items simultáneamente
@@ -1315,7 +1323,11 @@ async def parse_ai_and_quote_multi_providers(
     
     # Agregar mensaje de demo si aplica
     if is_demo_mode:
-        resume["demo_message"] = "Modo prueba: máximo 5 productos y 2 fuentes. Regístrate para acceso completo."
+        resume["demo_message"] = (
+            "Modo prueba: máximo 5 productos; se compararon todas las cadenas de supermercado."
+            if area == "supermercado"
+            else "Modo prueba: máximo 5 productos y 2 fuentes. Regístrate para acceso completo."
+        )
         resume["demo_items_limit_applied"] = original_item_count > 5
         resume["total_items_found"] = original_item_count
 

@@ -1,6 +1,6 @@
 # Fuentes de precios
 
-Validación en vivo más reciente: 26 de agosto de 2026 — **69 fuentes publicadas**.
+Validación en vivo más reciente: 26 de agosto de 2026 — **84 fuentes publicadas**.
 
 Todas se consultan directamente en la tienda, usando el mismo endpoint público
 que usa su vitrina web. Ninguna depende de un metabuscador externo, de
@@ -21,6 +21,10 @@ una línea al diccionario correspondiente:
 | PrestaShop | `/search?controller=search` (HTML) | `PRESTASHOP_STORES` |
 | Tiendanube | `/search/?q=` (HTML) | `TIENDANUBE_STORES` |
 | VTEX | HTML de resultados | `search_casaroyal` |
+| SAP Commerce | `/search?q=` (HTML) | `search_petco` |
+| Schema.org ItemList | HTML de resultados | `search_jumbo`, `search_lider` |
+| Cencosud render data | `/busqueda?ft=` | `search_santaisabel` |
+| Next.js page data | `/buscar?Ntt=` | `search_tottus` |
 
 Antes de sumar un dominio conviene sondear qué plataforma usa: basta pedir la
 home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
@@ -96,11 +100,11 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | Maxitech | General, Oficina, Casa y hogar, Tecnología | Shopify — Predictive Search público |
 | Casa Royal | General, Casa y hogar, Tecnología | VTEX — HTML público |
 | Apishop | Casa y hogar, Supermercado | Shopify — Predictive Search público |
-| RGC Distribución | Supermercado, Casa y hogar | WooCommerce — Store API pública |
-| Aseo por Mayor | Supermercado, Casa y hogar | WooCommerce — Store API pública |
-| Outlet de Aseo | Supermercado, Casa y hogar | Jumpseller — HTML público |
+| RGC Distribución | Mayoristas, Casa y hogar | WooCommerce — Store API pública |
+| Aseo por Mayor | Mayoristas, Casa y hogar | WooCommerce — Store API pública |
+| Outlet de Aseo | Mayoristas, Casa y hogar | Jumpseller — HTML público |
 
-### Tecnología (5)
+### Tecnología (8)
 
 | Fuente | Áreas | Integración validada |
 | --- | --- | --- |
@@ -109,16 +113,45 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | Cintegral | Tecnología | WooCommerce — Store API pública |
 | Notebook Store | Tecnología, Oficina | Jumpseller — HTML público |
 | CompuElite | Tecnología | Jumpseller — HTML público |
+| Central Gamer | Tecnología | WooCommerce — Store API pública |
+| Trulu Store | Tecnología | WooCommerce — Store API pública |
+| Xtreme Components | Tecnología | WooCommerce — Store API pública |
 
-### Supermercado y abarrotes (5)
+### Mascotas (8)
 
 | Fuente | Áreas | Integración validada |
 | --- | --- | --- |
-| Alimentika | Supermercado | WooCommerce — Store API pública |
-| Distribuidora Santiago | Supermercado | WooCommerce — Store API pública |
-| MiniMayorista | Supermercado | WooCommerce — Store API pública |
-| Distribuidora Online | Supermercado | WooCommerce — Store API pública |
-| Fermarket | Supermercado | Jumpseller — HTML público |
+| B-Pets | Mascotas | Shopify — Predictive Search público |
+| PetHome | Mascotas | Shopify — Predictive Search público |
+| Maxi Mascotas | Mascotas | Shopify — Predictive Search público |
+| Patitas de Mía | Mascotas | WooCommerce — Store API pública |
+| Animaladas | Mascotas | WooCommerce — Store API pública |
+| BokaPets | Mascotas | WooCommerce — Store API pública |
+| Todo Para Su Mascota | Mascotas | Jumpseller — HTML público |
+| Petco Chile | Mascotas | SAP Commerce — HTML público deduplicado |
+
+### Supermercados (5)
+
+| Fuente | Áreas | Integración validada |
+| --- | --- | --- |
+| Jumbo | Supermercado | Schema.org ItemList con oferta pública |
+| Líder | Supermercado | Schema.org ItemList con oferta pública |
+| Santa Isabel | Supermercado | Datos públicos de la vitrina Cencosud |
+| Tottus | Supermercado | Datos públicos de la página Next.js |
+| Apishop | Supermercado, Casa y hogar | Shopify — Predictive Search público |
+
+### Mayoristas y distribuidores (8)
+
+| Fuente | Áreas | Integración validada |
+| --- | --- | --- |
+| Alimentika | Mayoristas | WooCommerce — Store API pública |
+| Distribuidora Santiago | Mayoristas | WooCommerce — Store API pública |
+| MiniMayorista | Mayoristas | WooCommerce — Store API pública |
+| Distribuidora Online | Mayoristas | WooCommerce — Store API pública |
+| Fermarket | Mayoristas | Jumpseller — HTML público |
+| RGC Distribución | Mayoristas, Casa y hogar | WooCommerce — Store API pública |
+| Aseo por Mayor | Mayoristas, Casa y hogar | WooCommerce — Store API pública |
+| Outlet de Aseo | Mayoristas, Casa y hogar | Jumpseller — HTML público |
 
 ### Oficina (2)
 
@@ -135,17 +168,19 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | Construcción | 9 |
 | Oficina | 35 |
 | Casa y hogar | 24 |
-| Tecnología | 10 |
+| Tecnología | 13 |
 | Educación | 26 |
-| Supermercado | 9 |
+| Supermercado | 5 |
+| Mayoristas | 8 |
+| Mascotas | 8 |
 
 ## Fuera de alcance
 
 No se integraron sitios que exigían tienda física para mostrar precios,
 devolvían 401/403, usaban desafíos anti-bot (Cloudflare, PerimeterX, Akamai) o
 no producían resultados con precio de forma repetible. Esto incluye a los
-grandes retailers: Falabella, Paris, Ripley, Sodimac, Easy, Líder, Jumbo,
-Unimarc, Dimerc, PC Factory y SP Digital, entre otros.
+grandes retailers: Falabella, Paris, Ripley, Sodimac, Easy, Unimarc, Alvi,
+Dimerc, PC Factory y SP Digital, entre otros.
 
 También quedaron fuera catálogos de marca sin precio publicado (proarte.cl) y
 sitios cuyo WooCommerce no expone la Store API (artel.cl, officepro.cl,
@@ -155,7 +190,7 @@ MercadoLibre queda declarado pero no disponible: su API exige acceso autorizado.
 
 ## Límites de tasa
 
-Shopify aplica un límite **por IP** sobre `/search/suggest.json`. Como 20 de las
+Shopify aplica un límite **por IP** sobre `/search/suggest.json`. Como 23 de las
 fuentes publicadas corren sobre Shopify y el backend sale por una sola IP, al
 excederlo **caen todas juntas** con 429. Se observó al correr el validador
 completo varias veces seguidas; el bloqueo dura del orden de 5 a 10 minutos y se

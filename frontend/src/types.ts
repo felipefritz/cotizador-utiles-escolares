@@ -62,6 +62,21 @@ export type SourceId =
   | 'cintegral'
   | 'notebookstore'
   | 'compuelite'
+  | 'centralgamer'
+  | 'trulustore'
+  | 'xtremecomponents'
+  | 'bpets'
+  | 'pethome'
+  | 'maximascotas'
+  | 'patitasdemia'
+  | 'animaladas'
+  | 'bokapets'
+  | 'todoparasumascota'
+  | 'petco'
+  | 'jumbo'
+  | 'lider'
+  | 'santaisabel'
+  | 'tottus'
   | 'apishop'
   | 'alimentika'
   | 'distribuidorasantiago'
@@ -80,6 +95,8 @@ export type AreaId =
   | 'tecnologia'
   | 'educacion'
   | 'supermercado'
+  | 'mayorista'
+  | 'mascotas'
 
 export type Area = {
   id: AreaId
@@ -95,6 +112,8 @@ export const AREAS: Area[] = [
   { id: 'tecnologia', name: 'Tecnología', description: 'Computación, periféricos y electrónica' },
   { id: 'educacion', name: 'Educación', description: 'Útiles, arte y librería' },
   { id: 'supermercado', name: 'Supermercado', description: 'Abarrotes, aseo y consumo diario' },
+  { id: 'mayorista', name: 'Mayoristas', description: 'Distribuidores, compra por volumen y aseo' },
+  { id: 'mascotas', name: 'Mascotas', description: 'Alimentos, salud, higiene y accesorios' },
 ]
 
 export const RECOMMENDED_SOURCE_BY_AREA: Record<AreaId, SourceId> = {
@@ -104,7 +123,9 @@ export const RECOMMENDED_SOURCE_BY_AREA: Record<AreaId, SourceId> = {
   hogar: 'kitchencenter',
   tecnologia: 'alltec',
   educacion: 'siemprelistos',
-  supermercado: 'apishop',
+  supermercado: 'jumbo',
+  mayorista: 'alimentika',
+  mascotas: 'petco',
 }
 
 export type Source = {
@@ -180,15 +201,30 @@ export const SOURCES: Source[] = [
   { id: 'cintegral', name: 'Cintegral', available: true, description: 'Computación y periféricos', areas: ['tecnologia'], color: '#047857', url: 'https://cintegral.cl/' },
   { id: 'notebookstore', name: 'Notebook Store', available: true, description: 'Notebooks e insumos computacionales', areas: ['tecnologia', 'oficina'], color: '#1E3A8A', url: 'https://notebookstore.cl/' },
   { id: 'compuelite', name: 'CompuElite', available: true, description: 'PC gamer, monitores y componentes', areas: ['tecnologia'], color: '#4C1D95', url: 'https://www.compuelite.cl/' },
+  { id: 'centralgamer', name: 'Central Gamer', available: true, description: 'PC gamer, componentes y periféricos', areas: ['tecnologia'], color: '#7C3AED', url: 'https://centralgamer.cl/' },
+  { id: 'trulustore', name: 'Trulu Store', available: true, description: 'Computación, monitores y accesorios', areas: ['tecnologia'], color: '#2563EB', url: 'https://trulustore.cl/' },
+  { id: 'xtremecomponents', name: 'Xtreme Components', available: true, description: 'Componentes y equipamiento gamer', areas: ['tecnologia'], color: '#DC2626', url: 'https://xtremecomponents.cl/' },
+  { id: 'bpets', name: 'B-Pets', available: true, description: 'Alimentos y accesorios para perros y gatos', areas: ['mascotas'], color: '#F97316', url: 'https://www.bpets.cl/' },
+  { id: 'pethome', name: 'PetHome', available: true, description: 'Alimentos, higiene y accesorios para mascotas', areas: ['mascotas'], color: '#0EA5E9', url: 'https://pethome.cl/' },
+  { id: 'maximascotas', name: 'Maxi Mascotas', available: true, description: 'Alimentos y cuidado para perros y gatos', areas: ['mascotas'], color: '#16A34A', url: 'https://maximascotas.cl/' },
+  { id: 'patitasdemia', name: 'Patitas de Mía', available: true, description: 'Alimentos y productos para mascotas', areas: ['mascotas'], color: '#EC4899', url: 'https://www.patitasdemiapetshop.cl/' },
+  { id: 'animaladas', name: 'Animaladas', available: true, description: 'Alimentos, salud y accesorios', areas: ['mascotas'], color: '#8B5CF6', url: 'https://animaladas.cl/' },
+  { id: 'bokapets', name: 'BokaPets', available: true, description: 'Alimentos para perros y gatos', areas: ['mascotas'], color: '#EA580C', url: 'https://www.bokapets.cl/' },
+  { id: 'todoparasumascota', name: 'Todo Para Su Mascota', available: true, description: 'Alimentos y accesorios para perros y gatos', areas: ['mascotas'], color: '#0891B2', url: 'https://www.todoparasumascota.cl/' },
+  { id: 'petco', name: 'Petco Chile', available: true, description: 'Alimentos, salud, higiene y accesorios', areas: ['mascotas'], color: '#006DB7', url: 'https://www.petco.cl/' },
+  { id: 'jumbo', name: 'Jumbo', available: true, description: 'Supermercado y productos de consumo diario', areas: ['supermercado'], color: '#00843D', url: 'https://www.jumbo.cl/' },
+  { id: 'lider', name: 'Líder', available: true, description: 'Supermercado, despensa y productos frescos', areas: ['supermercado'], color: '#0071CE', url: 'https://super.lider.cl/' },
+  { id: 'santaisabel', name: 'Santa Isabel', available: true, description: 'Supermercado, abarrotes y productos frescos', areas: ['supermercado'], color: '#E1251B', url: 'https://www.santaisabel.cl/' },
+  { id: 'tottus', name: 'Tottus', available: true, description: 'Supermercado, despensa y hogar', areas: ['supermercado'], color: '#6CB33F', url: 'https://www.tottus.cl/' },
   { id: 'apishop', name: 'Apishop', available: true, description: 'Supermercado y productos del hogar', areas: ['hogar', 'supermercado'], color: '#15803D', url: 'https://apishop.cl/' },
-  { id: 'alimentika', name: 'Alimentika', available: true, description: 'Abarrotes al por mayor', areas: ['supermercado'], color: '#166534', url: 'https://alimentika.cl/' },
-  { id: 'distribuidorasantiago', name: 'Distribuidora Santiago', available: true, description: 'Abarrotes y consumo masivo', areas: ['supermercado'], color: '#3F6212', url: 'https://distribuidorasantiago.cl/' },
-  { id: 'minimayorista', name: 'MiniMayorista', available: true, description: 'Supermercado mayorista', areas: ['supermercado'], color: '#4D7C0F', url: 'https://minimayorista.cl/' },
-  { id: 'distribuidoraonline', name: 'Distribuidora Online', available: true, description: 'Dulces, confites y abarrotes', areas: ['supermercado'], color: '#65A30D', url: 'https://distribuidoraonline.cl/' },
-  { id: 'fermarket', name: 'Fermarket', available: true, description: 'Abarrotes, congelados y aseo', areas: ['supermercado'], color: '#15803D', url: 'https://www.fermarket.cl/' },
-  { id: 'rgc', name: 'RGC Distribución', available: true, description: 'Aseo, limpieza y consumo masivo', areas: ['supermercado', 'hogar'], color: '#4D7C0F', url: 'https://rgc.cl/' },
-  { id: 'aseopormayor', name: 'Aseo por Mayor', available: true, description: 'Limpieza desde una unidad', areas: ['supermercado', 'hogar'], color: '#16A34A', url: 'https://aseopormayor.cl/' },
-  { id: 'outletdeaseo', name: 'Outlet de Aseo', available: true, description: 'Aseo y limpieza a precio outlet', areas: ['supermercado', 'hogar'], color: '#15803D', url: 'https://www.outletdeaseo.cl/' },
+  { id: 'alimentika', name: 'Alimentika', available: true, description: 'Abarrotes al por mayor', areas: ['mayorista'], color: '#166534', url: 'https://alimentika.cl/' },
+  { id: 'distribuidorasantiago', name: 'Distribuidora Santiago', available: true, description: 'Abarrotes y consumo masivo', areas: ['mayorista'], color: '#3F6212', url: 'https://distribuidorasantiago.cl/' },
+  { id: 'minimayorista', name: 'MiniMayorista', available: true, description: 'Supermercado mayorista', areas: ['mayorista'], color: '#4D7C0F', url: 'https://minimayorista.cl/' },
+  { id: 'distribuidoraonline', name: 'Distribuidora Online', available: true, description: 'Dulces, confites y abarrotes', areas: ['mayorista'], color: '#65A30D', url: 'https://distribuidoraonline.cl/' },
+  { id: 'fermarket', name: 'Fermarket', available: true, description: 'Abarrotes, congelados y aseo', areas: ['mayorista'], color: '#15803D', url: 'https://www.fermarket.cl/' },
+  { id: 'rgc', name: 'RGC Distribución', available: true, description: 'Aseo, limpieza y consumo masivo', areas: ['mayorista', 'hogar'], color: '#4D7C0F', url: 'https://rgc.cl/' },
+  { id: 'aseopormayor', name: 'Aseo por Mayor', available: true, description: 'Limpieza desde una unidad', areas: ['mayorista', 'hogar'], color: '#16A34A', url: 'https://aseopormayor.cl/' },
+  { id: 'outletdeaseo', name: 'Outlet de Aseo', available: true, description: 'Aseo y limpieza a precio outlet', areas: ['mayorista', 'hogar'], color: '#15803D', url: 'https://www.outletdeaseo.cl/' },
 ]
 
 export const getSourceName = (id: string): string => SOURCES.find((source) => source.id === id)?.name || id

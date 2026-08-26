@@ -97,7 +97,24 @@ QUERIES = {
     "cintegral": "monitor",
     "notebookstore": "notebook",
     "compuelite": "monitor",
-    # Supermercado y abarrotes
+    "centralgamer": "monitor",
+    "trulustore": "monitor",
+    "xtremecomponents": "monitor",
+    # Mascotas
+    "bpets": "alimento gato",
+    "pethome": "alimento perro",
+    "maximascotas": "alimento perro",
+    "patitasdemia": "master dog",
+    "animaladas": "alimento perro",
+    "bokapets": "alimento perro",
+    "todoparasumascota": "alimento perro",
+    "petco": "royal canin",
+    # Supermercados
+    "jumbo": "arroz",
+    "lider": "arroz",
+    "santaisabel": "arroz",
+    "tottus": "arroz",
+    # Mayoristas y distribuidores
     "apishop": "aceite",
     "alimentika": "arroz",
     "distribuidorasantiago": "arroz",

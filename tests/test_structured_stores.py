@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -247,6 +248,101 @@ def test_search_structured_store_rejects_unknown_provider() -> None:
 
 def test_search_structured_store_short_circuits_empty_query() -> None:
     assert structured_stores.search_structured_store("siemprelistos", "   ", 5) == []
+
+
+def test_petco_deduplicates_mobile_card_and_reads_sale_price(monkeypatch: pytest.MonkeyPatch) -> None:
+    card = """
+    <div class="product-item {display}">
+      <a class="thumb" href="/PRODUCTOS/Perro/royal-canin/p/600631">
+        <img src="/medias/royal-canin.jpg" alt="Royal Canin">
+      </a>
+      <div class="content-name">
+        <a href="/PRODUCTOS/Perro/royal-canin/p/600631">
+          <span class="grig-bran">Royal Canin</span>
+          <span class="product-title">Alimento Seco Perro Adulto 7.5 kg</span>
+        </a>
+      </div>
+      <div class="content-price-plp">
+        <span class="discountedPrice">$39.054</span>
+        <span class="price-strike">$61.990</span>
+      </div>
+    </div>
+    """
+    fake_get(
+        monkeypatch,
+        text=card.format(display="hidden-xs") + card.format(display="visible-xs"),
+    )
+
+    hits = structured_stores.search_petco("royal canin", 5)
+
+    assert len(hits) == 1
+    assert hits[0]["title"] == "Royal Canin Alimento Seco Perro Adulto 7.5 kg"
+    assert hits[0]["price"] == 39054
+    assert hits[0]["image_url"] == "https://www.petco.cl/medias/royal-canin.jpg"
+
+
+def test_jumbo_reads_schema_org_product_offer(monkeypatch: pytest.MonkeyPatch) -> None:
+    html = """
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"ItemList","itemListElement":[{
+      "@type":"ListItem","item":{"@type":"Product","name":"Arroz Miraflores 1 kg",
+      "url":"/arroz-miraflores/p","image":"https://cdn.example/arroz.jpg",
+      "offers":{"@type":"Offer","price":"2650","availability":"https://schema.org/InStock"}}
+    }]}
+    </script>
+    """
+    fake_get(monkeypatch, text=html)
+
+    hits = structured_stores.search_jumbo("arroz", 5)
+
+    assert hits[0]["title"] == "Arroz Miraflores 1 kg"
+    assert hits[0]["price"] == 2650
+    assert hits[0]["url"] == "https://www.jumbo.cl/arroz-miraflores/p"
+    assert hits[0]["available"] is True
+
+
+def test_santaisabel_reads_embedded_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog = {
+        "plp": {"plp_products": {"products": [{
+            "productName": "Aceite de Maravilla 1 L",
+            "linkText": "aceite-maravilla-1l",
+            "items": [{
+                "images": [{"imageUrl": "https://cdn.example/aceite.jpg"}],
+                "sellers": [{"commertialOffer": {"Price": 2190, "AvailableQuantity": 8}}],
+            }],
+        }]}}
+    }
+    encoded = json.dumps(json.dumps(catalog))
+    captured = fake_get(monkeypatch, text=f"<script>window.__renderData = {encoded};</script>")
+
+    hits = structured_stores.search_santaisabel("aceite maravilla", 5)
+
+    assert hits[0]["price"] == 2190
+    assert hits[0]["url"] == "https://www.santaisabel.cl/aceite-maravilla-1l/p"
+    assert hits[0]["available"] is True
+    assert captured["url"].endswith("/busqueda?ft=aceite%20maravilla")
+
+
+def test_tottus_reads_nextjs_results_and_sale_price(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = {
+        "props": {"pageProps": {"results": [{
+            "displayName": "Arroz Tottus G2 1 Kg",
+            "url": "https://www.tottus.cl/tottus-cl/articulo/1/arroz",
+            "mediaUrls": ["https://media.example/arroz.jpg"],
+            "prices": [
+                {"crossed": False, "price": ["990"]},
+                {"crossed": True, "price": ["1.190"]},
+            ],
+        }]}}
+    }
+    text = f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script>'
+    fake_get(monkeypatch, text=text)
+
+    hits = structured_stores.search_tottus("arroz", 5)
+
+    assert hits[0]["price"] == 990
+    assert hits[0]["title"] == "Arroz Tottus G2 1 Kg"
+    assert hits[0]["image_url"] == "https://media.example/arroz.jpg"
 
 
 @pytest.mark.parametrize("provider", structured_stores.STRUCTURED_PROVIDERS)

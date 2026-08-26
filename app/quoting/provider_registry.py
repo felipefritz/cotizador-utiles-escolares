@@ -69,8 +69,25 @@ CORE_PROVIDERS = [
     "cintegral",
     "notebookstore",
     "compuelite",
-    # Supermercado y abarrotes
+    "centralgamer",
+    "trulustore",
+    "xtremecomponents",
+    # Mascotas
+    "bpets",
+    "pethome",
+    "maximascotas",
+    "patitasdemia",
+    "animaladas",
+    "bokapets",
+    "todoparasumascota",
+    "petco",
+    # Supermercados
+    "jumbo",
+    "lider",
+    "santaisabel",
+    "tottus",
     "apishop",
+    # Mayoristas y distribuidores
     "alimentika",
     "distribuidorasantiago",
     "minimayorista",
@@ -89,6 +106,8 @@ AREA_DEFINITIONS = [
     {"id": "tecnologia", "name": "Tecnología", "description": "Computación, periféricos y electrónica"},
     {"id": "educacion", "name": "Educación", "description": "Útiles, arte y librería"},
     {"id": "supermercado", "name": "Supermercado", "description": "Abarrotes, aseo y consumo diario"},
+    {"id": "mayorista", "name": "Mayoristas", "description": "Distribuidores, compra por volumen y aseo"},
+    {"id": "mascotas", "name": "Mascotas", "description": "Alimentos, salud, higiene y accesorios"},
 ]
 
 PROVIDER_AREAS: Dict[str, List[str]] = {
@@ -158,16 +177,34 @@ PROVIDER_AREAS: Dict[str, List[str]] = {
     "cintegral": ["tecnologia"],
     "notebookstore": ["tecnologia", "oficina"],
     "compuelite": ["tecnologia"],
-    # Supermercado y abarrotes
+    "centralgamer": ["tecnologia"],
+    "trulustore": ["tecnologia"],
+    "xtremecomponents": ["tecnologia"],
+    # Mascotas
+    "bpets": ["mascotas"],
+    "pethome": ["mascotas"],
+    "maximascotas": ["mascotas"],
+    "patitasdemia": ["mascotas"],
+    "animaladas": ["mascotas"],
+    "bokapets": ["mascotas"],
+    "todoparasumascota": ["mascotas"],
+    "petco": ["mascotas"],
+    # Supermercados
+    "jumbo": ["supermercado"],
+    "lider": ["supermercado"],
+    "santaisabel": ["supermercado"],
+    "tottus": ["supermercado"],
     "apishop": ["hogar", "supermercado"],
-    "alimentika": ["supermercado"],
-    "distribuidorasantiago": ["supermercado"],
-    "minimayorista": ["supermercado"],
-    "distribuidoraonline": ["supermercado"],
-    "fermarket": ["supermercado"],
-    "rgc": ["supermercado", "hogar"],
-    "aseopormayor": ["supermercado", "hogar"],
-    "outletdeaseo": ["supermercado", "hogar"],
+    # Mayoristas y distribuidores: se mantienen disponibles, pero separados de
+    # las cadenas de supermercado que compra el consumidor final.
+    "alimentika": ["mayorista"],
+    "distribuidorasantiago": ["mayorista"],
+    "minimayorista": ["mayorista"],
+    "distribuidoraonline": ["mayorista"],
+    "fermarket": ["mayorista"],
+    "rgc": ["mayorista", "hogar"],
+    "aseopormayor": ["mayorista", "hogar"],
+    "outletdeaseo": ["mayorista", "hogar"],
 }
 
 
@@ -176,6 +213,17 @@ def available_providers(area: str | None = None) -> List[str]:
     if area:
         providers = [provider for provider in providers if area in PROVIDER_AREAS.get(provider, [])]
     return providers
+
+
+def demo_provider_limit(area: str) -> int:
+    """Tope de fuentes públicas por área.
+
+    Supermercado es una comparación de canasta: mostrar solo dos cadenas hace
+    que la prueba no represente el valor del producto. Por eso consulta todas
+    las cadenas minoristas publicadas; las demás áreas conservan el tope de 2.
+    """
+    providers = available_providers(area)
+    return len(providers) if area == "supermercado" else min(2, len(providers))
 
 
 def public_areas() -> List[Dict[str, object]]:

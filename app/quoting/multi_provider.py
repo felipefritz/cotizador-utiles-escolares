@@ -43,6 +43,22 @@ def _normalize_text(s: str) -> str:
     return s
 
 
+def _canonical_token(word: str) -> str:
+    """Reduce plurales frecuentes sin convertir la búsqueda en coincidencia difusa.
+
+    Esto permite que, por ejemplo, ``ollas`` coincida con ``olla`` y
+    ``monitores`` con ``monitor``. No se usan aproximaciones por similitud:
+    nombres o modelos distintos siguen siendo distintos.
+    """
+    if len(word) > 4 and word.endswith("ces"):
+        return f"{word[:-3]}z"
+    if len(word) > 5 and word.endswith("es"):
+        return word[:-2]
+    if len(word) > 4 and word.endswith("s") and not word.endswith(("is", "us")):
+        return word[:-1]
+    return word
+
+
 def _relevant_tokens(normalized: str) -> set[str]:
     """Tokens que sí discriminan entre productos.
 
@@ -50,7 +66,7 @@ def _relevant_tokens(normalized: str) -> set[str]:
     "100 hojas" son justamente lo que distingue un producto del siguiente.
     """
     return {
-        word for word in normalized.split()
+        _canonical_token(word) for word in normalized.split()
         if word not in STOPWORDS and (len(word) > 2 or word.isdigit())
     }
 
@@ -73,6 +89,16 @@ def _token_overlap(query: str, title: str, min_ratio: float = 0.5) -> float:
     ratio = overlap / len(q_tokens)
 
     return ratio
+
+
+def _is_relevant_hit(query: str, title: str, min_ratio: float = 0.4) -> bool:
+    """Exige evidencia textual mínima antes de mostrar un producto.
+
+    Para consultas de una palabra esa palabra debe aparecer. En consultas más
+    específicas el 40 % evita aceptar una tarjeta que solo comparte un término
+    genérico (por ejemplo, ``monitor``) pero no la marca, modelo o tamaño.
+    """
+    return _token_overlap(query, title) >= min_ratio
 
 
 def _quote_dimeiggs(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
@@ -132,22 +158,6 @@ def _quote_mercadolibre(query: str, limit: int) -> Tuple[str, List[Dict[str, Any
         return "mercadolibre", [], result.get("error", "unknown")
     except Exception as e:
         return "mercadolibre", [], str(e)
-
-
-def _quote_jumbo(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
-    """
-    DEPRECADO: Jumbo no es scrapeable (protección anti-bot PerimeterX).
-    Devuelve lista vacía.
-    """
-    return "jumbo", [], "Jumbo está bloqueado con protección anti-bot. Servicio no disponible."
-
-
-def _quote_lider(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
-    """
-    DEPRECADO: Líder no es scrapeable (protección anti-bot PerimeterX).
-    Devuelve lista vacía.
-    """
-    return "lider", [], "Líder está bloqueado con protección anti-bot. Servicio no disponible."
 
 
 def _quote_lapiz_lopez(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
@@ -325,8 +335,6 @@ def build_provider_funcs(query: str, limit_per_provider: int) -> Dict[str, Any]:
     provider_funcs: Dict[str, Any] = {
         "mercadolibre": lambda: _quote_mercadolibre(query, limit_per_provider),
         "dimeiggs": lambda: _quote_dimeiggs(query, limit_per_provider),
-        "jumbo": lambda: _quote_jumbo(query, limit_per_provider),
-        "lider": lambda: _quote_lider(query, limit_per_provider),
         "lapiz_lopez": lambda: _quote_lapiz_lopez(query, limit_per_provider),
         "libreria_nacional": lambda: _quote_libreria_nacional(query, limit_per_provider),
         "jamila": lambda: _quote_jamila(query, limit_per_provider),
@@ -430,6 +438,14 @@ def quote_multi_providers(
                     if fut is future:
                         providers_failed.append((prov, str(e)))
                         break
+
+    # Algunas búsquedas internas devuelven productos promocionados o de relleno
+    # aunque no coincidan con la consulta. Esos resultados no deben llegar al
+    # frontend por baratos que sean.
+    all_hits = [
+        hit for hit in all_hits
+        if _is_relevant_hit(query, str(hit.get("title") or ""))
+    ]
 
     # Ordena por: relevancia (descendente) y precio (ascendente)
     # Prioriza coincidencia > precio

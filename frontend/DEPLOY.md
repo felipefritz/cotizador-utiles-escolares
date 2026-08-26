@@ -1,15 +1,17 @@
 # Deploy en Vercel - Resumen Rápido
 
-## 1️⃣ Obtener URL de Railway
+## 1️⃣ URL del backend en Render
+
+El backend productivo está en:
+
+```text
+https://cotizador-utiles-escolares.onrender.com
 ```
-Railway → Tu proyecto → Settings → Domains → Generate Domain
-```
-Ejemplo: `https://cotizador-backend-production.up.railway.app`
 
 ## 2️⃣ Actualizar archivo
 Edita `frontend/.env.production`:
 ```env
-VITE_API_URL=https://TU-PROYECTO.up.railway.app/api
+VITE_API_URL=https://cotizador-utiles-escolares.onrender.com/api
 ```
 
 ## 3️⃣ Deploy en Vercel
@@ -19,7 +21,7 @@ VITE_API_URL=https://TU-PROYECTO.up.railway.app/api
 2. Selecciona tu repo de GitHub
 3. **Root Directory**: `frontend` ⚠️
 4. **Environment Variables**: 
-   - `VITE_API_URL` = `https://tu-proyecto.up.railway.app/api`
+   - `VITE_API_URL` = `https://cotizador-utiles-escolares.onrender.com/api`
 5. **Deploy** 🚀
 
 ### CLI:

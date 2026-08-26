@@ -18,6 +18,7 @@ from app.quoting.provider_registry import (
     CORE_PROVIDERS,
     PROVIDER_AREAS,
     available_providers,
+    demo_provider_limit,
     public_areas,
 )
 
@@ -60,6 +61,11 @@ def test_public_areas_exposes_providers_per_area() -> None:
     areas = public_areas()
     assert {str(area["id"]) for area in areas} == AREA_IDS
     assert all(area["providers"] for area in areas)
+
+
+def test_supermarket_demo_compares_every_retail_chain() -> None:
+    assert demo_provider_limit("supermercado") == len(available_providers("supermercado")) == 5
+    assert demo_provider_limit("educacion") == 2
 
 
 def test_structured_providers_are_all_published() -> None:

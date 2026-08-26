@@ -37,9 +37,16 @@ const SOURCES = [
   { name: 'Kitchen Center', group: 'Hogar', status: 'Activo' },
   { name: 'Fissman', group: 'Hogar', status: 'Activo' },
   { name: 'Alltec', group: 'Tecnología', status: 'Activo' },
+  { name: 'Central Gamer', group: 'Tecnología', status: 'Activo' },
   { name: 'Casa Royal', group: 'Tecnología', status: 'Activo' },
   { name: 'La Papelaria', group: 'Oficina', status: 'Activo' },
   { name: 'Apishop', group: 'Supermercado', status: 'Activo' },
+  { name: 'Jumbo', group: 'Supermercado', status: 'Activo' },
+  { name: 'Líder', group: 'Supermercado', status: 'Activo' },
+  { name: 'Santa Isabel', group: 'Supermercado', status: 'Activo' },
+  { name: 'Tottus', group: 'Supermercado', status: 'Activo' },
+  { name: 'Petco Chile', group: 'Mascotas', status: 'Activo' },
+  { name: 'B-Pets', group: 'Mascotas', status: 'Activo' },
 ]
 
 const USE_CASES = [
@@ -258,8 +265,8 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
 
                 <Grid container spacing={2} sx={{ pt: 1 }}>
                   {[
-                    ['12+', 'fuentes listas'],
-                    ['4', 'rubros base'],
+                    ['84', 'fuentes listas'],
+                    ['9', 'rubros disponibles'],
                     ['IA', 'extracción asistida'],
                   ].map(([value, label]) => (
                     <Grid item xs={4} key={label}>
@@ -348,7 +355,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
         <Container maxWidth="lg" sx={{ py: 3 }}>
           <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
             <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Rubros:</Typography>
-            {['Oficina', 'Ferretería', 'Tecnología', 'Aseo', 'Supermercado', 'Educación', 'Hogar', 'Mascotas'].map((label) => (
+            {['Oficina', 'Ferretería', 'Tecnología', 'Aseo', 'Supermercado', 'Mayoristas', 'Educación', 'Hogar', 'Mascotas'].map((label) => (
               <Chip key={label} label={label} variant="outlined" size="small" />
             ))}
           </Stack>

@@ -31,7 +31,7 @@ You are a full-stack developer specialized in the **cotizador-utiles** project â
 - `types.ts` â€” shared TypeScript types
 
 **Infrastructure**
-- Backend deployed on Railway / Render (`railway.json`, `render.yaml`)
+- Backend deployed on Render (`render.yaml`)
 - Frontend deployed on Vercel (`frontend/vercel.json`)
 - Postgres database (SQLAlchemy + Alembic-style migrations in `scripts/`)
 - Env vars managed via `.env` files; production vars set in the platform dashboard
