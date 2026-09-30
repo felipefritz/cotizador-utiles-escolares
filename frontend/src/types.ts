@@ -116,15 +116,21 @@ export const AREAS: Area[] = [
   { id: 'mascotas', name: 'Mascotas', description: 'Alimentos, salud, higiene y accesorios' },
 ]
 
+/**
+ * Fuente que se marca primero al elegir un área. Debe ser una tienda que
+ * responda desde producción y cubra el área en general: con Alltec (solo
+ * componentes, casi todo sin stock) "macbook pro" terminaba mostrando un
+ * estuche de Dimeiggs, y Alimentika no responde desde Render.
+ */
 export const RECOMMENDED_SOURCE_BY_AREA: Record<AreaId, SourceId> = {
   general: 'dimeiggs',
   construccion: 'construfer',
   oficina: 'siemprelistos',
   hogar: 'kitchencenter',
-  tecnologia: 'alltec',
+  tecnologia: 'chilepc',
   educacion: 'siemprelistos',
   supermercado: 'jumbo',
-  mayorista: 'alimentika',
+  mayorista: 'fermarket',
   mascotas: 'petco',
 }
 
@@ -144,7 +150,7 @@ export const SOURCES: Source[] = [
   { id: 'dimeiggs', name: 'Dimeiggs', available: true, description: 'Papelería, hogar y tecnología', areas: ['general', 'oficina', 'hogar', 'tecnologia', 'educacion'], color: '#2196F3', url: 'https://www.dimeiggs.cl/' },
   { id: 'libreria_nacional', name: 'Librería Nacional', available: true, description: 'Libros y artículos educativos', areas: ['oficina', 'educacion'], color: '#7B1FA2', url: 'https://nacional.cl/' },
   { id: 'pronobel', name: 'Pronobel', available: true, description: 'Papelería y oficina', areas: ['oficina', 'educacion'], color: '#5E35B1', url: 'https://pronobel.cl/' },
-  { id: 'prisa', name: 'Prisa', available: true, description: 'Oficina y librería', areas: ['oficina', 'educacion'], color: '#C2185B', url: 'https://www.prisa.cl/' },
+  { id: 'prisa', name: 'Prisa', available: false, description: 'Exige iniciar sesión para ver precios', areas: ['oficina', 'educacion'], color: '#C2185B', url: 'https://www.prisa.cl/' },
   { id: 'lasecretaria', name: 'La Secretaria', available: true, description: 'Oficina y papelería', areas: ['oficina', 'educacion'], color: '#455A64', url: 'https://lasecretaria.cl/' },
   { id: 'siemprelistos', name: 'Siempre Listos', available: true, description: 'Oficina, papelería y útiles', areas: ['oficina', 'educacion'], color: '#1565C0', url: 'https://www.siemprelistos.cl/' },
   { id: 'arteideas', name: 'Librería Arteideas', available: true, description: 'Papelería, oficina y manualidades', areas: ['oficina', 'educacion'], color: '#9333EA', url: 'https://libreriaarteideas.cl/' },

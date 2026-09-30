@@ -1,6 +1,7 @@
 # Fuentes de precios
 
-Validación en vivo más reciente: 26 de agosto de 2026 — **84 fuentes publicadas**.
+Validación en vivo más reciente: 30 de septiembre de 2026, desde producción — **83 fuentes publicadas**
+(ver "Validación desde producción" al final).
 Revisión de QA del 29 de septiembre de 2026: 42 fuentes probadas en vivo desde
 un navegador con consultas reales por área (ver "Hallazgos de QA" al final).
 
@@ -35,14 +36,13 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 
 ## Fuentes publicadas
 
-### Educación, librería y papelería (26)
+### Educación, librería y papelería (25)
 
 | Fuente | Áreas | Integración validada |
 | --- | --- | --- |
 | Dimeiggs | General, Oficina, Casa y hogar, Tecnología, Educación | Búsqueda pública del sitio |
 | Librería Nacional | Oficina, Educación | Búsqueda pública del sitio |
 | Pronobel | Oficina, Educación | Shopify — Predictive Search público |
-| Prisa | Oficina, Educación | Búsqueda pública del sitio |
 | La Secretaria | Oficina, Educación | Laravel/Inertia — estado JSON de la búsqueda |
 | Siempre Listos | Oficina, Educación | Shopify — Predictive Search público |
 | Librería Arteideas | Oficina, Educación | Shopify — Predictive Search público |
@@ -71,7 +71,7 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | Fuente | Áreas | Integración validada |
 | --- | --- | --- |
 | Construfer | Construcción | Jumpseller — HTML público |
-| Ferretería Prat | Construcción | Magento — HTML público |
+| Ferretería Prat | Construcción | Shopify — Predictive Search (migró desde Magento) |
 | Hangar 77 | Construcción | WooCommerce — Store API pública |
 | Construplaza | Construcción, Casa y hogar | VTEX — API pública de catálogo |
 | Patio Ferretero | Construcción | Shopify — Predictive Search público |
@@ -169,10 +169,10 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | --- | --- |
 | General | 5 |
 | Construcción | 9 |
-| Oficina | 35 |
+| Oficina | 34 |
 | Casa y hogar | 24 |
 | Tecnología | 13 |
-| Educación | 26 |
+| Educación | 25 |
 | Supermercado | 5 |
 | Mayoristas | 8 |
 | Mascotas | 8 |
@@ -190,6 +190,8 @@ sitios cuyo WooCommerce no expone la Store API (artel.cl, officepro.cl,
 embalados.cl, tiendaferretera.cl).
 
 MercadoLibre queda declarado pero no disponible: su API exige acceso autorizado.
+Prisa, igual: muestra "Iniciar sesión y ver precios" en vez del precio (se
+despublicó el 30 de septiembre de 2026; el scraper sigue en `app/providers/prisa.py`).
 
 ## Límites de tasa
 
@@ -270,3 +272,31 @@ Observaciones que no son errores del parser, pero conviene conocer:
   MiniMayorista, Distribuidora Online, Fermarket, RGC, Aseo por Mayor, Outlet
   de Aseo, Dimensiona, Llabrés y Prisa. Correr `scripts/validate_sources.py`
   desde un servidor con salida a internet.
+
+## Validación desde producción (30 de septiembre de 2026)
+
+Las 84 fuentes se consultaron contra la API publicada en Render (una fuente
+por consulta, con la consulta de control de `scripts/validate_sources.py`).
+**73 devolvieron productos con precio.** Las 11 restantes (hoy quedan 83 publicadas):
+
+| Fuente | Resultado | Causa | Acción |
+|---|---|---|---|
+| Ferretería Prat | 404 | Migró de Magento a Shopify | Movida a `SHOPIFY_STORES` (su `suggest.json` responde con precio y stock). |
+| Fasit | sin resultados para "resma" | Titula las resmas "Papel Fotocopia - Carta 500 HJS" | La relevancia trata "fotocopia" como resma. |
+| ElCuaderno | sin resultados para "cuaderno" | Vende encuadernación y sublimación | Consulta de control cambiada. |
+| Alltec | sin resultados para "monitor" | Vende componentes, no monitores | Consulta de control cambiada. |
+| Prisa | sin resultados (19 s) | Exige iniciar sesión para ver precios ("Iniciar sesión y ver precios") | Despublicada. |
+| Antártica, Distribuidora Santiago, Aseo por Mayor | 403 | Bloquean la IP de Render (desde un navegador responden) | Sin corrección desde el código. |
+| Alimentika | sin respuesta en 20 s | La tienda no responde a Render | Sin corrección; deja de ser la fuente recomendada de Mayoristas. |
+| Chileferret | 500 | Error del servidor de la tienda (también en su `robots.txt`) | Sin corrección. |
+| Home Online | 404 en `suggest.json` | No verificable desde la red de pruebas | Pendiente. |
+
+Resultados publicados que no correspondían al producto, corregidos en
+`relevance.py`:
+
+- "macbook pro" → "Estuche Pro Mujer" (Dimeiggs): "pro", "mini", "gamer",
+  colores y tamaños ya no cuentan como palabra de producto.
+- "arroz" → "Galletas de Arroz" ($450, Fermarket) y "Pasta de Arroz".
+- "monitor" → "Soporte TV Pantalla Monitor" (Maxitech) y "Brazo soporte monitor"
+  (Trulu); "cuaderno" → "Forro cuaderno" (Librería Nené): un título que empieza
+  por un accesorio ya no se cotiza como el producto.

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Box, Container, Paper, Stepper, Step, StepLabel, Typography, CircularProgress, Button, Avatar } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
+import LoginIcon from '@mui/icons-material/Login'
 import HomeIcon from '@mui/icons-material/Home'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import { Navbar } from './components/Navbar'
@@ -185,26 +186,36 @@ function MainApp() {
             >
               Inicio
             </Button>
-            <Button
-              size="small"
-              startIcon={<DashboardIcon />}
-              onClick={() => navigate('/dashboard')}
-              variant="outlined"
-            >
-              Mi Cuenta
-            </Button>
-            <Avatar src={user?.avatar_url || undefined} sx={{ width: 32, height: 32 }}>
-              {user?.name?.[0] || user?.email[0]}
-            </Avatar>
-            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>{user?.name || user?.email}</Typography>
-            <Button
-              size="small"
-              startIcon={<LogoutIcon />}
-              onClick={logout}
-              variant="outlined"
-            >
-              Salir
-            </Button>
+            {user ? (
+              <>
+                <Button
+                  size="small"
+                  startIcon={<DashboardIcon />}
+                  onClick={() => navigate('/dashboard')}
+                  variant="outlined"
+                >
+                  Mi Cuenta
+                </Button>
+                <Avatar src={user.avatar_url || undefined} sx={{ width: 32, height: 32 }}>
+                  {user.name?.[0] || user.email[0]}
+                </Avatar>
+                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>{user.name || user.email}</Typography>
+                <Button
+                  size="small"
+                  startIcon={<LogoutIcon />}
+                  onClick={logout}
+                  variant="outlined"
+                >
+                  Salir
+                </Button>
+              </>
+            ) : (
+              // Sin sesión no hay cuenta ni sesión que cerrar: antes se mostraban
+              // "Mi Cuenta", un avatar vacío y "Salir" a cualquier visitante.
+              <Button size="small" startIcon={<LoginIcon />} onClick={handleLoginClick} variant="outlined">
+                Ingresar
+              </Button>
+            )}
           </Box>
         </Box>
         <Stepper activeStep={step} sx={{ mb: 3, px: { xs: 0, md: 2 } }}>

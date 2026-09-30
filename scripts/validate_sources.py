@@ -36,7 +36,6 @@ QUERIES = {
     "dimeiggs": "cuaderno universitario",
     "libreria_nacional": "cuaderno",
     "pronobel": "lapiz grafito",
-    "prisa": "resma carta",
     "lasecretaria": "carpeta oficio",
     "siemprelistos": "resma carta",
     "arteideas": "lapiz",
@@ -51,7 +50,7 @@ QUERIES = {
     "libreriaolimpica": "cuaderno",
     "antartica": "cuaderno",
     "fasit": "resma",
-    "elcuaderno": "cuaderno",
+    "elcuaderno": "papel fotografico",  # encuadernación y sublimación, no cuadernos
     "mabeduna": "cuaderno",
     "librerianene": "cuaderno",
     # Arte y manualidades
@@ -90,7 +89,7 @@ QUERIES = {
     "productosdeaseo": "cloro",
     "llabres": "cloro",
     # Tecnología
-    "alltec": "monitor",
+    "alltec": "disco ssd",  # componentes: no vende monitores
     "maxitech": "monitor",
     "casaroyal": "audifonos",
     "chilepc": "monitor",

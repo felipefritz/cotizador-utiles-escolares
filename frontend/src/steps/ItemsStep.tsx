@@ -25,6 +25,7 @@ import CancelIcon from '@mui/icons-material/Cancel'
 import { api } from '../api'
 import type { SelectedItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
+import { appendItem, countSelected, isAtLimit, selectAllTarget, selectUpToLimit, trimToLimit } from './itemSelection'
 
 interface UserLimits {
   plan: string
@@ -72,46 +73,27 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
     fetchLimits()
   }, [token])
 
-  const selectedCount = useMemo(() => items.filter((i) => i.selected).length, [items])
+  const selectedCount = useMemo(() => countSelected(items), [items])
 
-  // Si max_items es null/undefined = ilimitado, usar items.length
-  // Si max_items es un número (incluso 0), respetar ese límite
-  const maxItems = limits?.limits.max_items !== null && limits?.limits.max_items !== undefined 
-    ? limits.limits.max_items 
-    : (items.length > 0 ? items.length : 999)
-  
-  console.log('[ItemsStep] maxItems calculado:', maxItems, 'items.length:', items.length, 'selectedCount:', selectedCount)
+  // null = sin límite (sin sesión, plan ilimitado o planes desactivados).
+  const maxItems: number | null = limits?.limits.max_items ?? null
+  const atLimit = isAtLimit(selectedCount, maxItems)
+  const allTarget = selectAllTarget(items, maxItems)
 
-  // Auto-limitar items seleccionados cuando se cargan los límites
+  // Al cargar los límites, desmarcar lo que exceda el plan.
   useEffect(() => {
-    if (!limits || loadingLimits) return
-    
-    const selectedItems = items.filter(i => i.selected)
-    if (selectedItems.length > maxItems) {
-      console.log(`[ItemsStep] ⚠️ Limitando selección: ${selectedItems.length} → ${maxItems}`)
-      
-      // Deseleccionar items que excedan el límite (mantener solo los primeros maxItems)
-      let count = 0
-      const limitedItems = items.map(item => {
-        if (item.selected && item.item.tipo !== 'lectura') {
-          count++
-          if (count > maxItems) {
-            return { ...item, selected: false }
-          }
-        }
-        return item
-      })
-      
-      onItemsChange(limitedItems)
+    if (loadingLimits || maxItems === null) return
+    if (countSelected(items) > maxItems) {
+      onItemsChange(trimToLimit(items, maxItems))
     }
   }, [limits, loadingLimits, maxItems])
 
   const toggle = (index: number) => {
     const next = [...items]
     const isCurrentlySelected = next[index].selected
-    
-    // Solo permitir seleccionar si no ha alcanzado el límite O si ya estaba seleccionado (para deseleccionar)
-    if (!isCurrentlySelected && selectedCount >= maxItems) {
+
+    // Se puede desmarcar siempre; marcar, solo si queda cupo en el plan.
+    if (!isCurrentlySelected && atLimit) {
       return
     }
     
@@ -144,21 +126,13 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
       quantity: qty,
     }
 
-    let nextItems = [...items]
-    if (selectedCount >= maxItems && maxItems > 0) {
-      for (let i = nextItems.length - 1; i >= 0; i -= 1) {
-        if (nextItems[i].selected && nextItems[i].item.tipo !== 'lectura') {
-          nextItems[i] = { ...nextItems[i], selected: false }
-          setAddNotice('Se deselecciono el item mas reciente para respetar el limite.')
-          break
-        }
-      }
-    } else {
-      setAddNotice(null)
-    }
-
-    nextItems = [...nextItems, nextItem]
-    onItemsChange(nextItems)
+    const result = appendItem(items, nextItem, maxItems)
+    setAddNotice(
+      result.deselected
+        ? `Tu plan permite ${maxItems} ítems por cotización: se desmarcó el último ítem marcado para incluir el nuevo.`
+        : null,
+    )
+    onItemsChange(result.items)
     setNewItemName('')
     setNewItemQty(1)
   }
@@ -196,30 +170,10 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
   }
 
   const toggleAll = () => {
-    // Contar solo items que pueden seleccionarse (no son "lectura")
-    const selectableItems = items.filter(i => i.item.tipo !== 'lectura')
-    const selectableSelected = items.filter(i => i.selected && i.item.tipo !== 'lectura').length
-    
-    // Si todos los seleccionables están seleccionados → deseleccionar todos
-    // Si no todos están seleccionados → seleccionar hasta el límite
-    const shouldSelectAll = selectableSelected < selectableItems.length
-    
-    if (shouldSelectAll) {
-      // Seleccionar hasta maxItems (respetando el límite)
-      let count = 0
-      const updated = items.map(i => {
-        if (i.item.tipo === 'lectura') {
-          return i // Items lectura siempre sin seleccionar
-        }
-        if (!i.selected && count < maxItems) {
-          count++
-          return { ...i, selected: true }
-        }
-        return i
-      })
-      onItemsChange(updated)
+    // Si ya está marcado todo lo que permite el plan, se desmarca todo.
+    if (selectedCount < allTarget) {
+      onItemsChange(selectUpToLimit(items, maxItems))
     } else {
-      // Deseleccionar todos
       onItemsChange(items.map((i) => ({ ...i, selected: false })))
     }
   }
@@ -241,7 +195,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
         Marca los productos que quieres cotizar y ajusta la cantidad
       </Typography>
 
-      {isFreePlan && (
+      {isFreePlan && maxItems !== null && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           <strong>Plan Gratis:</strong> no se cotiza automáticamente toda una lista extensa. Puedes incluir
           hasta <strong>{maxItems} productos por cotización</strong>. Los demás productos permanecen visibles,
@@ -259,6 +213,9 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             size="small"
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addManualItem()
+            }}
             sx={{ flex: 1, minWidth: 240 }}
           />
           <TextField
@@ -280,7 +237,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
         )}
       </Paper>
 
-      {items.length > maxItems && (
+      {maxItems !== null && items.length > maxItems && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           Tu plan permite cotizar máximo <strong>{maxItems} items</strong> por cotización. Se detectaron {items.length} items. Solo podrás seleccionar {maxItems}.
         </Alert>
@@ -292,8 +249,8 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedCount > 0 && selectedCount < maxItems}
-                  checked={selectedCount === maxItems && maxItems > 0}
+                  indeterminate={selectedCount > 0 && selectedCount < allTarget}
+                  checked={allTarget > 0 && selectedCount >= allTarget}
                   onChange={toggleAll}
                 />
               </TableCell>
@@ -317,7 +274,7 @@ export function ItemsStep({ items, onItemsChange, onNext, onBack }: Props) {
               </TableRow>
             )}
             {items.map((row, idx) => {
-              const isDisabled = row.item.tipo === 'lectura' || (!row.selected && selectedCount >= maxItems);
+              const isDisabled = row.item.tipo === 'lectura' || (!row.selected && atLimit)
               const isEditing = editingIndex === idx
               return (
                 <TableRow key={idx} hover selected={row.selected} sx={{ opacity: isDisabled ? 0.6 : 1 }}>

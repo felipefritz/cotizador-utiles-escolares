@@ -82,10 +82,16 @@ def test_frontend_declares_every_published_provider(provider: str) -> None:
     assert f"id: '{provider}'" in types, f"{provider} falta en el array SOURCES"
 
 
+#: Declaradas en el frontend pero no publicadas: se muestran como "No
+#: disponible". MercadoLibre exige acceso autorizado a su API y Prisa exige
+#: iniciar sesión para ver precios.
+UNPUBLISHED = {"mercadolibre", "prisa"}
+
+
 def test_frontend_does_not_offer_unknown_providers() -> None:
     types = _read("frontend/src/types.ts")
     declared = set(re.findall(r"id: '([a-z0-9_]+)', name: '[^']*', available:", types))
-    known = set(CORE_PROVIDERS) | {"mercadolibre"}
+    known = set(CORE_PROVIDERS) | UNPUBLISHED
     assert declared <= known, f"El frontend ofrece fuentes que el backend no conoce: {sorted(declared - known)}"
 
 

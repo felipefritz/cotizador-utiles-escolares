@@ -115,7 +115,7 @@ export function PurchasePlanCard({
           {hasSavings ? (
             <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ mb: 2 }}>
               Agrupando la compra ahorras {formatCLP(savings)}
-              {plan.stores_saved > 0 && ` y ${plan.stores_saved} despachos`}
+              {plan.stores_saved > 0 && ` y ${plan.stores_saved} ${plan.stores_saved === 1 ? 'despacho' : 'despachos'}`}
             </Typography>
           ) : (
             <Typography variant="body2" sx={{ mb: 2 }}>
@@ -172,7 +172,7 @@ export function PurchasePlanCard({
         {hasSavings && (
           <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ mb: 2 }}>
             Ahorras {formatCLP(savings)}
-            {plan.stores_saved > 0 && ` y ${plan.stores_saved} despachos`}
+            {plan.stores_saved > 0 && ` y ${plan.stores_saved} ${plan.stores_saved === 1 ? 'despacho' : 'despachos'}`}
           </Typography>
         )}
 
