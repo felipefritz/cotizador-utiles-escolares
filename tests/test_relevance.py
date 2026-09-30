@@ -115,3 +115,77 @@ def test_simplified_queries_drop_numbers_units_and_plurals() -> None:
 def test_simplified_queries_keep_the_users_words() -> None:
     """Los sinónimos sirven para puntuar, no para cambiar lo que se busca."""
     assert simplified_queries("huincha de medir") == ["huincha medir", "huincha"]
+
+
+# --- Casos vistos en producción (preciofast.cl, 30 de septiembre de 2026) ---
+
+
+def test_other_product_made_of_the_query_is_not_the_product() -> None:
+    """Fermarket devolvía "Galletas de Arroz" ($450) como el arroz más barato."""
+    assert not _is_relevant_hit("arroz", "Galletas de Arroz Manzana 20g Mizos")
+    assert not _is_relevant_hit("taladro", "Batería de taladro 20V")
+    assert not _is_relevant_hit("silla", "Cojín de silla")
+    assert _is_relevant_hit("arroz", "Arroz Grado 1 Grano Largo y Delgado 1 kg")
+
+
+def test_containers_and_the_product_itself_before_de_keep_full_score() -> None:
+    assert _token_overlap("broca", "Juego De Brocas Cobalto 20pcs") == 1.0
+    assert _token_overlap("cemento", "Saco de cemento 25 kg") == 1.0
+    assert _token_overlap("papel carta", "Resma de papel carta 500 hojas") == 1.0
+    assert _token_overlap("olla", "Set de ollas 6 piezas") == 1.0
+    assert _token_overlap("cuaderno", "Cuaderno de matemáticas 100 hojas") == 1.0
+    assert _token_overlap("taladro", "Taladro Percutor de 13 mm 650W") == 1.0
+
+
+def test_para_after_the_requested_product_is_not_an_accessory() -> None:
+    """"Alimento para perros" es alimento de perro: antes quedaba en 0,675 y
+    perdía contra un producto más caro titulado "Alimento perro"."""
+    assert _token_overlap("alimento perro adulto", "HILLS Science Diet Alimento para Perros adultos") == 1.0
+    assert _token_overlap("soporte monitor", "Soporte para monitor 27") == 1.0
+
+
+def test_accessory_head_is_not_quoted_as_the_product() -> None:
+    """Maxitech y Trulu daban un soporte como precio de "monitor" y Librería
+    Nené un forro como precio de "cuaderno"."""
+    assert not _is_relevant_hit("monitor", "Soporte Tv Pantalla Monitor Fijo 40-70 Microlab")
+    assert not _is_relevant_hit("monitor", "BRAZO SOPORTE MONITOR MSI MAG MT101G")
+    assert not _is_relevant_hit("cuaderno", "FORRO CUADERNO UNIVERSITARIO AMARILLO.")
+    assert _is_relevant_hit("forro cuaderno", "FORRO CUADERNO UNIVERSITARIO AMARILLO.")
+
+
+def test_photocopy_paper_is_a_ream() -> None:
+    """Fasit titula las resmas "Papel Fotocopia - Carta 500 HJS / 75 GR"."""
+    assert _token_overlap("resma carta", "Papel Fotocopia - Carta  500 HJS / 75 GR Premier") == 1.0
+    assert _token_overlap("resma oficio", "Papel Fotocopia - Carta 500 HJS / 75 GR Pix") < 1.0
+
+
+def test_model_color_and_size_words_do_not_identify_a_product() -> None:
+    """En producción, "macbook pro" (Tecnología) mostraba "Estuche Pro Mujer"
+    de Dimeiggs: coincidir en "pro" bastaba para pasar el umbral."""
+    assert not _is_relevant_hit("macbook pro", "Estuche Pro Mujer 3 Diseños Lavoro")
+    assert _token_overlap("macbook pro", "Apple MacBook Pro 14 M3 512GB") == 1.0
+    assert not _is_relevant_hit("silla gamer", "Mouse Gamer Logitech G203")
+    assert not _is_relevant_hit("mouse inalambrico", "Taladro Inalámbrico 20V")
+    assert not _is_relevant_hit("lapiz azul", "Cuaderno azul 100 hojas")
+    assert _token_overlap("cartulina negra", "Cartulina Negra 50x65") == 1.0
+
+
+def test_the_requested_model_ranks_above_a_sibling_model() -> None:
+    pro = score("macbook pro", "Apple MacBook Pro 14 M3")
+    air = score("macbook pro", "Apple MacBook Air 13 M2")
+    assert pro["relevance"] > air["relevance"]
+
+
+def test_de_only_marks_its_complement() -> None:
+    """Casos reales que una regla más amplia habría descartado."""
+    assert _token_overlap("set de cuchillos", "Set Taco de 5 Cuchillos con Afilador Eversharp Pro Tefal") == 1.0
+    assert _token_overlap(
+        "alimento gato", "Wholehearted Libre de Granos Alimento Natural para Gato Todas las Edades"
+    ) == 1.0
+    assert not _is_relevant_hit("arroz", "Pasta de Arroz Trattoria 250 g")
+
+
+def test_ties_keep_the_same_order_whatever_source_answers_first() -> None:
+    a = {"title": "Estuche Pro Mujer", "price": 3290, "available": True, "relevance": 1.0, "head": 1.0, "provider": "dimeiggs"}
+    b = {"title": "Estuche Acuarela", "price": 3290, "available": True, "relevance": 1.0, "head": 1.0, "provider": "siemprelistos"}
+    assert best_hits([a, b]) == best_hits([b, a])

@@ -35,7 +35,7 @@ tiendas, relevancia, el orquestador, el flujo completo por API y el contrato del
 
 ```bash
 pytest tests/                          # suite pytest (offline, rápida)
-python scripts/validate_sources.py     # smoke test EN VIVO de las 84 fuentes publicadas
+python scripts/validate_sources.py     # smoke test EN VIVO de las 83 fuentes publicadas
 python tests/test_openai_extraction.py # verifica config LLM y extracción real
 python test_payment_flow.py            # script manual: flujo Mercado Pago contra la BD local
 python -c "from app.main import app"   # check de imports; es lo que valida el CI
@@ -91,7 +91,7 @@ parsean y cotizan en una sola llamada.
 ### Capa de proveedores
 
 Las fuentes son scrapers o APIs públicas directas, normalizadas al mismo contrato de *hit*.
-`CORE_PROVIDERS` en `app/quoting/provider_registry.py` es la lista publicada (84 fuentes; ver
+`CORE_PROVIDERS` en `app/quoting/provider_registry.py` es la lista publicada (83 fuentes; ver
 [SOURCES.md](SOURCES.md)). El proyecto consulta cada tienda directamente, sin metabuscadores.
 
 La mayoría de las tiendas corre sobre una plataforma de e-commerce conocida, así que

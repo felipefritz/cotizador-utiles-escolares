@@ -66,6 +66,9 @@ SHOPIFY_STORES = {
     # Pronobel migró a Shopify: el scraper HTML propio dejó de encontrar
     # productos y el Predictive Search sí responde con precio y stock.
     "pronobel": "https://pronobel.cl",
+    # Ferretería Prat migró de Magento a Shopify: `/catalogsearch/result/`
+    # respondía 404 desde producción (septiembre de 2026).
+    "ferreteriaprat": "https://ferreteriaprat.cl",
 }
 
 WOOCOMMERCE_STORES = {
@@ -118,7 +121,6 @@ JUMPSELLER_STORES = {
 }
 
 MAGENTO_STORES = {
-    "ferreteriaprat": "https://ferreteriaprat.cl",
     "antartica": "https://www.antartica.cl",
     "fasit": "https://fasit.cl",
     "rosen": "https://www.rosen.cl",

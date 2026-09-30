@@ -21,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { api } from '../api'
+import { formatCLP } from '../utils/format'
 
 type Props = {
   onTrialClick: () => void
@@ -96,10 +97,13 @@ const FEATURES = [
 ]
 
 const PREVIEW_ITEMS = [
-  { name: 'Taladro percutor 13mm', source: 'Ferretería Prat', price: '$179.352', match: 86 },
-  { name: 'Resma carta 500 hojas', source: 'Dimeiggs', price: '$4.290', match: 94 },
-  { name: 'Monitor 27 pulgadas IPS', source: 'Casa Royal', price: '$149.990', match: 88 },
+  { name: 'Taladro percutor 13mm', source: 'Ferretería Prat', price: 179352, match: 86 },
+  { name: 'Resma carta 500 hojas', source: 'Dimeiggs', price: 4290, match: 94 },
+  { name: 'Monitor 27 pulgadas IPS', source: 'Casa Royal', price: 149990, match: 88 },
 ]
+
+// Se calcula: antes era un texto fijo ($53.270) que no cuadraba con los ítems.
+const PREVIEW_SUBTOTAL = PREVIEW_ITEMS.reduce((sum, item) => sum + item.price, 0)
 
 export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestProvider }: Props) {
   const { user } = useAuth()
@@ -265,7 +269,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
 
                 <Grid container spacing={2} sx={{ pt: 1 }}>
                   {[
-                    ['84', 'fuentes listas'],
+                    ['83', 'fuentes listas'],
                     ['9', 'rubros disponibles'],
                     ['IA', 'extracción asistida'],
                   ].map(([value, label]) => (
@@ -319,7 +323,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                             <Typography variant="body2" fontWeight={700} color="text.primary">{item.name}</Typography>
                             <Typography variant="caption" color="text.secondary">{item.source}</Typography>
                           </Box>
-                          <Typography variant="body2" fontWeight={800} color="primary.main">{item.price}</Typography>
+                          <Typography variant="body2" fontWeight={800} color="primary.main">{formatCLP(item.price)}</Typography>
                         </Stack>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
                           <LinearProgress
@@ -342,7 +346,7 @@ export function HomePage({ onTrialClick, onLoginClick, onStartClick, onSuggestPr
                   <Divider sx={{ my: 2.5 }} />
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography variant="body2" color="text.secondary">Subtotal estimado</Typography>
-                    <Typography variant="h5" fontWeight={800} color="text.primary">$53.270</Typography>
+                    <Typography variant="h5" fontWeight={800} color="text.primary">{formatCLP(PREVIEW_SUBTOTAL)}</Typography>
                   </Stack>
                 </Box>
               </Paper>

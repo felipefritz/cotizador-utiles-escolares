@@ -14,7 +14,9 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import SearchIcon from '@mui/icons-material/Search'
+import { useNavigate } from 'react-router-dom'
 import { parseAiFull, type ParsedItem } from '../api'
+import { useAuth } from '../contexts/AuthContext'
 import { SOURCES, type SourceId } from '../types'
 
 const ACCEPT = '.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg'
@@ -25,13 +27,24 @@ type Props = {
   onBack: () => void
 }
 
+/** Subir un archivo usa `/parse-ai-full`, que exige sesión. */
+const LOGIN_REQUIRED =
+  'Para subir una lista necesitas una cuenta (es gratis). Mientras tanto puedes cotizar un producto o armar la lista a mano.'
+
 export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
+  const { token } = useAuth()
+  const navigate = useNavigate()
   const [file, setFile] = useState<File | null>(null)
+  const [needsLogin, setNeedsLogin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
   const [parsed, setParsed] = useState(false)
   const extractionMethod: 'ai' = 'ai'
+  // El producto individual y la lista manual tienen campos propios: antes
+  // compartían estado y lo que se escribía en uno aparecía en el otro.
+  const [singleName, setSingleName] = useState('')
+  const [singleQty, setSingleQty] = useState(1)
   const [manualName, setManualName] = useState('')
   const [manualQty, setManualQty] = useState(1)
   const [manualItems, setManualItems] = useState<ParsedItem[]>([])
@@ -42,7 +55,15 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
       setError('Formato no soportado. Use PDF, DOCX, XLS, XLSX, PNG o JPG.')
       return
     }
+    // Sin sesión el backend responde 401 ("Not authenticated"): antes se
+    // mostraba ese texto crudo y desaparecía la opción de armar la lista a mano.
+    if (!token) {
+      setNeedsLogin(true)
+      setError(LOGIN_REQUIRED)
+      return
+    }
     setError(null)
+    setNeedsLogin(false)
     setFile(f)
     setLoading(true)
     try {
@@ -50,11 +71,19 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
       onItemsParsed(data.items)
       setParsed(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al procesar el archivo.')
+      const message = e instanceof Error ? e.message : ''
+      if (/not authenticated|401|could not validate/i.test(message)) {
+        setNeedsLogin(true)
+        setError(LOGIN_REQUIRED)
+      } else {
+        setError(message || 'Error al procesar el archivo.')
+      }
+      // Se suelta el archivo para que vuelva la opción manual y se pueda reintentar.
+      setFile(null)
     } finally {
       setLoading(false)
     }
-  }, [onItemsParsed, extractionMethod])
+  }, [onItemsParsed, extractionMethod, token])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -102,12 +131,12 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
   })
 
   const quoteSingleProduct = () => {
-    const name = manualName.trim()
+    const name = singleName.trim()
     if (!name) return
-    const qty = Math.max(1, Math.min(999, Math.floor(manualQty) || 1))
+    const qty = Math.max(1, Math.min(999, Math.floor(singleQty) || 1))
     onItemsParsed([buildManualItem(name, qty)])
-    setManualName('')
-    setManualQty(1)
+    setSingleName('')
+    setSingleQty(1)
     setManualItems([])
   }
 
@@ -141,10 +170,10 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
             label="Producto a cotizar"
             placeholder="Ej: notebook i5 16GB 512GB"
             size="small"
-            value={manualName}
-            onChange={(e) => setManualName(e.target.value)}
+            value={singleName}
+            onChange={(e) => setSingleName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && manualName.trim()) {
+              if (e.key === 'Enter' && singleName.trim()) {
                 quoteSingleProduct()
               }
             }}
@@ -154,11 +183,11 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
             label="Cantidad"
             type="number"
             size="small"
-            value={manualQty}
-            onChange={(e) => setManualQty(Number(e.target.value))}
+            value={singleQty}
+            onChange={(e) => setSingleQty(Number(e.target.value))}
             inputProps={{ min: 1, max: 999, style: { width: 72, textAlign: 'center' } }}
           />
-          <Button variant="contained" onClick={quoteSingleProduct} disabled={!manualName.trim()} startIcon={<SearchIcon />}>
+          <Button variant="contained" onClick={quoteSingleProduct} disabled={!singleName.trim()} startIcon={<SearchIcon />}>
             Cotizar producto
           </Button>
         </Box>
@@ -216,13 +245,22 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
               Arrastra un archivo aquí o haz clic para seleccionar
             </Typography>
             <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
-              PDF, DOCX, XLS, XLSX, PNG, JPG
+              PDF, DOCX, XLS, XLSX, PNG, JPG{!token && ' · requiere cuenta gratuita'}
             </Typography>
           </>
         )}
       </Paper>
       {error && (
-        <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError(null)}>
+        <Alert
+          severity={needsLogin ? 'info' : 'error'}
+          sx={{ mt: 2 }}
+          onClose={() => setError(null)}
+          action={needsLogin ? (
+            <Button color="inherit" size="small" onClick={() => navigate('/login')}>
+              Ingresar
+            </Button>
+          ) : undefined}
+        >
           {error}
         </Alert>
       )}
@@ -240,6 +278,9 @@ export function UploadStep({ onItemsParsed, sources, onBack }: Props) {
                 size="small"
                 value={manualName}
                 onChange={(e) => setManualName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addManualItem()
+                }}
                 sx={{ flex: 1, minWidth: 240 }}
               />
               <TextField

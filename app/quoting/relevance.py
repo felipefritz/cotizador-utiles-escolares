@@ -7,13 +7,25 @@ reglas salen de casos reales observados en las tiendas publicadas:
   abreviaturas se expanden y las cifras pegadas a una unidad se separan.
 * Los plurales se reducen de forma simétrica: "estuches" y "estuche" (o
   "colores" y "color") terminan en la misma raíz, sin coincidencia difusa.
+* Los calificativos de modelo, color o tamaño ("pro", "mini", "gamer",
+  "negro") también pesan la mitad y no cuentan como palabra de producto:
+  "Estuche Pro Mujer" no es un "macbook pro" (caso real en producción).
 * Las cifras y las unidades pesan la mitad: "Papel Sublimación A4 100 hojas" no
   es un cuaderno por compartir "100 hojas" con "cuaderno universitario 100
   hojas". Además se exige que coincida al menos una palabra de producto.
 * Lo que aparece después de "para" describe un accesorio ("Esponja para
   ollas", "Estuche para cuaderno"): cuenta mucho menos, salvo que la búsqueda
-  también lo pida con "para" ("arena para gatos"). Lo mismo cuando el título
-  empieza por un accesorio conocido ("Soporte olla", "Forro cuaderno").
+  también lo pida con "para" ("arena para gatos") o que lo anterior a "para"
+  sea lo que se busca ("Alimento para perros" es un alimento de perro).
+* Con "de" pasa lo mismo con la palabra que le sigue cuando lo anterior es
+  otro producto: "Galletas de arroz" no es arroz ni "Batería de taladro" es
+  un taladro. No aplica si lo anterior es un envase o presentación ("Saco de
+  cemento", "Juego de brocas"), si sigue una cantidad ("Taco de 5
+  cuchillos") ni si lo anterior es lo que se busca ("Cuaderno de dibujo").
+* Un título que empieza por un accesorio conocido ("Soporte TV monitor",
+  "Forro cuaderno") no es el producto si la búsqueda no lo pide: en
+  producción se mostraban como el precio del monitor o del cuaderno cuando
+  la tienda no tenía el producto real.
 """
 from __future__ import annotations
 
@@ -55,6 +67,22 @@ UNIT_SUFFIXES = {
 #: Palabras que describen cantidad o medida, no el producto: pesan la mitad.
 GENERIC_TOKENS = {"hoja", "color", "cm", "mm", "mt", "gr", "kg", "ml", "lt", "cc", "oz", "unidad"}
 
+#: Calificativos de modelo, color o tamaño. Describen al producto pero no lo
+#: identifican: coincidir solo en "pro" dejaba pasar "Estuche Pro Mujer" como
+#: resultado de "macbook pro", y "gamer" un mouse como resultado de "silla
+#: gamer". Pesan como las medidas y no cuentan como palabra de producto.
+QUALIFIER_WORDS = {
+    "pro", "max", "mini", "plus", "air", "ultra", "lite", "slim", "gamer",
+    "premium", "profesional", "digital", "electrico", "electrica",
+    "inalambrico", "inalambrica", "portatil", "automatico", "automatica",
+    "basico", "basica", "clasico", "clasica", "nuevo", "nueva", "original",
+    "super", "mega", "extra", "grande", "mediano", "mediana", "pequeno",
+    "pequena", "chico", "chica",
+    "negro", "negra", "blanco", "blanca", "azul", "rojo", "roja", "verde",
+    "amarillo", "amarilla", "rosado", "rosada", "gris", "morado", "morada",
+    "naranjo", "naranja", "celeste", "transparente",
+}
+
 #: Peso de una palabra que solo aparece como destino de un accesorio.
 ACCESSORY_WEIGHT = 0.35
 
@@ -66,9 +94,26 @@ ACCESSORY_HEADS = {
     "soporte", "funda", "forro", "repuesto", "recambio", "tapa", "protector",
     "cargador", "adaptador", "correa", "carcasa", "lomo", "separador", "esponja",
     "cepillo", "lana", "organizador", "porta", "etiqueta", "sticker", "cubierta",
-    "colgador", "gancho", "limpiador", "mica", "manilla", "asa",
+    "colgador", "gancho", "limpiador", "mica", "manilla", "asa", "brazo",
 }
 ACCESSORY_HEAD_FACTOR = 0.6
+
+#: Palabras de un título que implican otra que la tienda no escribe. Fasit
+#: titula las resmas "Papel Fotocopia - Carta 500 HJS / 75 GR": sin esto,
+#: "resma carta" no encontraba nada ahí aunque la tienda las vende.
+TITLE_IMPLIES: Dict[str, Tuple[str, ...]] = {
+    "fotocopia": ("resma",),
+    "fotocopiadora": ("resma",),
+}
+
+#: Envases y presentaciones: "Saco de cemento" es cemento, "Juego de brocas"
+#: son brocas. Delante de "de" no convierten lo que sigue en un modificador.
+CONTAINER_HEADS = {
+    "juego", "kit", "set", "pack", "caja", "bolsa", "saco", "tarro", "galon",
+    "rollo", "resma", "paquete", "botella", "frasco", "bidon", "lata", "sobre",
+    "tubo", "pote", "display", "surtido", "lote", "combo", "par", "docena",
+    "bandeja", "malla", "barra", "estuche", "blister", "cajita", "envase",
+}
 
 #: Umbral mínimo para mostrar un producto (ver `is_relevant`).
 MIN_RELEVANCE = 0.4
@@ -145,8 +190,62 @@ def tokenize(text: str) -> Tuple[List[str], Set[str]]:
     return ordered, after - before
 
 
+_CONTAINER_ROOTS = {canonical_token(word) for word in CONTAINER_HEADS}
+
+
+def title_modifiers(title: str, query_core: Set[str]) -> Set[str]:
+    """Tokens del título que solo describen a otro producto.
+
+    * Todo lo que sigue a "para": "Esponja de acero para ollas".
+    * La palabra que sigue a "de" cuando lo anterior es otro producto:
+      "Galletas de arroz", "Batería de taladro". Solo esa palabra: en
+      "Wholehearted libre de granos alimento para gato" el producto sigue
+      siendo el alimento. Una cantidad tras "de" ("Taco de 5 cuchillos")
+      indica presentación, no otro producto.
+
+    Si antes del conector ya aparece una palabra de producto de la búsqueda
+    ("Alimento para perros", "Cuaderno de dibujo"), el título sí es ese
+    producto y no se marca nada.
+    """
+    before: List[str] = []
+    modifiers: Set[str] = set()
+    after_para = False
+    pending_de = False
+    for raw in _raw_words(title):
+        if not after_para and raw == "para":
+            pending_de = False
+            if not any(token in query_core for token in before):
+                after_para = True
+            continue
+        if not after_para and raw == "de":
+            products = [token for token in before if is_core(token) and token not in _CONTAINER_ROOTS]
+            pending_de = bool(products) and not any(token in query_core for token in before)
+            continue
+        aliased = ALIASES.get(raw, raw)
+        if not _is_meaningful(aliased):
+            continue
+        token = canonical_token(aliased)
+        if after_para:
+            if token not in before:
+                modifiers.add(token)
+        elif pending_de:
+            pending_de = False
+            if token.isdigit() or token in before:
+                before.append(token)
+            else:
+                modifiers.add(token)
+        else:
+            before.append(token)
+    return modifiers
+
+
+_QUALIFIER_ROOTS = {canonical_token(word) for word in QUALIFIER_WORDS}
+
+
 def token_weight(token: str) -> float:
-    return 0.5 if token.isdigit() or token in GENERIC_TOKENS else 1.0
+    if token.isdigit() or token in GENERIC_TOKENS or token in _QUALIFIER_ROOTS:
+        return 0.5
+    return 1.0
 
 
 def is_core(token: str) -> bool:
@@ -162,8 +261,11 @@ def score(query: str, title: str) -> Dict[str, float]:
     q_tokens, q_accessory = tokenize(query)
     if not q_tokens:
         return {"relevance": 0.0, "head": 0.0}
-    t_tokens, t_accessory = tokenize(title)
+    t_tokens, _ = tokenize(title)
     t_set = set(t_tokens)
+    for token in t_tokens:
+        t_set.update(TITLE_IMPLIES.get(token, ()))
+    t_accessory = title_modifiers(title, {token for token in q_tokens if is_core(token)})
 
     total = sum(token_weight(token) for token in q_tokens)
     matched = 0.0
@@ -189,7 +291,8 @@ def score(query: str, title: str) -> Dict[str, float]:
     q_set = set(q_tokens)
     head_token = next((token for token in t_tokens if is_core(token)), None)
     if head_token in _ACCESSORY_HEAD_ROOTS and head_token not in q_set:
-        relevance *= ACCESSORY_HEAD_FACTOR
+        # Un accesorio no es el producto: queda bajo el umbral y no se cotiza.
+        relevance = min(relevance * ACCESSORY_HEAD_FACTOR, MIN_RELEVANCE - 0.01)
     head = 1.0 if head_token and head_token in q_set else 0.0
     coverage = core_found / len(core_tokens) if core_tokens else 1.0
     return {"relevance": round(relevance, 3), "head": head, "core_coverage": round(coverage, 3)}
@@ -261,15 +364,22 @@ def simplified_queries(query: str) -> List[str]:
 FALLBACK_MIN_COVERAGE = 1.0
 
 
-def rank_key(hit: Dict[str, object]) -> Tuple[int, float, float, float]:
+def rank_key(hit: Dict[str, object]) -> Tuple[int, float, float, float, str, str]:
     """Orden final: disponible, más relevante, más barato y, en empate, el
-    título que empieza por el producto buscado."""
+    título que empieza por el producto buscado.
+
+    Fuente y título cierran el desempate: las fuentes responden en paralelo y,
+    sin esto, dos productos al mismo precio cambiaban de orden entre una
+    búsqueda y otra.
+    """
     price = hit.get("price")
     return (
         0 if hit.get("available") is not False else 1,
         -float(hit.get("relevance") or 0.0),
         float(price) if isinstance(price, (int, float)) and price > 0 else float("inf"),
         -float(hit.get("head") or 0.0),
+        str(hit.get("provider") or ""),
+        str(hit.get("title") or ""),
     )
 
 
