@@ -1,155 +1,117 @@
 """
 Lasecretaria.cl - Tienda online de útiles escolares y artículos de papelería.
 Cliente para búsqueda de productos.
+
+La tienda dejó PrestaShop por una aplicación Laravel + Inertia.js: el HTML del
+buscador ya no trae `<article>` (se pintan en el navegador), pero incluye el
+estado completo de la página como JSON en `<script data-page="app">`. De ahí
+salen nombre, precio, stock, URL e imagen de cada producto.
 """
 from __future__ import annotations
 
+import json
+import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
+
 import requests
 from bs4 import BeautifulSoup
 
+from app.quoting.http_utils import request_kwargs
+
 
 class LasecretariaClient:
-    """
-    Busca productos en Lasecretaria.cl - tienda de útiles escolares.
-    """
+    """Busca productos en Lasecretaria.cl - tienda de útiles escolares."""
 
     def __init__(self, timeout: int = 15):
         self.base_url = "https://www.lasecretaria.cl"
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "es-CL,es;q=0.9",
         })
 
     def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """
-        Busca productos en Lasecretaria.cl usando búsqueda PrestaShop
+        """Busca en `/busqueda?s=`.
+
+        Los errores se propagan a `quote_lasecretaria`, que los convierte en
+        status "error". Tragarlos acá haría que una caída de la tienda se viera
+        como "sin resultados".
         """
         query = (query or "").strip()
         if not query:
             return []
-
-        # Los errores se propagan a `quote_lasecretaria`, que los convierte en
-        # status "error". Tragarlos acá haría que una caída de la tienda se
-        # viera como "sin resultados" y la fuente nunca aparecería en
-        # `providers_failed`.
-        search_url = (
-            f"{self.base_url}/busqueda?controller=search&orderby=position"
-            f"&orderway=desc&search_category=all&s={query}&submit_search="
+        r = self.session.get(
+            f"{self.base_url}/busqueda",
+            params={"s": query},
+            timeout=self.timeout,
+            **request_kwargs(),
         )
-        r = self.session.get(search_url, timeout=self.timeout)
         r.raise_for_status()
         return self._parse_results(r.text, limit)
 
-    def _parse_results(self, html: str, limit: int) -> List[Dict[str, Any]]:
-        """Extrae productos de resultados de búsqueda."""
+    def _page_state(self, html: str) -> Dict[str, Any]:
         soup = BeautifulSoup(html, "html.parser")
-        hits = []
-        seen_urls = set()
-        
-        # PrestaShop: Buscar articles.productcontainer
-        articles = soup.find_all("article", class_="productcontainer")
-        
-        if not articles:
-            # Fallback: buscar todas las articles
-            articles = soup.find_all("article")
-        
-        for article in articles:
+        script = soup.select_one('script[data-page="app"]')
+        if script is not None:
+            raw = script.string or script.get_text()
+        else:
+            holder = soup.select_one("[data-page]")
+            raw = holder.get("data-page") if holder is not None else ""
+        try:
+            state = json.loads(raw or "{}")
+        except (TypeError, ValueError):
+            return {}
+        return state if isinstance(state, dict) else {}
+
+    def _parse_results(self, html: str, limit: int) -> List[Dict[str, Any]]:
+        """Extrae productos del estado Inertia de la página de búsqueda."""
+        products = (self._page_state(html).get("props") or {}).get("products") or []
+        if isinstance(products, dict):
+            products = products.get("data") or []
+
+        hits: List[Dict[str, Any]] = []
+        for product in products:
+            if not isinstance(product, dict):
+                continue
+            title = str(product.get("name") or "").strip()
+            price = self._price(product)
+            path = product.get("legacyUrl") or (f"/{product['slug']}" if product.get("slug") else None)
+            if not title or not price or not path:
+                continue
+            media = product.get("media") or []
+            image = media[0].get("publicPath") if media and isinstance(media[0], dict) else None
+            hits.append({
+                "title": title,
+                "url": urljoin(self.base_url, path),
+                "price": price,
+                "image_url": urljoin(self.base_url, image) if image else None,
+                "available": product.get("inStock") is not False,
+                "provider": "lasecretaria",
+            })
             if len(hits) >= limit:
                 break
-            
-            try:
-                # Buscar link
-                link = article.find("a", href=True)
-                
-                if not link:
-                    continue
-                
-                href = link.get("href", "").strip()
-                if not href or href.startswith("javascript:"):
-                    continue
-                
-                # Hacer URL absoluta
-                if not href.startswith("http"):
-                    href = self.base_url + (href if href.startswith("/") else "/" + href)
-                
-                # Evitar duplicados
-                if href in seen_urls:
-                    continue
-                seen_urls.add(href)
-                
-                # Extraer título - buscar en diferentes lugares
-                title = ""
-                
-                # Intenta obtener del link directo
-                title = link.get_text(strip=True)
-                
-                # Si está vacío, buscar en h2/h3 o en atributo title
-                if not title or len(title) < 3:
-                    title_elem = article.find(["h2", "h3", "h4"])
-                    if title_elem:
-                        title = title_elem.get_text(strip=True)
-                
-                # Último recurso: obtener del atributo title del link
-                if not title or len(title) < 3:
-                    title = link.get("title", "")
-                
-                # Último intento: usar el href para extraer el nombre del producto
-                if not title or len(title) < 3:
-                    # Ej: /cuadernos-y-blocks/265-cuaderno-indice-1-2-oficio-96-hjs
-                    parts = href.split("/")
-                    if len(parts) > 1:
-                        last_part = parts[-1]  # ej: 265-cuaderno-indice-1-2-oficio-96-hjs
-                        # Sacar el número y usar el resto como título
-                        title_parts = last_part.split("-", 1)
-                        if len(title_parts) > 1:
-                            title = title_parts[1].replace("-", " ").title()
-                
-                if not title or len(title) < 3:
-                    continue
-                
-                # Extraer precio
-                price = self._extract_price(article)
-                
-                # Extraer imagen
-                img = article.find("img", src=True)
-                image_url = ""
-                if img:
-                    image_url = img.get("src", "")
-                    if image_url and not image_url.startswith("http"):
-                        image_url = self.base_url + (image_url if image_url.startswith("/") else "/" + image_url)
-                
-                hits.append({
-                    "title": title,
-                    "url": href,
-                    "price": price,
-                    "image_url": image_url,
-                    "available": True,
-                    "provider": "lasecretaria",
-                })
-                
-            except Exception:
-                pass
-        
         return hits
 
-    def _extract_price(self, element) -> Optional[int]:
-        """Extrae precio de un elemento."""
-        try:
-            # Buscar elementos con precio
-            for price_elem in element.find_all(["span", "div", "p"], class_=lambda x: x and any(c in (x or "").lower() for c in ["price", "precio", "valor"])):
-                text = price_elem.get_text(strip=True)
-                # Buscar números con formato de precio
-                import re
-                numbers = re.findall(r'\d+(?:[.,]\d+)*', text)
-                if numbers:
-                    try:
-                        price_str = numbers[-1].replace(".", "").replace(",", "")
-                        return int(float(price_str))
-                    except (ValueError, TypeError):
-                        continue
-            
-            return None
-        except Exception:
-            return None
+    @staticmethod
+    def _price(product: Dict[str, Any]) -> Optional[int]:
+        for offer in product.get("prices") or []:
+            amount = offer.get("amount") if isinstance(offer, dict) else None
+            try:
+                value = int(round(float(amount)))
+            except (TypeError, ValueError):
+                continue
+            if value > 0:
+                return value
+        raw = product.get("price")
+        if isinstance(raw, (int, float)) and raw > 0:
+            return int(raw)
+        if isinstance(raw, str):
+            digits = re.sub(r"[^0-9]", "", raw)
+            return int(digits) if digits else None
+        return None

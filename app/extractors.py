@@ -96,5 +96,4 @@ def extract_text(path: Path) -> str:
 
 def clear_pdf_cache():
     """Limpia el caché de PDFs en memoria"""
-    global _PDF_CACHE
     _PDF_CACHE.clear()

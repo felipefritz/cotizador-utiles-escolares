@@ -7,6 +7,8 @@ from typing import List, Optional
 
 import requests
 
+from app.quoting.http_utils import request_kwargs
+
 
 @dataclass
 class ProductHit:
@@ -15,7 +17,34 @@ class ProductHit:
     url: str
     sku: Optional[str] = None
     score: Optional[float] = None
-    image_url: Optional[str] = None  # <-- NUEVO: URL de la imagen
+    image_url: Optional[str] = None
+    price: Optional[int] = None
+    available: Optional[bool] = None
+
+
+def _offer_from_items(items: list) -> tuple[Optional[str], Optional[int], Optional[bool]]:
+    """SKU, precio y stock de la mejor oferta del producto.
+
+    La respuesta de `suggestionProducts` trae `items[].sellers[].commertialOffer`
+    con `Price` y `AvailableQuantity`; se prefiere una oferta con stock.
+    """
+    best: tuple[Optional[str], Optional[int], Optional[bool]] = (None, None, None)
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        sku = item.get("itemId")
+        for seller in item.get("sellers") or []:
+            offer = (seller or {}).get("commertialOffer") or {}
+            price = offer.get("Price")
+            if not isinstance(price, (int, float)) or price <= 0:
+                continue
+            quantity = offer.get("AvailableQuantity")
+            available = bool(quantity) if isinstance(quantity, (int, float)) else None
+            if best[1] is None or (available and not best[2]):
+                best = (sku, int(round(price)), available)
+        if best[0] is None and sku:
+            best = (sku, best[1], best[2])
+    return best
 
 
 class DimeiggsCatalogClient:
@@ -33,7 +62,7 @@ class DimeiggsCatalogClient:
     OPERATION = "suggestionProducts"
     SHA256 = "704c20442c5227eb5d8c75bfd410cb86d3b07c1fc719fbd960239f04586728e0"
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 15):
         self.timeout = timeout
         self.s = requests.Session()
         # headers ayudan a evitar bloqueos raros
@@ -71,7 +100,7 @@ class DimeiggsCatalogClient:
             }),
         }
 
-        r = self.s.get(self.GRAPHQL, params=params, timeout=self.timeout)
+        r = self.s.get(self.GRAPHQL, params=params, timeout=self.timeout, **request_kwargs())
         r.raise_for_status()
 
         data = r.json() or {}
@@ -92,13 +121,11 @@ class DimeiggsCatalogClient:
                 "/p" if link else (p.get("href") or "")
 
             brand = p.get("brand") or p.get("brandName")
-            sku = None
             image_url = None
 
-            # a veces trae items->0->itemId
             items = p.get("items") or []
+            sku, price, available = _offer_from_items(items if isinstance(items, list) else [])
             if items and isinstance(items, list):
-                sku = (items[0] or {}).get("itemId")
                 # Intentar extraer imagen del primer item
                 first_item = items[0] if items else {}
                 if isinstance(first_item, dict):
@@ -119,7 +146,15 @@ class DimeiggsCatalogClient:
                     elif isinstance(first_image, str):
                         image_url = first_image
 
-            hits.append(ProductHit(title=title, brand=brand, url=url, sku=sku, image_url=image_url))
+            hits.append(ProductHit(
+                title=title,
+                brand=brand,
+                url=url,
+                sku=sku,
+                image_url=image_url,
+                price=price,
+                available=available,
+            ))
 
             if len(hits) >= limit:
                 break

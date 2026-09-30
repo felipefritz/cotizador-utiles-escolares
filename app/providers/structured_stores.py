@@ -16,7 +16,7 @@ import html
 import json
 import re
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import unicodedata
 from urllib.parse import quote, urljoin
 
@@ -63,6 +63,9 @@ SHOPIFY_STORES = {
     "bpets": "https://www.bpets.cl",
     "pethome": "https://pethome.cl",
     "maximascotas": "https://maximascotas.cl",
+    # Pronobel migró a Shopify: el scraper HTML propio dejó de encontrar
+    # productos y el Predictive Search sí responde con precio y stock.
+    "pronobel": "https://pronobel.cl",
 }
 
 WOOCOMMERCE_STORES = {
@@ -118,14 +121,30 @@ MAGENTO_STORES = {
     "ferreteriaprat": "https://ferreteriaprat.cl",
     "antartica": "https://www.antartica.cl",
     "fasit": "https://fasit.cl",
-    "construplaza": "https://construplaza.cl",
     "rosen": "https://www.rosen.cl",
 }
 
 PRESTASHOP_STORES = {
     "alltec": "https://www.alltec.cl",
     "artemania": "https://www.artemaniachile.cl",
-    "libreriaolimpica": "https://www.libreriaolimpica.cl",
+    # `www.` redirige al dominio desnudo; se usa directo para ahorrar un salto.
+    "libreriaolimpica": "https://libreriaolimpica.cl",
+}
+
+#: Ruta del buscador cuando la tienda la tradujo. En ArteMania `/search`
+#: redirige a `/busqueda` perdiendo la consulta y muestra productos
+#: destacados, que el parser tomaba como resultados.
+PRESTASHOP_SEARCH_PATHS = {
+    "artemania": "/busqueda",
+    "libreriaolimpica": "/busqueda",
+}
+
+#: Tiendas VTEX consultadas por su API pública de catálogo, la misma que usa
+#: la vitrina. Construplaza migró desde Magento (el buscador viejo da 404) y
+#: en Casa Royal el HTML no traía resultados para consultas de varias palabras.
+VTEX_STORES = {
+    "casaroyal": "https://www.casaroyal.cl",
+    "construplaza": "https://www.construplaza.cl",
 }
 
 TIENDANUBE_STORES = {
@@ -152,9 +171,20 @@ def _clp_from_text(value: str | None) -> int | None:
     """
     if not value:
         return None
-    text = value.replace("\xa0", " ")
-    match = re.search(r"\$\s*(\d[\d.,\s]*)", text)
-    digits = re.sub(r"[^0-9]", "", match.group(1)) if match else re.sub(r"[^0-9]", "", text)
+    # Espacios duros entre grupos de miles ("12 990" de `Intl.NumberFormat`)
+    # se tratan como separador de miles.
+    text = re.sub(r"(?<=\d)[\u00a0\u202f](?=\d{3}(?!\d))", ".", value)
+    text = text.replace("\xa0", " ").replace("\u202f", " ").strip()
+    # Un monto agrupado con espacios comunes ("$ 12 990") solo se acepta si es
+    # todo el texto: "$990 120 hojas" no debe leerse como 990.120.
+    spaced = re.fullmatch(r"\$?\s*(\d{1,3}(?: \d{3})+)", text)
+    if spaced:
+        return int(spaced.group(1).replace(" ", ""))
+    # Miles con punto o coma; los decimales (",00") y lo que venga después
+    # ("10% OFF", "12 cuotas") no se pegan al monto.
+    amount = r"(\d{1,3}(?:[.,]\d{3})+|\d+)"
+    match = re.search(r"\$\s*" + amount, text) or re.search(amount, text)
+    digits = re.sub(r"[^0-9]", "", match.group(1)) if match else ""
     return int(digits) if digits else None
 
 
@@ -186,6 +216,25 @@ def _image_url(element: Any, base_url: str) -> str | None:
         if first and not first.startswith("data:"):
             return urljoin(base_url, first)
     return None
+
+
+def _is_truncated(title: str) -> bool:
+    return title.rstrip().endswith(("..", "…"))
+
+
+def _full_title(title: str, *alternatives: str | None) -> str:
+    """Reemplaza un título recortado por la vitrina ("Cuaderno Universitario
+    Frozen 100..") por su versión completa, si la tarjeta la trae en un
+    atributo `title`/`alt`. Sin el título completo se pierden justo las cifras
+    que distinguen un producto de otro."""
+    if not _is_truncated(title):
+        return title
+    prefix = title.rstrip(" .…").lower()
+    for candidate in alternatives:
+        candidate = (candidate or "").strip()
+        if len(candidate) > len(prefix) and candidate.lower().startswith(prefix[: max(5, len(prefix) - 3)]):
+            return candidate
+    return title
 
 
 def _normalize_query(value: str) -> str:
@@ -332,6 +381,13 @@ def search_jumpseller(provider: str, query: str, limit: int = 5) -> List[Dict[st
             title = heading.get_text(" ", strip=True)
         else:
             title = (link.get("title") or (image.get("alt") if image else "") or "").strip()
+        title = _full_title(
+            title,
+            link.get("title"),
+            name_link.get("title") if name_link else None,
+            image.get("alt") if image else None,
+            heading.get_text(" ", strip=True) if heading else None,
+        )
         price_element = (
             card.select_one(".product-block__price--new")
             or card.select_one(".product-block__price")
@@ -405,11 +461,38 @@ def search_magento(provider: str, query: str, limit: int = 5) -> List[Dict[str, 
     return hits
 
 
+def _prestashop_price(card: Any) -> int | None:
+    """Precio al detalle de una tarjeta PrestaShop.
+
+    Librería Olímpica muestra "Precio unitario $ 1850" y "Por mayor $ 1420";
+    el mayorista exige cantidades que una lista escolar no alcanza, así que se
+    prefiere el precio unitario y el de mayor queda solo como último recurso.
+    """
+    candidates = card.select(
+        ".product-price-and-shipping [itemprop=price], .product-price-and-shipping .priceU, "
+        ".product-price-and-shipping .price"
+    ) or [
+        element for element in (
+            card.select_one("span.price"),
+            card.select_one(".price.product-price"),
+            card.select_one(".price"),
+        ) if element is not None
+    ]
+    texts = [element.get_text(" ", strip=True) for element in candidates]
+    retail = [text for text in texts if "mayor" not in text.lower()]
+    for text in retail or texts:
+        price = _clp_from_text(text)
+        if price:
+            return price
+    return None
+
+
 def search_prestashop(provider: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
     """HTML de resultados de PrestaShop, con soporte para temas viejos y nuevos."""
     base_url = PRESTASHOP_STORES[provider]
+    path = PRESTASHOP_SEARCH_PATHS.get(provider, "/search")
     response = _get(
-        f"{base_url}/search",
+        f"{base_url}{path}",
         params={
             "controller": "search",
             "s": query,
@@ -420,8 +503,12 @@ def search_prestashop(provider: str, query: str, limit: int = 5) -> List[Dict[st
         timeout=20,
     )
     soup = BeautifulSoup(response.text, "html.parser")
-    cards = soup.select("article.js-product-miniature, .js-product-miniature") or soup.select(
-        "ul.product_list li.ajax_block_product"
+    # Los temas 1.7 también pintan "destacados" y "vistos" con la misma clase;
+    # los resultados reales viven dentro de `#js-product-list`.
+    cards = (
+        soup.select("#js-product-list .js-product-miniature")
+        or soup.select("article.js-product-miniature, .js-product-miniature")
+        or soup.select("ul.product_list li.ajax_block_product")
     )
 
     hits: List[Dict[str, Any]] = []
@@ -433,14 +520,13 @@ def search_prestashop(provider: str, query: str, limit: int = 5) -> List[Dict[st
         )
         if not link:
             continue
-        title = link.get_text(" ", strip=True)
-        price_element = (
-            card.select_one(".product-price-and-shipping .price")
-            or card.select_one("span.price")
-            or card.select_one(".price.product-price")
-            or card.select_one(".price")
+        image = card.select_one("img")
+        title = _full_title(
+            link.get_text(" ", strip=True),
+            link.get("title"),
+            image.get("alt") if image else None,
         )
-        price = _clp_from_text(price_element.get_text(" ", strip=True)) if price_element else None
+        price = _prestashop_price(card)
         if not title or not price:
             continue
         card_text = card.get_text(" ", strip=True).lower()
@@ -450,7 +536,7 @@ def search_prestashop(provider: str, query: str, limit: int = 5) -> List[Dict[st
             "price": price,
             "available": "fuera de stock" not in card_text and "agotado" not in card_text,
             "provider": provider,
-            "image_url": _image_url(card.select_one("img"), base_url),
+            "image_url": _image_url(image, base_url),
         })
         if len(hits) >= limit:
             break
@@ -487,38 +573,68 @@ def search_tiendanube(provider: str, query: str, limit: int = 5) -> List[Dict[st
     return hits
 
 
-def search_casaroyal(query: str, limit: int = 5) -> List[Dict[str, Any]]:
-    """HTML de resultados de VTEX para Casa Royal (`/<slug>?_q=&map=ft`)."""
-    base_url = "https://www.casaroyal.cl"
-    slug = re.sub(r"[^a-z0-9]+", "-", _normalize_query(query)).strip("-")
+def _vtex_offer(product: Dict[str, Any]) -> Tuple[int | None, bool, Dict[str, Any]]:
+    """Mejor oferta de un producto VTEX: la más barata con stock, si hay."""
+    best: Tuple[int | None, bool, Dict[str, Any]] = (None, False, {})
+    for item in product.get("items") or []:
+        for seller in item.get("sellers") or []:
+            offer = seller.get("commertialOffer") or {}
+            price = _int_price(offer.get("Price"))
+            if not price:
+                continue
+            available = int(offer.get("AvailableQuantity") or 0) > 0
+            current_price, current_available, _ = best
+            if (
+                current_price is None
+                or (available and not current_available)
+                or (available == current_available and price < current_price)
+            ):
+                best = (price, available, item)
+    return best
+
+
+def search_vtex(provider: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """API pública de catálogo VTEX (`/api/catalog_system/pub/products/search`)."""
+    base_url = VTEX_STORES[provider]
+    # `ft` va codificado con `%20`, igual que lo pide la vitrina.
     response = _get(
-        f"{base_url}/{slug}",
-        params={"_q": query, "map": "ft"},
-        headers=HTML_HEADERS,
-        timeout=25,
+        f"{base_url}/api/catalog_system/pub/products/search?ft={quote(query, safe='')}",
+        params={"_from": 0, "_to": max(0, min(limit, 10) - 1)},
+        headers=JSON_HEADERS,
+        timeout=20,
     )
-    soup = BeautifulSoup(response.text, "html.parser")
+    try:
+        products = response.json()
+    except ValueError:
+        return []
+    if not isinstance(products, list):
+        return []
 
     hits: List[Dict[str, Any]] = []
-    for card in soup.select(".vtex-product-summary-2-x-container"):
-        link = card.select_one("a[href]")
-        title_element = card.select_one(".vtex-product-summary-2-x-productBrand")
-        price_element = card.select_one(".vtex-product-price-1-x-sellingPriceValue")
-        title = title_element.get_text(" ", strip=True) if title_element else ""
-        price = _clp_from_text(price_element.get_text(" ", strip=True)) if price_element else None
-        if not link or not title or price is None:
+    for product in products:
+        title = str(product.get("productName") or "").strip()
+        link_text = str(product.get("linkText") or "").strip("/")
+        url = product.get("link") or (f"{base_url}/{link_text}/p" if link_text else None)
+        price, available, item = _vtex_offer(product)
+        if not title or not url or not price:
             continue
+        images = item.get("images") or []
         hits.append({
             "title": title,
-            "url": urljoin(base_url, link.get("href")),
+            "url": urljoin(base_url, url),
             "price": price,
-            "available": True,
-            "provider": "casaroyal",
-            "image_url": _image_url(card.select_one("img"), base_url),
+            "available": available,
+            "provider": provider,
+            "image_url": images[0].get("imageUrl") if images else None,
         })
         if len(hits) >= limit:
             break
     return hits
+
+
+def search_casaroyal(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Casa Royal (VTEX); se mantiene por compatibilidad con llamadas directas."""
+    return search_vtex("casaroyal", query, limit)
 
 
 def search_petco(query: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -752,7 +868,7 @@ STRUCTURED_PROVIDERS: List[str] = [
     *MAGENTO_STORES,
     *PRESTASHOP_STORES,
     *TIENDANUBE_STORES,
-    "casaroyal",
+    *VTEX_STORES,
     "petco",
     "jumbo",
     "lider",
@@ -765,12 +881,10 @@ def store_base_url(provider: str) -> str | None:
     """URL pública de una tienda estructurada, para enlazarla desde el frontend."""
     for stores in (
         SHOPIFY_STORES, WOOCOMMERCE_STORES, JUMPSELLER_STORES,
-        MAGENTO_STORES, PRESTASHOP_STORES, TIENDANUBE_STORES,
+        MAGENTO_STORES, PRESTASHOP_STORES, TIENDANUBE_STORES, VTEX_STORES,
     ):
         if provider in stores:
             return stores[provider]
-    if provider == "casaroyal":
-        return "https://www.casaroyal.cl"
     if provider == "petco":
         return "https://www.petco.cl"
     if provider == "jumbo":
@@ -800,8 +914,8 @@ def search_structured_store(provider: str, query: str, limit: int = 5) -> List[D
         return search_prestashop(provider, query, limit)
     if provider in TIENDANUBE_STORES:
         return search_tiendanube(provider, query, limit)
-    if provider == "casaroyal":
-        return search_casaroyal(query, limit)
+    if provider in VTEX_STORES:
+        return search_vtex(provider, query, limit)
     if provider == "petco":
         return search_petco(query, limit)
     if provider == "jumbo":

@@ -1,6 +1,8 @@
 # Fuentes de precios
 
 Validación en vivo más reciente: 26 de agosto de 2026 — **84 fuentes publicadas**.
+Revisión de QA del 29 de septiembre de 2026: 42 fuentes probadas en vivo desde
+un navegador con consultas reales por área (ver "Hallazgos de QA" al final).
 
 Todas se consultan directamente en la tienda, usando el mismo endpoint público
 que usa su vitrina web. Ninguna depende de un metabuscador externo, de
@@ -20,11 +22,12 @@ una línea al diccionario correspondiente:
 | Magento | `/catalogsearch/result/?q=` (HTML) | `MAGENTO_STORES` |
 | PrestaShop | `/search?controller=search` (HTML) | `PRESTASHOP_STORES` |
 | Tiendanube | `/search/?q=` (HTML) | `TIENDANUBE_STORES` |
-| VTEX | HTML de resultados | `search_casaroyal` |
+| VTEX | `/api/catalog_system/pub/products/search?ft=` | `VTEX_STORES` |
 | SAP Commerce | `/search?q=` (HTML) | `search_petco` |
 | Schema.org ItemList | HTML de resultados | `search_jumbo`, `search_lider` |
 | Cencosud render data | `/busqueda?ft=` | `search_santaisabel` |
 | Next.js page data | `/buscar?Ntt=` | `search_tottus` |
+| Laravel + Inertia | `/busqueda?s=` (JSON en `script[data-page]`) | `app/providers/lasecretaria.py` |
 
 Antes de sumar un dominio conviene sondear qué plataforma usa: basta pedir la
 home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
@@ -38,9 +41,9 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | --- | --- | --- |
 | Dimeiggs | General, Oficina, Casa y hogar, Tecnología, Educación | Búsqueda pública del sitio |
 | Librería Nacional | Oficina, Educación | Búsqueda pública del sitio |
-| Pronobel | Oficina, Educación | Búsqueda pública del sitio |
+| Pronobel | Oficina, Educación | Shopify — Predictive Search público |
 | Prisa | Oficina, Educación | Búsqueda pública del sitio |
-| La Secretaria | Oficina, Educación | Búsqueda pública del sitio |
+| La Secretaria | Oficina, Educación | Laravel/Inertia — estado JSON de la búsqueda |
 | Siempre Listos | Oficina, Educación | Shopify — Predictive Search público |
 | Librería Arteideas | Oficina, Educación | Shopify — Predictive Search público |
 | La Papelaria | Oficina, Educación | Shopify — Predictive Search público |
@@ -70,7 +73,7 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | Construfer | Construcción | Jumpseller — HTML público |
 | Ferretería Prat | Construcción | Magento — HTML público |
 | Hangar 77 | Construcción | WooCommerce — Store API pública |
-| Construplaza | Construcción, Casa y hogar | Magento — HTML público |
+| Construplaza | Construcción, Casa y hogar | VTEX — API pública de catálogo |
 | Patio Ferretero | Construcción | Shopify — Predictive Search público |
 | Total Tools | Construcción | Shopify — Predictive Search público |
 | Ferre Store | Construcción | WooCommerce — Store API pública |
@@ -98,7 +101,7 @@ home y buscar la huella (`cdn.shopify.com`, `wp-content/plugins/woocommerce`,
 | Productos de Aseo | Casa y hogar, Oficina | WooCommerce — Store API pública |
 | Llabrés | Casa y hogar, Oficina | WooCommerce — Store API pública |
 | Maxitech | General, Oficina, Casa y hogar, Tecnología | Shopify — Predictive Search público |
-| Casa Royal | General, Casa y hogar, Tecnología | VTEX — HTML público |
+| Casa Royal | General, Casa y hogar, Tecnología | VTEX — API pública de catálogo |
 | Apishop | Casa y hogar, Supermercado | Shopify — Predictive Search público |
 | RGC Distribución | Mayoristas, Casa y hogar | WooCommerce — Store API pública |
 | Aseo por Mayor | Mayoristas, Casa y hogar | WooCommerce — Store API pública |
@@ -203,9 +206,10 @@ Mitigaciones ya aplicadas:
 - `scripts/validate_sources.py` corre con concurrencia 4 y espera 5 s entre
   intentos, para no gatillar el límite contra sí mismo.
 
-Pendiente si el tráfico crece: cachear `(fuente, consulta)` por unos minutos.
-Las listas escolares repiten mucho las mismas consultas ("cuaderno universitario
-100 hojas"), así que un caché corto bajaría el volumen de forma significativa.
+- `quote_multi_providers()` cachea `(fuente, consulta)` por 10 minutos
+  (`CACHE_TTL_SECONDS` en `multi_provider.py`). Las listas escolares repiten
+  mucho las mismas consultas, así que baja el volumen de forma significativa.
+  Los errores no se cachean.
 
 ## Revalidación
 
@@ -219,3 +223,50 @@ caída de la tienda y no por el parser: conviene confirmarlo con `curl` antes de
 tocar código. Los parsers tienen pruebas aisladas en
 `tests/test_structured_stores.py`, y `tests/test_provider_registry.py` verifica
 que backend, orquestador, validador y frontend declaren la misma nómina.
+
+## Hallazgos de QA (29 de septiembre de 2026)
+
+Se probaron en vivo 42 fuentes, desde un navegador, con consultas reales de
+cada área ("cuaderno universitario 100 hojas", "estuches", "martillo",
+"arroz 1 kg", "alimento perro adulto", etc.). Correcciones aplicadas:
+
+- **Dimeiggs**: el precio se buscaba con `FT=<sku>`, que VTEX ignora; todos los
+  productos quedaban con el precio del primer resultado genérico ($320). Ahora
+  el precio y el stock salen de la misma respuesta de sugerencias.
+- **WooCommerce y otras búsquedas literales** devuelven cero con cifras o
+  plurales ("cuaderno universitario 100 hojas", "estuches"). El orquestador
+  reintenta con consultas simplificadas (`relevance.simplified_queries`) y sigue
+  midiendo la relevancia contra la consulta original; esos resultados deben
+  cubrir todas las palabras de producto. Shopify no se reintenta.
+- **Construplaza** migró de Magento a VTEX (el buscador viejo daba 404).
+- **La Secretaria** migró a Laravel + Inertia (el HTML ya no trae `<article>`).
+- **Pronobel** corre sobre Shopify; el scraper HTML propio ya no encontraba nada.
+- **ArteMania**: el buscador vive en `/busqueda` y la página pinta destacados
+  con la misma clase que los resultados; se lee solo `#js-product-list`.
+- **Librería Olímpica**: se tomaba el precio "Por mayor" en vez del unitario.
+- **Casa Royal**: el HTML no traía resultados para consultas de varias palabras.
+- Títulos recortados por la vitrina ("Cuaderno Universitario Frozen 100..") se
+  reemplazan por el título completo del atributo `title`/`alt`.
+
+Observaciones que no son errores del parser, pero conviene conocer:
+
+- **Antártica** es una librería de libros: para útiles solo aparecen títulos de
+  libros ("La Rebelión de los Lápices de Colores"). Candidata natural para
+  cotizar los ítems de lectura, que hoy se excluyen.
+- **ElCuaderno** vende insumos de sublimación y manualidades, no útiles: su
+  búsqueda devuelve papel fotográfico para "cuaderno universitario".
+- **Alltec** marca la mayoría de su catálogo como "Fuera de stock".
+- **Mayoristas** (Alimentika y otros) publican precios por caja o pallet; el
+  total de una línea no es comparable con el precio unitario de un supermercado.
+- **TecnoÚtiles**, **Prido** y **Euromob** tienen catálogos acotados (mobiliario
+  en los dos últimos): es normal que no aparezcan para insumos.
+- No se pudieron probar desde la red usada (la conexión se reseteaba): la
+  mayoría de las tiendas Shopify (Siempre Listos, Papelaria, Dibu, Kitchen
+  Center, …), Librería Nacional, Tienda Diseñarte, Ferretería Prat, Animaladas,
+  Chileferret y Distribuidora Santiago. El parser Shopify sí se validó con
+  Pronobel, Apishop, PetHome y Maxitech.
+- Alcanzables pero no probadas en esta pasada: Cintegral, Notebook Store,
+  CompuElite, Central Gamer, Trulu Store, Xtreme Components, Patitas de Mía,
+  MiniMayorista, Distribuidora Online, Fermarket, RGC, Aseo por Mayor, Outlet
+  de Aseo, Dimensiona, Llabrés y Prisa. Correr `scripts/validate_sources.py`
+  desde un servidor con salida a internet.

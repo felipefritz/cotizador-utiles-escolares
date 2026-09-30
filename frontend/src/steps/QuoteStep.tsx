@@ -37,6 +37,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { getSourceColor, getSourceName, getSourceUrl, type AreaId, type ItemQuote, type SourceId } from '../types'
 import { formatCLP } from '../utils/format'
+import { chosenHit, summarize, withoutIndex, withoutItemKeys } from './quoteSelection'
 import { fetchPurchasePlan, quoteMultiProviders, api } from '../api'
 import type { PurchasePlanResponse } from '../api'
 import { PurchasePlanCard } from '../components/PurchasePlanCard'
@@ -300,46 +301,40 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
         .map(r => `${r.item.detalle || r.item.item_original} (x${r.quantity})`)
         .join('\n')
 
-      const itemsData = quotedResults.map(r => {
-        const q = r.multi
-        // El backend devuelve hits[], no best_hit
-        const firstHit = q && (q as any).hits && (q as any).hits.length > 0 ? (q as any).hits[0] : null
-        
+      // Se guarda la opción que el usuario eligió en "Ver opciones", la misma
+      // que ve en la tabla y en el total.
+      const itemsData = quotedResults.map((r, idx) => {
+        const hit = chosenHit(r, selectedOptions.get(idx))
         return {
           detalle: r.item.detalle || r.item.item_original,
           cantidad: r.quantity,
-          provider: firstHit ? firstHit.provider : null,
-          price: firstHit ? (firstHit.price || 0) : 0,
-          url: firstHit ? (firstHit.url || null) : null,
+          provider: hit?.provider ?? null,
+          price: hit?.price || 0,
+          url: hit?.url || null,
         }
       })
 
       const resultsData: Record<string, any> = {}
-      quotedResults.forEach(r => {
-        const q = r.multi
-        // El backend devuelve hits[], no best_hit
-        const firstHit = q && (q as any).hits && (q as any).hits.length > 0 ? (q as any).hits[0] : null
-        
-        if (firstHit) {
-          const provider = firstHit.provider
-          if (!resultsData[provider]) {
-            resultsData[provider] = {
-              items: [],
-              item_prices: {},
-              item_urls: {},
-              total_price: 0,
-            }
+      quotedResults.forEach((r, idx) => {
+        const hit = chosenHit(r, selectedOptions.get(idx))
+        if (!hit?.provider) return
+        const provider = hit.provider
+        if (!resultsData[provider]) {
+          resultsData[provider] = {
+            items: [],
+            item_prices: {},
+            item_urls: {},
+            total_price: 0,
           }
-          const itemName = r.item.detalle || r.item.item_original
-          resultsData[provider].items.push(itemName)
-          const price = firstHit.price || 0
-          const url = firstHit.url || null
-          resultsData[provider].item_prices[itemName] = price
-          if (url) {
-            resultsData[provider].item_urls[itemName] = url
-          }
-          resultsData[provider].total_price += price * r.quantity
         }
+        const itemName = r.item.detalle || r.item.item_original
+        const price = hit.price || 0
+        resultsData[provider].items.push(itemName)
+        resultsData[provider].item_prices[itemName] = price
+        if (hit.url) {
+          resultsData[provider].item_urls[itemName] = hit.url
+        }
+        resultsData[provider].total_price += price * r.quantity
       })
 
       await api.post('/user/quotes', {
@@ -375,61 +370,14 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
   }
   
   const { subtotal, itemsConPrecio, itemsPendientes, pendientes } = useMemo(() => {
-    let sub = 0
-    let conPrecio = 0
-    const pen: ItemQuote[] = []
-
-    for (const r of displayResults) {
-      const q = r.multi || r.dimeiggs
-      let unit: number | null = null
-      let provider = ''
-      
-      // Extrae el price y provider - misma lógica que en la tabla
-      if ((q as any)?.unit_price) {
-        unit = (q as any).unit_price
-      }
-      
-      if (r.multi && (r.multi as any).best_hit) {
-        const bestHit = (r.multi as any).best_hit
-        if (bestHit.price && !unit) {
-          unit = bestHit.price
-        }
-        if (!provider && bestHit.provider) {
-          provider = bestHit.provider
-        }
-      } else if ((q as any)?.hits && (q as any).hits.length > 0) {
-        const firstHit = (q as any).hits[0]
-        if (firstHit.price && !unit) {
-          unit = firstHit.price
-        }
-        if (!provider && firstHit.provider) {
-          provider = firstHit.provider
-        }
-      }
-      
-      if (!provider && (q as any)?.provider) {
-        provider = (q as any).provider
-      }
-      
-      const lineTotal = unit != null ? unit * r.quantity : null
-
-      if (unit != null && lineTotal != null) {
-        sub += lineTotal
-        conPrecio += 1
-        
-        // Agregar al mapa por proveedor para el resumen
-      } else {
-        pen.push(r)
-      }
-    }
-
+    const summary = summarize(displayResults, selectedOptions)
     return {
-      subtotal: sub,
-      itemsConPrecio: conPrecio,
-      itemsPendientes: pen.length,
-      pendientes: pen,
+      subtotal: summary.subtotal,
+      itemsConPrecio: summary.withPrice,
+      itemsPendientes: summary.pending.length,
+      pendientes: summary.pending,
     }
-  }, [displayResults])
+  }, [displayResults, selectedOptions])
 
   const providerTotals = useMemo(() => {
     const providers = sources
@@ -551,23 +499,28 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
 
   const handleDeleteItem = (itemIndex: number) => {
     if (quoted) {
-      const newQuotedResults = quotedResults.filter((_, i) => i !== itemIndex)
-      setQuotedResults(newQuotedResults)
-      // Limpiar opciones seleccionadas para este item
-      const newSelectedOptions = new Map(selectedOptions)
-      newSelectedOptions.delete(itemIndex)
-      setSelectedOptions(newSelectedOptions)
+      setQuotedResults(quotedResults.filter((_, i) => i !== itemIndex))
+      // Las selecciones están indexadas por posición: al quitar un ítem, las
+      // de los siguientes se corren una posición en vez de quedar apuntando
+      // al ítem equivocado.
+      setSelectedOptions(withoutIndex(selectedOptions, itemIndex))
+      setSelectedItems(withoutItemKeys(selectedItems, itemIndex))
     }
   }
 
   return (
     <Box sx={{ maxWidth: 960, mx: 'auto' }}>
       <Typography variant="h6" color="text.primary" sx={{ mb: 2 }}>
-        {!quoted ? 'Artículos seleccionados' : `Resultados de cotización ${isMultiProvider && '(Multi-tienda)'}`}
+        {!quoted ? 'Artículos seleccionados' : `Resultados de cotización${isMultiProvider ? ' (Multi-tienda)' : ''}`}
       </Typography>
 
       {!quoted ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3, textAlign: 'left' }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
           {isFreePlan && (
             <Alert severity="warning" sx={{ mb: 3, textAlign: 'left' }}>
               <strong>Plan Gratis:</strong> esta cotización usa {allowedResults.length} producto(s) de tu lista y
@@ -600,16 +553,18 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
             </Button>
           </Box>
         </Paper>
-      ) : error ? (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
       ) : displayResults.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">No hay ítems para mostrar.</Typography>
         </Paper>
       ) : (
         <>
+          {/* Un ítem que falla no debe ocultar la cotización del resto. */}
+          {error && (
+            <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError(null)}>
+              Algunos productos no se pudieron cotizar: {error}. Puedes reintentarlos o quitarlos de la lista.
+            </Alert>
+          )}
           <PurchasePlanCard
             plan={purchasePlan}
             loading={planLoading}
