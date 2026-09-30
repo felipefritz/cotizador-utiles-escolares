@@ -30,18 +30,43 @@ MAX_STORES_PER_PLAN = 3
 MAX_CANDIDATE_STORES = 20
 
 
+def _relevance(hit: Dict[str, Any]) -> Optional[float]:
+    value = hit.get("relevance")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _comparable_hits(hits: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ofertas con stock y precio que calzan igual de bien con lo pedido.
+
+    La tabla de cotización muestra, por ítem, el producto más relevante y, a
+    igual relevancia, el más barato. El plan compara solo dentro de ese mismo
+    nivel de relevancia: antes tomaba el precio mínimo de cada tienda y, para
+    "monitor 24", calculaba el ahorro con un monitor de 22" que la tabla no
+    mostraba. Las ofertas sin relevancia informada se aceptan tal cual.
+    """
+    valid = []
+    for hit in hits:
+        price = hit.get("price")
+        if not hit.get("provider") or not isinstance(price, (int, float)) or price <= 0:
+            continue
+        if hit.get("available") is False:
+            continue
+        valid.append(hit)
+    scored = [value for value in (_relevance(hit) for hit in valid) if value is not None]
+    if not scored:
+        return valid
+    top = max(scored)
+    return [hit for hit in valid if _relevance(hit) is None or _relevance(hit) >= top - 1e-9]
+
+
 def _best_prices_by_store(items: Sequence[Dict[str, Any]]) -> List[Dict[str, Dict[str, Any]]]:
     """Para cada ítem, la mejor oferta de cada tienda: `{tienda: hit}`."""
     per_item: List[Dict[str, Dict[str, Any]]] = []
     for item in items:
         offers: Dict[str, Dict[str, Any]] = {}
-        for hit in item.get("hits") or []:
+        for hit in _comparable_hits(item.get("hits") or []):
             provider = hit.get("provider")
             price = hit.get("price")
-            if not provider or not isinstance(price, (int, float)) or price <= 0:
-                continue
-            if hit.get("available") is False:
-                continue
             current = offers.get(provider)
             if current is None or price < current["price"]:
                 offers[provider] = {

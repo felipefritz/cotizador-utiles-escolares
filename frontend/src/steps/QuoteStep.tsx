@@ -37,7 +37,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { getSourceColor, getSourceName, getSourceUrl, type AreaId, type ItemQuote, type SourceId } from '../types'
 import { formatCLP } from '../utils/format'
-import { chosenHit, summarize, withoutIndex, withoutItemKeys } from './quoteSelection'
+import { chosenHit, summarize, withoutIndex, withoutItemKeys, bestProviderHit } from './quoteSelection'
 import { fetchPurchasePlan, quoteMultiProviders, api } from '../api'
 import type { PurchasePlanResponse } from '../api'
 import { PurchasePlanCard } from '../components/PurchasePlanCard'
@@ -225,6 +225,7 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
           title: hit.title,
           url: hit.url,
           available: hit.available,
+          relevance: hit.relevance,
         })),
       }))
       .filter((item) => item.detalle)
@@ -409,12 +410,10 @@ export function QuoteStep({ results, onReset, sources, area, onEditSelection }: 
         let bestLowHit: any = null
 
         if (validHits.length) {
-          bestHit = validHits.reduce((min: any, h: any) => {
-            const price = Number(h.price)
-            if (Number.isNaN(price)) return min
-            if (!min) return h
-            return Number(min.price) <= price ? min : h
-          }, null)
+          // Mismo criterio que la tabla: con stock, más relevante y luego más
+          // barato. Tomar el mínimo de precio sumaba un monitor de 22" al total
+          // de la tienda cuando se pidió uno de 24".
+          bestHit = bestProviderHit(validHits)
         } else if (lowHits.length) {
           bestLowHit = lowHits.reduce((min: any, h: any) => {
             const price = Number(h.price)

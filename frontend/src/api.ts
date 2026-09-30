@@ -432,6 +432,8 @@ export type PurchasePlanItem = {
     title?: string | null
     url?: string | null
     available?: boolean
+    /** El plan compara solo ofertas igual de relevantes que la de la tabla. */
+    relevance?: number
   }>
 }
 
