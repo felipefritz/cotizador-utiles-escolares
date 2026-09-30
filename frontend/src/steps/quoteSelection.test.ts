@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemQuote } from '../types'
-import { chosenHit, summarize, withoutIndex, withoutItemKeys } from './quoteSelection'
+import { bestProviderHit, chosenHit, summarize, withoutIndex, withoutItemKeys } from './quoteSelection'
 
 function item(name: string, quantity: number, hits: Array<{ price: number | null; provider: string }>): ItemQuote {
   return {
@@ -53,5 +53,25 @@ describe('deleting an item', () => {
   it('shifts the purchased marks of the following items', () => {
     const next = withoutItemKeys(new Set(['0:0', '1:0', '2:0']), 1)
     expect([...next].sort()).toEqual(['0:0', '1:0'])
+  })
+})
+
+describe('bestProviderHit', () => {
+  it('prefers the most relevant available offer over a cheaper partial match', () => {
+    // Chile PC, "monitor 24": el resumen por fuente sumaba el de 22" ($88.000).
+    const hits = [
+      { title: 'Monitor Viewsonic 24', price: 103870, relevance: 1, available: true },
+      { title: 'Monitor AOC 22', price: 88000, relevance: 0.667, available: true },
+      { title: 'Monitor Viewsonic 24 IPS', price: 100900, relevance: 1, available: false },
+    ]
+    expect(bestProviderHit(hits)?.title).toBe('Monitor Viewsonic 24')
+  })
+
+  it('takes the cheapest among equally relevant offers', () => {
+    const hits = [
+      { price: 6900, relevance: 1, available: true },
+      { price: 6500, relevance: 1, available: true },
+    ]
+    expect(bestProviderHit(hits)?.price).toBe(6500)
   })
 })

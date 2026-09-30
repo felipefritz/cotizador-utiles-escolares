@@ -193,3 +193,27 @@ def test_teaser_hides_the_detail_but_keeps_the_hook() -> None:
     # El gancho es el ahorro: se muestra el número, no cómo conseguirlo.
     assert locked["savings"] > 0
     assert locked["store_count"] == 1
+
+
+def test_plan_compares_the_same_products_the_quote_table_shows() -> None:
+    """Caso real ("monitor 24" en Chile PC, 30 de septiembre de 2026): el plan
+    tomaba el monitor de 22" ($88.000) porque era el más barato de la tienda,
+    mientras la tabla mostraba el de 24" ($103.870)."""
+    from app.quoting.purchase_plan import build_purchase_plans
+
+    items = [{
+        "detalle": "monitor 24",
+        "cantidad": 1,
+        "hits": [
+            {"provider": "chilepc", "price": 103870, "available": True, "relevance": 1.0,
+             "title": "Monitor Viewsonic 24 FHD"},
+            {"provider": "chilepc", "price": 88000, "available": True, "relevance": 0.667,
+             "title": "Monitor AOC 22 FHD"},
+            {"provider": "cintegral", "price": 99990, "available": False, "relevance": 1.0,
+             "title": "Monitor 24 agotado"},
+        ],
+    }]
+    plan = build_purchase_plans(items)
+    line = plan["recommended"]["lines"][0]
+    assert line["price"] == 103870 and "24" in line["title"]
+    assert plan["baseline"]["subtotal"] == 103870

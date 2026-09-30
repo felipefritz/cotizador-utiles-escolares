@@ -93,3 +93,27 @@ export function withoutItemKeys(keys: Set<string>, removed: number): Set<string>
   })
   return next
 }
+
+type RankedHit = { price?: number | null; relevance?: number; available?: boolean }
+
+/**
+ * La mejor oferta de una tienda con el mismo orden que usa el backend para la
+ * tabla: con stock primero, luego más relevante y, a igual relevancia, más
+ * barata. Se usa en el resumen por fuente para que su total cuadre con la
+ * tabla.
+ */
+export function bestProviderHit<T extends RankedHit>(hits: T[]): T | null {
+  let best: T | null = null
+  for (const hit of hits) {
+    const price = Number(hit.price)
+    if (!Number.isFinite(price) || price <= 0) continue
+    if (!best) {
+      best = hit
+      continue
+    }
+    const key = (h: T) => [h.available === false ? 1 : 0, -(h.relevance ?? 0), Number(h.price)]
+    const [a, b] = [key(hit), key(best)]
+    if (a[0] < b[0] || (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && a[2] < b[2])))) best = hit
+  }
+  return best
+}
