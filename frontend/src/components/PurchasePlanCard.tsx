@@ -92,6 +92,9 @@ export function PurchasePlanCard({
 
   // Versión bloqueada: se muestra el ahorro posible, no cómo conseguirlo.
   if (plan.locked) {
+    // Con todo en una sola tienda no hay nada que agrupar: ofrecer "desbloquear"
+    // un plan ahí ("reparte tu lista en 1 tiendas") no aporta.
+    if (plan.baseline.store_count <= 1 && !hasSavings) return null
     return (
       <Card
         variant="outlined"
@@ -110,7 +113,7 @@ export function PurchasePlanCard({
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Comprar cada ítem donde está más barato reparte tu lista en{' '}
-            <strong>{plan.baseline.store_count} tiendas</strong>, con un despacho por cada una.
+            <strong>{plan.baseline.store_count} {plan.baseline.store_count === 1 ? 'tienda' : 'tiendas'}</strong>, con un despacho por cada una.
           </Typography>
           {hasSavings ? (
             <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ mb: 2 }}>
@@ -192,7 +195,7 @@ export function PurchasePlanCard({
               {formatCLP(plan.baseline.total)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {plan.baseline.store_count} tiendas · {formatCLP(plan.baseline.subtotal ?? 0)} + despacho{' '}
+              {plan.baseline.store_count} {plan.baseline.store_count === 1 ? 'tienda' : 'tiendas'} · {formatCLP(plan.baseline.subtotal ?? 0)} + despacho{' '}
               {formatCLP(plan.baseline.shipping ?? 0)}
             </Typography>
           </Box>
