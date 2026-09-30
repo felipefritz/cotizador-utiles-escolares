@@ -26,6 +26,7 @@ from app.schemas import ParsedList, ParsedItem, ProviderSuggestionCreate, Provid
 
 from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.multi_provider import quote_multi_providers
+from app.quoting.relevance import MIN_RELEVANCE, best_hits, score as score_hit
 from app.quoting.provider_registry import available_providers, demo_provider_limit, public_areas
 
 # Autenticación
@@ -127,6 +128,7 @@ UPLOAD_DIR = Path("./uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 VALID_UNITS = {"unid", "caja", "sobre", "pliego", "bolsa", "resma", "pack"}
+VALID_TIPOS = {"producto", "servicio", "util", "lectura"}
 
 SUBJECT_ALIASES = {
     "CIENCIAS NATURALES": "NATURALES",
@@ -143,9 +145,24 @@ def _clean_subject(s: Optional[str]) -> Optional[str]:
     return SUBJECT_ALIASES.get(s2, s2)
 
 
+BOOK_HINTS = re.compile(r"\b(lecturas?|plan lector|novela|editorial|autor|autora)\b", re.IGNORECASE)
+
+
 def _looks_like_book(item: Dict[str, Any]) -> bool:
-    text = f"{item.get('item_original','')} {item.get('detalle','')}".lower()
-    return ("lectura" in text) or ("lecturas complementarias" in text) or (" - " in item.get("item_original", ""))
+    """Libros de lectura: no se cotizan en las tiendas de útiles.
+
+    Antes cualquier línea con " - " contaba como libro ("Título - Autor"), y
+    eso sacaba de la cotización ítems como "1 Cuaderno college - cuadro
+    grande" o "1 Martillo - carpintero 16 oz" sin avisar. Ahora el guion solo
+    cuenta dentro de una sección de lecturas.
+    """
+    if item.get("tipo") == "lectura":
+        return True
+    text = f"{item.get('item_original') or ''} {item.get('detalle') or ''}"
+    if BOOK_HINTS.search(text):
+        return True
+    subject = str(item.get("asignatura") or "")
+    return " - " in str(item.get("item_original") or "") and bool(BOOK_HINTS.search(subject))
 
 
 def normalize_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -162,12 +179,34 @@ def normalize_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return text
 
     for it in items:
+        if not isinstance(it, dict):
+            continue
         it = dict(it)  # copia
-        
-        # Asegurar que item_original existe (puede faltar si viene del LLM)
+
+        # El LLM no siempre respeta el esquema: textos nulos, "tipo": null o
+        # "material", "confianza": "alta", "cantidad": "2". Se sanea acá para
+        # que `ParsedItem` no haga fallar todo el endpoint por un ítem.
+        for field in ("detalle", "item_original"):
+            if it.get(field) is not None and not isinstance(it.get(field), str):
+                it[field] = str(it[field])
         if not it.get("item_original"):
-            it["item_original"] = it.get("detalle", "sin detalle")
-        
+            it["item_original"] = it.get("detalle") or "sin detalle"
+        if not it.get("detalle"):
+            it["detalle"] = it["item_original"]
+        if it.get("asignatura") is not None and not isinstance(it.get("asignatura"), str):
+            it["asignatura"] = str(it["asignatura"])
+        try:
+            it["cantidad"] = int(it["cantidad"]) if it.get("cantidad") not in (None, "") else None
+        except (TypeError, ValueError):
+            digits = re.search(r"\d+", str(it.get("cantidad")))
+            it["cantidad"] = int(digits.group()) if digits else None
+        try:
+            it["confianza"] = float(it["confianza"]) if it.get("confianza") is not None else None
+        except (TypeError, ValueError):
+            it["confianza"] = None
+        if it.get("tipo") not in VALID_TIPOS:
+            it.pop("tipo", None)
+
         it["asignatura"] = _clean_subject(it.get("asignatura"))
 
         # Quitar descripciones especificas despues de " / " en el detalle
@@ -288,7 +327,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 # ============ AUTENTICACIÓN LOCAL (USUARIO/CONTRASEÑA) ============
 
 @api_router.post("/auth/register")
-async def register(
+def register(
     request: RegisterRequest,
     db: Session = Depends(get_db)
 ):
@@ -320,7 +359,7 @@ async def register(
 
 
 @api_router.post("/auth/login")
-async def login(
+def login(
     request: LoginRequest,
     db: Session = Depends(get_db)
 ):
@@ -534,14 +573,19 @@ async def twitter_callback(code: str, db: Session = Depends(get_db)):
 
 # ============ ENDPOINTS DE PARSING Y COTIZACIÓN ============
 
+# Los endpoints que parsean o cotizan son `def` (no `async def`) a propósito:
+# hacen I/O bloqueante (requests, pdfplumber, LLM, bcrypt). Declarados como
+# `async` bloqueaban el event loop de uvicorn y, con un solo worker en Render,
+# una cotización dejaba sin respuesta al resto de los usuarios y a `/health`.
+# Como `def`, FastAPI los ejecuta en su threadpool.
 @api_router.post("/parse")
-async def parse_only_rules(file: UploadFile = File(...)):
+def parse_only_rules(file: UploadFile = File(...)):
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx", ".xlsx", ".xls"):
         raise HTTPException(400, "Formato no soportado.")
 
     path = UPLOAD_DIR / f"{uuid4().hex}{ext}"
-    path.write_bytes(await file.read())
+    path.write_bytes(file.file.read())
 
     raw = extract_text(path)
     lines = split_lines(raw)
@@ -555,7 +599,7 @@ async def parse_only_rules(file: UploadFile = File(...)):
 
 
 @api_router.post("/parse-ai")
-async def parse_rules_plus_ai(
+def parse_rules_plus_ai(
     file: UploadFile = File(...),
     quote: bool = True,         # <-- parámetro: si quieres cotizar
     quote_limit: int = 8,       # <-- hits max por búsqueda
@@ -565,7 +609,7 @@ async def parse_rules_plus_ai(
         raise HTTPException(400, "Formato no soportado.")
 
     path = UPLOAD_DIR / f"{uuid4().hex}{ext}"
-    path.write_bytes(await file.read())
+    path.write_bytes(file.file.read())
 
     raw = extract_text(path)
     lines = split_lines(raw)
@@ -578,8 +622,9 @@ async def parse_rules_plus_ai(
     fixed_items: List[Dict[str, Any]] = []
     if dub_lines:
         try:
-            fixed = call_llm_fix(dub_lines)  # ParsedList validado con Pydantic
-            fixed_items = [it.model_dump() for it in fixed.items]
+            fixed = call_llm_fix(dub_lines)  # dict {"items": [...]}
+            raw_items = fixed.get("items") if isinstance(fixed, dict) else []
+            fixed_items = [x for x in (raw_items or []) if isinstance(x, dict)]
         except Exception:
             # Si falla IA, no rompas el endpoint: sigue solo con reglas
             fixed_items = []
@@ -645,7 +690,7 @@ async def parse_rules_plus_ai(
 
 
 @api_router.post("/parse-ai-full")
-async def parse_with_ai_only(
+def parse_with_ai_only(
     file: UploadFile = File(...),
     use_vision: bool = True,  # Nuevo parámetro para usar visión
     current_user: User = Depends(get_current_user),
@@ -673,7 +718,7 @@ async def parse_with_ai_only(
         raise HTTPException(400, "Formato no soportado. Use PDF, DOCX, XLSX, XLS o imágenes (PNG, JPG).")
 
     path = UPLOAD_DIR / f"{uuid4().hex}{ext}"
-    path.write_bytes(await file.read())
+    path.write_bytes(file.file.read())
 
     # Intentar usar visión primero si está habilitado y es PDF
     extraction_method = "ai_only"
@@ -756,7 +801,7 @@ async def parse_with_ai_only(
 
 
 @api_router.post("/parse-ai-items-only")
-async def parse_items_without_quote(
+def parse_items_without_quote(
     file: UploadFile = File(...),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -770,7 +815,7 @@ async def parse_items_without_quote(
         raise HTTPException(400, "Formato no soportado.")
 
     path = UPLOAD_DIR / f"{uuid4().hex}{ext}"
-    path.write_bytes(await file.read())
+    path.write_bytes(file.file.read())
 
     raw = extract_text(path)
     lines = split_lines(raw)
@@ -817,7 +862,7 @@ async def parse_items_without_quote(
 
 
 @api_router.post("/quote/dimeiggs")
-async def quote_in_dimeiggs(payload: dict = Body(...)):
+def quote_in_dimeiggs(payload: dict = Body(...)):
     query = (payload.get("query") or "").strip()
     if not query:
         raise HTTPException(400, "Falta 'query'.")
@@ -827,13 +872,13 @@ async def quote_in_dimeiggs(payload: dict = Body(...)):
 
 
 @api_router.post("/parse-ai-quote/dimeiggs")
-async def parse_ai_and_quote_dimeiggs(file: UploadFile = File(...)):
+def parse_ai_and_quote_dimeiggs(file: UploadFile = File(...)):
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx", ".xlsx", ".xls"):
         raise HTTPException(400, "Formato no soportado.")
 
     path = UPLOAD_DIR / f"{uuid4().hex}{ext}"
-    path.write_bytes(await file.read())
+    path.write_bytes(file.file.read())
 
     raw = extract_text(path)
     lines = split_lines(raw)
@@ -898,22 +943,23 @@ async def parse_ai_and_quote_dimeiggs(file: UploadFile = File(...)):
             missing += 1
             continue
 
-        chosen = pick_best_hit(it.get("detalle") or query, q["hits"])
+        # Antes se llamaba a `pick_best_hit` y `fetch_price_and_image`, que no
+        # existen: el endpoint caía con NameError apenas había resultados. Los
+        # hits de Dimeiggs ya traen precio, así que basta con elegir el mejor.
+        ranked = best_hits([
+            {**hit, **score_hit(it.get("detalle") or query, str(hit.get("title") or ""))}
+            for hit in q["hits"]
+        ])
+        chosen = next((hit for hit in ranked if hit["relevance"] >= MIN_RELEVANCE), None)
         if not chosen or not chosen.get("url"):
             it["quote"]["status"] = "no_match"
             it["quote"]["reason"] = "Ningún resultado coincide con el ítem"
             missing += 1
             continue
 
-        try:
-            price, image_url = fetch_price_and_image(chosen["url"])
-        except Exception as e:
-            it["quote"]["status"] = "error"
-            it["quote"]["error"] = str(e)
-            missing += 1
-            continue
-
-        if price is None:
+        price = chosen.get("price")
+        image_url = chosen.get("image_url")
+        if not price:
             it["quote"]["status"] = "no_price"
             it["quote"]["reason"] = "No se pudo obtener precio del producto"
             missing += 1
@@ -947,7 +993,7 @@ async def parse_ai_and_quote_dimeiggs(file: UploadFile = File(...)):
 
 
 @api_router.post("/quote/multi-providers")
-async def quote_multi_endpoint(
+def quote_multi_endpoint(
     payload: dict = Body(...),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -1076,7 +1122,7 @@ async def quote_multi_endpoint(
 
 
 @api_router.post("/quote/multi-providers/batch")
-async def quote_multi_batch_endpoint(
+def quote_multi_batch_endpoint(
     payload: dict = Body(...),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -1241,7 +1287,7 @@ async def quote_multi_batch_endpoint(
 
 
 @api_router.post("/parse-ai-quote/multi-providers")
-async def parse_ai_and_quote_multi_providers(
+def parse_ai_and_quote_multi_providers(
     file: UploadFile = File(...),
     providers: str = "",  # CSV list; empty = fuentes disponibles/configuradas
     area: str = "general",
@@ -1263,7 +1309,7 @@ async def parse_ai_and_quote_multi_providers(
         raise HTTPException(400, "Formato no soportado.")
 
     path = UPLOAD_DIR / f"{uuid4().hex}{ext}"
-    path.write_bytes(await file.read())
+    path.write_bytes(file.file.read())
 
     raw = extract_text(path)
     lines = split_lines(raw)
@@ -1581,7 +1627,7 @@ async def get_user_plan_limits(
 
 
 @api_router.post("/quote/purchase-plan")
-async def purchase_plan_endpoint(
+def purchase_plan_endpoint(
     payload: dict,
     current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),

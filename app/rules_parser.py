@@ -35,17 +35,32 @@ UNIT_MAP = {
     "frasco": None, "frascos": None,  # si quieres agregar "frasco" como unidad, agrégalo al esquema
 }
 
-# Palabras clave que indican que NO es un item cotizable válido
+# Palabras que indican que la línea es información administrativa y no un
+# ítem cotizable. Se comparan como palabras completas: antes se buscaban como
+# subcadenas y "segun" descartaba "segundo semestre", "hora" descartaba
+# "ahora" y "como" descartaba "cómodo".
+#
+# "sugerido", "recomendado", "opcional", "según" y "como" ya no están: en las
+# listas reales acompañan a ítems legítimos ("1 Diccionario (sugerido:
+# Aristos)", "1 Calculadora opcional") y descartarlos hacía desaparecer
+# productos sin aviso.
 INVALID_KEYWORDS = {
     "cuota", "cuotas", "pago", "pagos", "sin interés", "sin interes",
     "horario", "horarios", "hrs", "horas", "hora",
-    "disponible", "disponibilidad", "stock",
+    "disponibilidad", "stock",
     "promoción", "promocion", "oferta",
-    "tal como", "como", "según", "segun",
-    "recomendado", "sugerido", "opcional",
-    "abiertos", "cerrados", "cerrado",
+    "abiertos", "cerrados",
     "covid", "sanitario",
 }
+
+_INVALID_PATTERN = re.compile(
+    r"\b(?:" + "|".join(sorted((re.escape(k) for k in INVALID_KEYWORDS), key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def has_invalid_keyword(*texts: str) -> bool:
+    return any(_INVALID_PATTERN.search(text or "") for text in texts)
 
 SECTION_WORDS = {
     "LENGUAJE", "MATEMÁTICA", "MATEMATICA", "INGLÉS", "INGLES",
@@ -72,10 +87,9 @@ def is_valid_item(item: Dict[str, Any]) -> bool:
     detalle = (item.get("detalle") or "").strip().upper()
     original = (item.get("item_original") or "").strip().upper()
     
-    # Revisar si contiene palabras clave inválidas
-    for bad_keyword in INVALID_KEYWORDS:
-        if bad_keyword.upper() in detalle or bad_keyword.upper() in original:
-            return False
+    # Revisar si contiene palabras clave inválidas (palabras completas)
+    if has_invalid_keyword(detalle, original):
+        return False
     
     # Debe tener al menos 2 caracteres y un mínimo de sentido
     if len(detalle) < 2:
@@ -127,6 +141,14 @@ def clean_line(line: str) -> str:
     line = re.sub(r"\s+", " ", line)
     return line.strip()
 
+#: Palabras que, después de una cifra, describen una medida del ítem y no un
+#: ítem nuevo ("100 hojas", "12 colores", "30 cm").
+MEASURE_WORDS = (
+    r"(?:hojas?|hjs?|colores?|unidades?|unds?|cm|mm|mts?|metros?|grs?|gramos?|ml|cc|lts?|litros?|"
+    r"kg|kilos?|oz|piezas?|pliegos?|l[aá]minas?|p[aá]ginas?|pulgadas?)\b"
+)
+
+
 def split_comma_items(line: str) -> List[str]:
     """
     Detecta si una línea tiene múltiples items separados por comas.
@@ -139,9 +161,13 @@ def split_comma_items(line: str) -> List[str]:
     if ',' not in line:
         return [line]
     
-    # Buscar patrones: "número espacio+ texto" después de comas
-    # Patrón: ", <número>"
-    parts = re.split(r',\s+(?=\d\s)', line)
+    # Buscar patrones: ", <cantidad> <palabra>". La palabra debe tener al
+    # menos tres letras: "3 Pinceles 2, 6 y 8" es un solo ítem con varios
+    # números de pincel, no dos ítems ("6 y 8").
+    #
+    # Tampoco se parte cuando la cifra es una medida del mismo ítem:
+    # "1 Cuaderno universitario, 100 hojas, cuadro grande".
+    parts = re.split(r',\s+(?=\d{1,3}\s+(?!' + MEASURE_WORDS + r')[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,})', line)
     
     # Si solo hay 1 parte (no encontró el patrón), devolver original
     if len(parts) == 1:
@@ -150,7 +176,7 @@ def split_comma_items(line: str) -> List[str]:
     # Verificar que al menos 2 partes tengan cantidad al inicio
     valid_parts = 0
     for part in parts:
-        if re.match(r'^\d+\s+', part.strip()):
+        if re.match(r'^\d{1,3}\s+(?!' + MEASURE_WORDS + r')[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}', part.strip()):
             valid_parts += 1
     
     # Solo dividir si encontramos al menos 2 items válidos Y no parecen estar mezclados

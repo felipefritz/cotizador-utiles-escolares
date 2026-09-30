@@ -55,7 +55,8 @@ npx vitest run src/utils/format.test.ts   # un solo archivo
 ```
 
 Lint: no hay linter configurado localmente. El CI corre `flake8 app --select=E9,F63,F7,F82`
-(`.github/workflows/backend-ci.yml`) y `npm run lint --if-present` (que no existe) en el frontend.
+(`.github/workflows/backend-ci.yml`, bloqueante: antes tenía `continue-on-error` y así pasaron dos
+nombres indefinidos en `/parse-ai-quote/dimeiggs`) y `npm run lint --if-present` (que no existe) en el frontend.
 El job de seguridad falla si aparece `sk-proj-` o `gsk_` en cualquier `*.py` o `*.md`: no pegar
 API keys reales ni ejemplos con esos prefijos en documentación.
 
@@ -95,18 +96,31 @@ La mayoría de las tiendas corre sobre una plataforma de e-commerce conocida, as
 `app/providers/structured_stores.py` tiene **un parser genérico por plataforma** (Shopify,
 WooCommerce, Jumpseller, Magento, PrestaShop, Tiendanube, VTEX) y las tiendas se declaran como
 `id -> url base` en `SHOPIFY_STORES`, `WOOCOMMERCE_STORES`, `JUMPSELLER_STORES`, `MAGENTO_STORES`,
-`PRESTASHOP_STORES` y `TIENDANUBE_STORES`. `STRUCTURED_PROVIDERS` deriva de esos diccionarios y es lo que
-`multi_provider.py` registra automáticamente.
+`PRESTASHOP_STORES` (con `PRESTASHOP_SEARCH_PATHS` si el buscador está traducido), `TIENDANUBE_STORES`
+y `VTEX_STORES` (API pública de catálogo). `STRUCTURED_PROVIDERS` deriva de esos diccionarios y es lo
+que `multi_provider.py` registra automáticamente.
 
 `available_providers()` es la única fuente de verdad de qué fuentes existen, y se expone al frontend
 por `GET /api/settings/public` — el frontend pinta como disponibles solo los ids que vengan ahí.
 
 `quote_multi_providers()` lanza todos los proveedores en paralelo (`ThreadPoolExecutor`, máx 32
-threads, `timeout=15` por futuro), consolida los hits y los ordena por `relevance` descendente
-(`_token_overlap` entre query y título) y luego precio ascendente. `_relevant_tokens` conserva las
-cifras cortas: en una lista escolar "12 colores" y "100 hojas" son lo que distingue un producto del
-siguiente. Un proveedor que falla se agrega a `providers_failed` sin romper la respuesta; el `status`
-global es `ok` / `partial` / `no_results` / `error`.
+threads) con un plazo total de `SEARCH_DEADLINE_SECONDS` (25 s): lo que no llega a tiempo queda en
+`providers_failed` y no retiene la respuesta. Cada búsqueda pasa por un caché de 10 minutos
+`(fuente, consulta)`. Si una fuente no devuelve nada relevante, se reintenta con consultas
+simplificadas (`relevance.simplified_queries`: sin cifras ni medidas y con el plural recortado),
+porque WooCommerce y varios temas devuelven cero para "cuaderno universitario 100 hojas" o
+"estuches". Un resultado obtenido así debe contener todas las palabras de producto de la consulta
+original ("goma" no autoriza a mostrar una goma de borrar para "goma eva"). Las tiendas Shopify no
+se reintentan: su búsqueda ya tolera cifras y plurales, y comparten el límite por IP. Los hits se ordenan con `relevance.rank_key`: **disponibles primero**, luego relevancia,
+precio y, en empate, que el título empiece por el producto buscado. `hits[0]` es la mejor opción que
+muestran la tabla, el total y lo que se guarda.
+
+La relevancia vive en `app/quoting/relevance.py` (reglas y casos reales documentados ahí): expande
+abreviaturas de tienda ("100hj", "12col", "PTA"), reduce plurales de forma simétrica, pesa la mitad
+cifras y medidas (y exige coincidir en al menos una palabra de producto) y castiga accesorios
+("Esponja para ollas", "Soporte olla", "Forro cuaderno"). Un proveedor que falla se agrega a
+`providers_failed` sin romper la respuesta; el `status` global es `ok` / `partial` / `no_results` /
+`error`.
 
 **Contrato de hit** que toda función de proveedor debe devolver:
 `{title, url, price (int CLP | None), available, provider, relevance, image_url, merchant?, sku?}`.
@@ -121,6 +135,10 @@ tocarlos. `tests/test_provider_registry.py` falla si alguno de esos lugares qued
 `quote_<nombre>(query, limit) -> {query, status, hits, error}`, un cliente en
 `app/providers/<nombre>.py` si hace falta, y un wrapper `_quote_<nombre>(query, limit) ->
 (nombre, hits, error)` registrado en `build_provider_funcs()` de `multi_provider.py`.
+
+Dimeiggs toma precio y stock de la misma respuesta GraphQL de sugerencias
+(`items[].sellers[].commertialOffer`). Nunca buscar precio con `FT=<sku>`: VTEX ignora el número y
+devuelve su ranking por defecto (todos los productos quedaban a $320).
 
 Antes de publicar una fuente nueva conviene sondear la plataforma del dominio. Varias cadenas
 siguen detrás de Cloudflare/PerimeterX/Akamai, pero Jumbo, Líder, Santa Isabel y Tottus exponen
@@ -203,10 +221,13 @@ modelo sobre una BD existente exige escribir uno.
 - `app/auth.py` **hardcodea `SECRET_KEY`** (línea 11) en vez de leerlo del entorno, aunque
   `.env.example`, `render.yaml` y la documentación digan lo contrario. Cambiar la variable de entorno
   no tiene efecto sobre los JWT.
+- Los endpoints que parsean, cotizan o validan contraseñas son `def`, no `async def`: hacen I/O
+  bloqueante y FastAPI los corre en su threadpool. Como `async def` congelaban el único worker de
+  Render (una cotización dejaba `/health` sin responder). Para leer un archivo subido en un `def`
+  usar `file.file.read()`. `tests/test_list_parsing.py` lo verifica.
 - `main.py` abre `SessionLocal()` a mano en algunos handlers (ej. `quote_multi_endpoint`) en vez de
   usar `Depends(get_db)`. Para código nuevo, usar `get_db`.
-- Hay un `@app.exception_handler(Exception)` que devuelve el **traceback completo** en el JSON de
-  error 500.
+- El `@app.exception_handler(Exception)` registra el traceback en el log y responde un 500 genérico.
 - El backend se despliega en Render mediante `render.yaml`; el frontend se despliega en Vercel con
   Root Directory `frontend`. `VITE_API_URL` debe apuntar a
   `https://cotizador-utiles-escolares.onrender.com/api`.

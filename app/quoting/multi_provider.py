@@ -12,93 +12,82 @@ from app.quoting.libreria_nacional_quote import quote_libreria_nacional
 from app.quoting.dimeiggs_quote import quote_dimeiggs
 from app.quoting.jamila_quote import quote_jamila
 from app.quoting.coloranimal_quote import quote_coloranimal
-from app.quoting.pronobel_quote import quote_pronobel
 from app.quoting.prisa_quote import quote_prisa
 from app.quoting.lasecretaria_quote import quote_lasecretaria
 from app.quoting.mercadolibre_quote import quote_mercadolibre
 from app.quoting.provider_registry import available_providers
-from app.providers.structured_stores import STRUCTURED_PROVIDERS
+from app.providers.structured_stores import SHOPIFY_STORES, STRUCTURED_PROVIDERS
 from app.quoting.structured_store_quote import quote_structured_store
-import re
-import unicodedata
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from app.quoting import relevance as rel
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, wait
 
 
-STOPWORDS = {
-    "de", "del", "la", "el", "los", "las", "y", "o", "con", "para", "por", 
-    "un", "una", "pliego", "caja", "unidad", "unidades", "pack", "set", 
-    "pz", "pzas", "x", "bolsa"
-}
+STOPWORDS = rel.STOPWORDS
+
+#: Presupuesto total de una búsqueda multi-fuente. Una tienda lenta no debe
+#: retener la respuesta del resto: lo que no llegue a tiempo se informa como
+#: fuente fallida por timeout.
+SEARCH_DEADLINE_SECONDS = 25
+
+#: Caché corto de (fuente, consulta). Las listas repiten mucho las mismas
+#: consultas y Shopify limita por IP; SOURCES.md lo dejaba como pendiente.
+CACHE_TTL_SECONDS = 600
+CACHE_MAX_ENTRIES = 5000
+_cache: Dict[Tuple[str, str, int], Tuple[float, List[Dict[str, Any]]]] = {}
+_cache_lock = threading.Lock()
+
+
+def _cache_get(key: Tuple[str, str, int]) -> Optional[List[Dict[str, Any]]]:
+    with _cache_lock:
+        entry = _cache.get(key)
+        if not entry:
+            return None
+        stored_at, hits = entry
+        if time.monotonic() - stored_at > CACHE_TTL_SECONDS:
+            _cache.pop(key, None)
+            return None
+        return [dict(hit) for hit in hits]
+
+
+def _cache_put(key: Tuple[str, str, int], hits: List[Dict[str, Any]]) -> None:
+    with _cache_lock:
+        if len(_cache) >= CACHE_MAX_ENTRIES:
+            # Se descarta la mitad más antigua; no hace falta un LRU exacto.
+            for old_key, _ in sorted(_cache.items(), key=lambda item: item[1][0])[: CACHE_MAX_ENTRIES // 2]:
+                _cache.pop(old_key, None)
+        _cache[key] = (time.monotonic(), [dict(hit) for hit in hits])
+
+
+def clear_cache() -> None:
+    with _cache_lock:
+        _cache.clear()
 
 
 def _normalize_text(s: str) -> str:
     """Normaliza texto para búsqueda: minúsculas, sin acentos, espacios limpios."""
-    s = s.lower().strip()
-    # Quita acentos
-    s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
-    # Solo alfanuméricos y espacios
-    s = re.sub(r"[^a-z0-9\s]", " ", s)
-    # Espacios múltiples
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    return rel.normalize_text(s)
 
 
 def _canonical_token(word: str) -> str:
-    """Reduce plurales frecuentes sin convertir la búsqueda en coincidencia difusa.
-
-    Esto permite que, por ejemplo, ``ollas`` coincida con ``olla`` y
-    ``monitores`` con ``monitor``. No se usan aproximaciones por similitud:
-    nombres o modelos distintos siguen siendo distintos.
-    """
-    if len(word) > 4 and word.endswith("ces"):
-        return f"{word[:-3]}z"
-    if len(word) > 5 and word.endswith("es"):
-        return word[:-2]
-    if len(word) > 4 and word.endswith("s") and not word.endswith(("is", "us")):
-        return word[:-1]
-    return word
+    """Raíz simétrica de singular y plural (ver `app.quoting.relevance`)."""
+    return rel.canonical_token(word)
 
 
 def _relevant_tokens(normalized: str) -> set[str]:
-    """Tokens que sí discriminan entre productos.
-
-    Las cifras cortas se conservan: en una lista escolar "12 colores" y
-    "100 hojas" son justamente lo que distingue un producto del siguiente.
-    """
-    return {
-        _canonical_token(word) for word in normalized.split()
-        if word not in STOPWORDS and (len(word) > 2 or word.isdigit())
-    }
+    """Tokens que sí discriminan entre productos (cifras incluidas)."""
+    return set(rel.tokenize(normalized)[0])
 
 
 def _token_overlap(query: str, title: str, min_ratio: float = 0.5) -> float:
-    """
-    Calcula qué porcentaje de tokens de la query aparecen en el título.
-    Retorna score entre 0.0 (sin coincidencia) y 1.0 (coincidencia perfecta).
-    """
-    q_norm = _normalize_text(query)
-    t_norm = _normalize_text(title)
-
-    q_tokens = _relevant_tokens(q_norm)
-    t_tokens = _relevant_tokens(t_norm)
-
-    if not q_tokens:
-        return 0.0
-
-    overlap = len(q_tokens & t_tokens)
-    ratio = overlap / len(q_tokens)
-
-    return ratio
+    """Coincidencia ponderada entre 0.0 y 1.0 (ver `app.quoting.relevance`)."""
+    return rel.token_overlap(query, title)
 
 
-def _is_relevant_hit(query: str, title: str, min_ratio: float = 0.4) -> bool:
-    """Exige evidencia textual mínima antes de mostrar un producto.
-
-    Para consultas de una palabra esa palabra debe aparecer. En consultas más
-    específicas el 40 % evita aceptar una tarjeta que solo comparte un término
-    genérico (por ejemplo, ``monitor``) pero no la marca, modelo o tamaño.
-    """
-    return _token_overlap(query, title) >= min_ratio
+def _is_relevant_hit(query: str, title: str, min_ratio: float = rel.MIN_RELEVANCE) -> bool:
+    """Exige evidencia textual mínima antes de mostrar un producto."""
+    return rel.is_relevant(query, title, min_ratio)
 
 
 def _quote_dimeiggs(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
@@ -120,8 +109,8 @@ def _quote_dimeiggs(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], 
             hits.append({
                 "title": hit.get("title"),
                 "url": hit.get("url"),
-                "price": hit.get("price"),  # Ahora sí tiene precio
-                "available": True,
+                "price": hit.get("price"),
+                "available": hit.get("available") is not False,
                 "provider": "dimeiggs",
                 "relevance": relevance,
                 "sku": hit.get("sku"),
@@ -240,30 +229,6 @@ def _quote_coloranimal(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]
         return "coloranimal", [], str(e)
 
 
-def _quote_pronobel(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
-    """Ejecuta búsqueda en Pronobel. Retorna (provider, hits, error)."""
-    try:
-        result = quote_pronobel(query, limit=limit)
-        if result["status"] in ("ok", "not_found"):
-            hits = []
-            for hit in result.get("hits", []):
-                relevance = _token_overlap(query, hit.get("title", ""))
-                hits.append({
-                    "title": hit.get("title"),
-                    "url": hit.get("url"),
-                    "price": hit.get("price"),
-                    "available": hit.get("available", True),
-                    "provider": "pronobel",
-                    "relevance": relevance,
-                    "image_url": hit.get("image_url"),
-                })
-            return "pronobel", hits, None
-        else:
-            return "pronobel", [], result.get("error", "unknown")
-    except Exception as e:
-        return "pronobel", [], str(e)
-
-
 def _quote_prisa(query: str, limit: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
     """Ejecuta búsqueda en Prisa. Retorna (provider, hits, error)."""
     try:
@@ -325,6 +290,25 @@ def _quote_structured_store(provider: str, query: str, limit: int) -> Tuple[str,
     return provider, [], result.get("error", "unknown")
 
 
+def _provider_search(provider: str, limit_per_provider: int):
+    """Callable `consulta -> (proveedor, hits, error)` para un proveedor."""
+    custom = {
+        "mercadolibre": _quote_mercadolibre,
+        "dimeiggs": _quote_dimeiggs,
+        "lapiz_lopez": _quote_lapiz_lopez,
+        "libreria_nacional": _quote_libreria_nacional,
+        "jamila": _quote_jamila,
+        "coloranimal": _quote_coloranimal,
+        "prisa": _quote_prisa,
+        "lasecretaria": _quote_lasecretaria,
+    }
+    if provider in custom:
+        return lambda q: custom[provider](q, limit_per_provider)
+    if provider in STRUCTURED_PROVIDERS:
+        return lambda q: _quote_structured_store(provider, q, limit_per_provider)
+    return None
+
+
 def build_provider_funcs(query: str, limit_per_provider: int) -> Dict[str, Any]:
     """Mapa `proveedor -> callable` que resuelve una búsqueda para ese proveedor.
 
@@ -332,26 +316,75 @@ def build_provider_funcs(query: str, limit_per_provider: int) -> Dict[str, Any]:
     aparezca acá se ignora silenciosamente en `quote_multi_providers`, así que
     `tests/test_provider_registry.py` verifica que cubra todo `CORE_PROVIDERS`.
     """
-    provider_funcs: Dict[str, Any] = {
-        "mercadolibre": lambda: _quote_mercadolibre(query, limit_per_provider),
-        "dimeiggs": lambda: _quote_dimeiggs(query, limit_per_provider),
-        "lapiz_lopez": lambda: _quote_lapiz_lopez(query, limit_per_provider),
-        "libreria_nacional": lambda: _quote_libreria_nacional(query, limit_per_provider),
-        "jamila": lambda: _quote_jamila(query, limit_per_provider),
-        "coloranimal": lambda: _quote_coloranimal(query, limit_per_provider),
-        "pronobel": lambda: _quote_pronobel(query, limit_per_provider),
-        "prisa": lambda: _quote_prisa(query, limit_per_provider),
-        "lasecretaria": lambda: _quote_lasecretaria(query, limit_per_provider),
-    }
-
-    # Las tiendas con búsqueda pública estructurada (Shopify, WooCommerce,
-    # Jumpseller, Magento, PrestaShop, VTEX) comparten wrapper: se registran
-    # desde la lista del módulo de proveedores para no duplicar la nómina.
-    for structured_provider in STRUCTURED_PROVIDERS:
-        provider_funcs[structured_provider] = (
-            lambda p=structured_provider: _quote_structured_store(p, query, limit_per_provider)
-        )
+    provider_funcs: Dict[str, Any] = {}
+    for provider in [
+        "mercadolibre", "dimeiggs", "lapiz_lopez", "libreria_nacional", "jamila",
+        "coloranimal", "prisa", "lasecretaria", *STRUCTURED_PROVIDERS,
+    ]:
+        search = _provider_search(provider, limit_per_provider)
+        if search is not None:
+            provider_funcs[provider] = (lambda s=search: s(query))
     return provider_funcs
+
+
+def _score_hits(query: str, hits: List[Dict[str, Any]], searched_as: Optional[str] = None) -> List[Dict[str, Any]]:
+    scored: List[Dict[str, Any]] = []
+    for hit in hits:
+        normalized = dict(hit)
+        result = rel.score(query, str(hit.get("title") or ""))
+        normalized["relevance"] = result["relevance"]
+        normalized["head"] = result["head"]
+        if searched_as:
+            normalized["searched_as"] = searched_as
+            if result["core_coverage"] < rel.FALLBACK_MIN_COVERAGE:
+                # Coincidencia parcial obtenida por una consulta más amplia
+                # que la del usuario: no alcanza para mostrarla.
+                normalized["relevance"] = min(result["relevance"], rel.MIN_RELEVANCE - 0.01)
+        scored.append(normalized)
+    return scored
+
+
+def _search_provider(provider: str, query: str, limit_per_provider: int) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
+    """Busca en una fuente, con caché y consultas de respaldo.
+
+    Si la consulta completa no deja ningún resultado relevante (típico de
+    WooCommerce con cifras o plurales: "cuaderno universitario 100 hojas",
+    "estuches"), se reintenta con versiones más simples. La relevancia se
+    sigue midiendo contra la consulta original del usuario.
+    """
+    search = _provider_search(provider, limit_per_provider)
+    if search is None:
+        return provider, [], "Proveedor desconocido"
+
+    def run(q: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        key = (provider, rel.normalize_text(q), limit_per_provider)
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached, None
+        _, found, error = search(q)
+        if not error:
+            _cache_put(key, found)
+        return found, error
+
+    hits, error = run(query)
+    if error:
+        return provider, [], error
+    scored = _score_hits(query, hits)
+    if any(hit["relevance"] >= rel.MIN_RELEVANCE for hit in scored):
+        return provider, scored, None
+    if provider in SHOPIFY_STORES:
+        # El Predictive Search de Shopify ya tolera cifras y plurales, y limita
+        # por IP compartida entre ~24 tiendas: reintentar solo suma 429.
+        return provider, scored, None
+
+    for fallback in rel.simplified_queries(query):
+        more, fallback_error = run(fallback)
+        if fallback_error:
+            break
+        extra = _score_hits(query, more, searched_as=fallback)
+        if any(hit["relevance"] >= rel.MIN_RELEVANCE for hit in extra):
+            return provider, scored + extra, None
+    return provider, scored, None
 
 
 def quote_multi_providers(
@@ -361,11 +394,11 @@ def quote_multi_providers(
     max_results: int = 10,
 ) -> Dict[str, Any]:
     """
-    Busca un producto en múltiples proveedores EN PARALELO (más rápido).
+    Busca un producto en múltiples proveedores EN PARALELO.
 
     Args:
         query: Término de búsqueda.
-        providers: Lista de proveedores a usar. 
+        providers: Lista de proveedores a usar.
                    Opciones publicadas por provider_registry.available_providers().
                    Si None, usa todos los funcionales/configurados.
         limit_per_provider: Máximo de resultados por proveedor.
@@ -375,9 +408,9 @@ def quote_multi_providers(
         Dict con estructura:
         {
             "query": str,
-            "status": "ok" | "partial" | "error",
+            "status": "ok" | "partial" | "no_results" | "error",
             "providers_queried": [str],
-            "providers_failed": [str],
+            "providers_failed": [[str, str]],
             "hits": [
                 {
                     "title": str,
@@ -385,18 +418,23 @@ def quote_multi_providers(
                     "price": int | None,
                     "available": bool,
                     "provider": str,
-                    "relevance": float  # 0.0 a 1.0
+                    "relevance": float,  # 0.0 a 1.0
+                    "head": float,       # 1.0 si el núcleo del título coincide
                 },
                 ...
             ],
             "error": str | None,
         }
+
+    Orden de los hits: disponibles primero, luego relevancia, precio y, en
+    empate, que el título empiece por el producto buscado. Así `hits[0]` es el
+    producto que conviene mostrar como mejor opción y nunca uno agotado
+    habiendo alternativas con stock.
     """
     if providers is None:
-        # Todos los proveedores funcionales y fuentes externas configuradas.
         providers = available_providers()
 
-    providers = [p.lower() for p in providers]
+    providers = list(dict.fromkeys(p.lower() for p in providers))
     if not providers:
         return {
             "query": query,
@@ -407,59 +445,51 @@ def quote_multi_providers(
             "error": "No se seleccionaron proveedores",
         }
     all_hits: List[Dict[str, Any]] = []
-    providers_failed = []
+    providers_failed: List[Tuple[str, str]] = []
     providers_queried = list(providers)
 
-    provider_funcs = build_provider_funcs(query, limit_per_provider)
+    known = [provider for provider in providers if _provider_search(provider, limit_per_provider) is not None]
+    for provider in providers:
+        if provider not in known:
+            providers_failed.append((provider, "Proveedor desconocido"))
 
-    # Ejecuta búsquedas EN PARALELO usando ThreadPoolExecutor.
-    # Son llamadas de red (I/O), así que el techo alto evita que una selección
-    # amplia de fuentes se serialice en tandas de 15 s.
-    max_workers = min(len(providers), 32)
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit todas las tareas
-        futures = {}
-        for provider in providers:
-            if provider in provider_funcs:
-                futures[provider] = executor.submit(provider_funcs[provider])
-
-        # Recolecta resultados a medida que terminan (as_completed = más rápido)
-        for future in as_completed(futures.values()):
+    if known:
+        executor = ThreadPoolExecutor(max_workers=min(len(known), 32))
+        futures = {
+            executor.submit(_search_provider, provider, query, limit_per_provider): provider
+            for provider in known
+        }
+        done, pending = wait(futures, timeout=SEARCH_DEADLINE_SECONDS)
+        for future in done:
+            provider = futures[future]
             try:
-                prov_name, hits, error = future.result(timeout=15)  # Timeout más agresivo
-                if error:
-                    providers_failed.append((prov_name, error))
-                else:
-                    all_hits.extend(hits)
-            except Exception as e:
-                # Encontrar qué proveedor fue
-                for prov, fut in futures.items():
-                    if fut is future:
-                        providers_failed.append((prov, str(e)))
-                        break
+                _, hits, error = future.result()
+            except Exception as exc:  # pragma: no cover - defensivo
+                providers_failed.append((provider, str(exc)))
+                continue
+            if error:
+                providers_failed.append((provider, error))
+            else:
+                all_hits.extend(hits)
+        for future in pending:
+            providers_failed.append((futures[future], f"Sin respuesta en {SEARCH_DEADLINE_SECONDS} s"))
+        # No se espera a las tiendas colgadas: su resultado ya no se usaría.
+        executor.shutdown(wait=False, cancel_futures=True)
 
     # Algunas búsquedas internas devuelven productos promocionados o de relleno
     # aunque no coincidan con la consulta. Esos resultados no deben llegar al
     # frontend por baratos que sean.
-    all_hits = [
-        hit for hit in all_hits
-        if _is_relevant_hit(query, str(hit.get("title") or ""))
-    ]
+    all_hits = [hit for hit in all_hits if float(hit.get("relevance") or 0) >= rel.MIN_RELEVANCE]
 
-    # Ordena por: relevancia (descendente) y precio (ascendente)
-    # Prioriza coincidencia > precio
-    all_hits.sort(
-        key=lambda x: (
-            -x.get("relevance", 0),  # relevancia descendente
-            x.get("price") or float("inf"),  # precio ascendente (nulos al final)
-        )
-    )
+    # Una misma URL puede llegar dos veces (consulta completa y de respaldo).
+    unique: Dict[str, Dict[str, Any]] = {}
+    for hit in all_hits:
+        key = str(hit.get("url") or "") or f"{hit.get('provider')}::{hit.get('title')}"
+        current = unique.get(key)
+        if current is None or rel.rank_key(hit) < rel.rank_key(current):
+            unique[key] = hit
+    all_hits = rel.best_hits(list(unique.values()))[:max_results]
 
-    # Limita resultados
-    all_hits = all_hits[:max_results]
-
-    # Determina status
     if len(all_hits) == 0 and len(providers_failed) == len(providers):
         status = "error"
     elif len(all_hits) == 0:

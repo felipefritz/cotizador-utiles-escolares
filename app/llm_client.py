@@ -132,17 +132,19 @@ def _extract_json(raw: str) -> str:
     raise ValueError("No se encontró JSON en la respuesta del modelo.")
 
 
-# Palabras clave que indican que NO es un item cotizable válido
-INVALID_KEYWORDS = {
-    "cuota", "cuotas", "pago", "pagos", "sin interés", "sin interes",
-    "horario", "horarios", "hrs", "horas", "hora",
-    "disponible", "disponibilidad", "stock",
-    "promoción", "promocion", "oferta",
-    "tal como", "según", "segun",
-    "recomendado", "sugerido", "opcional",
-    "abiertos", "cerrados", "cerrado",
-    "covid", "sanitario",
-}
+from app.rules_parser import has_invalid_keyword
+
+
+def _as_quantity(value) -> int | None:
+    """El modelo a veces devuelve la cantidad como texto ("2") o decimal."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value) if value >= 1 else None
+    if isinstance(value, str):
+        match = re.search(r"\d+", value)
+        return int(match.group()) if match and int(match.group()) >= 1 else None
+    return None
 
 def validate_llm_items(items: list) -> list:
     """
@@ -151,22 +153,20 @@ def validate_llm_items(items: list) -> list:
     """
     valid_items = []
     for item in items:
-        detalle = (item.get("detalle") or "").strip().upper()
-        original = (item.get("item_original") or "").strip().upper()
-        
-        # Revisar si contiene palabras clave inválidas
-        is_invalid = False
-        for keyword in INVALID_KEYWORDS:
-            if keyword.upper() in detalle or keyword.upper() in original:
-                is_invalid = True
-                break
-        
-        if is_invalid:
+        if not isinstance(item, dict):
             continue
-        
-        # Debe tener cantidad
-        if item.get("cantidad") is None or item.get("cantidad") < 1:
+        detalle = str(item.get("detalle") or "").strip().upper()
+        original = str(item.get("item_original") or "").strip().upper()
+
+        # Palabras administrativas, comparadas como palabras completas
+        if has_invalid_keyword(detalle, original):
             continue
+
+        # Debe tener cantidad (se normaliza a entero)
+        cantidad = _as_quantity(item.get("cantidad"))
+        if cantidad is None:
+            continue
+        item["cantidad"] = cantidad
         
         # Debe tener detalle mínimo
         if not detalle or len(detalle) < 2:

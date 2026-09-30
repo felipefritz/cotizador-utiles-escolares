@@ -396,3 +396,129 @@ def test_retry_delay_honours_retry_after_within_the_cap() -> None:
     )
     # Un `Retry-After` con formato de fecha no rompe: cae al backoff por defecto.
     assert structured_stores._retry_delay(FakeResponse(headers={"Retry-After": "Wed, 21 Oct"}), 0) > 0
+
+
+# --- Regresiones de la validación en vivo (septiembre 2026) ---
+
+
+def test_clp_from_text_does_not_glue_following_numbers() -> None:
+    assert structured_stores._clp_from_text("$4.990 10% OFF") == 4990
+    assert structured_stores._clp_from_text("$ 1.990,00") == 1990
+    assert structured_stores._clp_from_text("$ 30,000 $ 35,900 Fuera de stock") == 30000
+    assert structured_stores._clp_from_text("Por mayor $ 1420") == 1420
+
+
+def test_prestashop_prefers_unit_price_over_wholesale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Marcado real de Librería Olímpica: el mayorista exige volumen."""
+    html = """
+    <div id="js-product-list">
+      <article class="js-product-miniature">
+        <h2 class="product-title"><a href="/cuaderno.html">CUADERNO UNIV. 7MM COLOR LIFE 100HJS PROARTE</a></h2>
+        <div class="product-price-and-shipping">
+          <span itemprop="price" class="priceU">Precio unitario $ 1850</span><br>
+          <span itemprop="price" class="price">Por mayor $ 1420</span>
+        </div>
+      </article>
+    </div>
+    """
+    captured = fake_get(monkeypatch, text=html)
+
+    hits = structured_stores.search_prestashop("libreriaolimpica", "cuaderno", 5)
+
+    assert hits[0]["price"] == 1850
+    assert captured["url"] == "https://libreriaolimpica.cl/busqueda"
+
+
+def test_prestashop_ignores_featured_widgets_outside_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ArteMania pinta destacados con la misma clase antes de los resultados."""
+    html = """
+    <section class="featured-products">
+      <article class="js-product-miniature">
+        <h2 class="product-title"><a href="/pintura.html">Pintura dimensional fashion 3D</a></h2>
+        <div class="product-price-and-shipping"><span class="price">$ 1.600</span></div>
+      </article>
+    </section>
+    <div id="js-product-list">
+      <article class="js-product-miniature">
+        <h2 class="product-title"><a href="/tijera.html">Tijera Klein 7 pulgadas</a></h2>
+        <div class="product-price-and-shipping"><span class="price">$ 2.600</span></div>
+      </article>
+    </div>
+    """
+    captured = fake_get(monkeypatch, text=html)
+
+    hits = structured_stores.search_prestashop("artemania", "tijera", 5)
+
+    assert [hit["title"] for hit in hits] == ["Tijera Klein 7 pulgadas"]
+    assert captured["url"] == "https://www.artemaniachile.cl/busqueda"
+
+
+def test_prestashop_restores_truncated_title(monkeypatch: pytest.MonkeyPatch) -> None:
+    html = """
+    <ul class="product_list"><li class="ajax_block_product">
+      <a class="product-name" href="/teclado" title="TECLADO KROM KASIC MECHANICAL RAINBOW GAMING">TECLADO KROM KASIC...</a>
+      <span class="price product-price">$ 30,000</span>
+    </li></ul>
+    """
+    fake_get(monkeypatch, text=html)
+
+    hits = structured_stores.search_prestashop("alltec", "teclado", 5)
+
+    assert hits[0]["title"] == "TECLADO KROM KASIC MECHANICAL RAINBOW GAMING"
+    assert hits[0]["price"] == 30000
+
+
+def test_jumpseller_restores_truncated_title(monkeypatch: pytest.MonkeyPatch) -> None:
+    html = """
+    <div class="product-block">
+      <a class="product-block__name" href="/c" title="Cuaderno Universitario Frozen 100 Hojas 7mm">Cuaderno Universitario Frozen 100..</a>
+      <div class="product-block__price">$2.390</div>
+    </div>
+    """
+    fake_get(monkeypatch, text=html)
+
+    hits = structured_stores.search_jumpseller("mabeduna", "cuaderno", 5)
+
+    assert hits[0]["title"] == "Cuaderno Universitario Frozen 100 Hojas 7mm"
+
+
+def test_vtex_catalog_reads_price_and_stock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Construplaza migró a VTEX: el buscador Magento viejo respondía 404."""
+    payload = [
+        {
+            "productName": "Martillo Mecanico Stanley 16 OZ-1 LB",
+            "linkText": "martillo-mecanico-stanley",
+            "link": "https://www.construplaza.cl/martillo-mecanico-stanley/p",
+            "items": [
+                {
+                    "images": [{"imageUrl": "https://cdn.example/martillo.jpg"}],
+                    "sellers": [{"commertialOffer": {"Price": 10190, "AvailableQuantity": 10}}],
+                }
+            ],
+        },
+        {
+            "productName": "Martillo sin stock",
+            "linkText": "martillo-sin-stock",
+            "items": [{"sellers": [{"commertialOffer": {"Price": 5990, "AvailableQuantity": 0}}]}],
+        },
+    ]
+    captured = fake_get(monkeypatch, payload=payload)
+
+    hits = structured_stores.search_structured_store("construplaza", "martillo carpintero", 5)
+
+    assert "ft=martillo%20carpintero" in captured["url"]
+    assert hits[0] == {
+        "title": "Martillo Mecanico Stanley 16 OZ-1 LB",
+        "url": "https://www.construplaza.cl/martillo-mecanico-stanley/p",
+        "price": 10190,
+        "available": True,
+        "provider": "construplaza",
+        "image_url": "https://cdn.example/martillo.jpg",
+    }
+    assert hits[1]["url"] == "https://www.construplaza.cl/martillo-sin-stock/p"
+    assert hits[1]["available"] is False
+
+
+def test_pronobel_is_served_by_shopify() -> None:
+    assert "pronobel" in structured_stores.SHOPIFY_STORES
+    assert "construplaza" not in structured_stores.MAGENTO_STORES
