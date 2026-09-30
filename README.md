@@ -62,7 +62,7 @@ python scripts/setup_groq.py
 O editar `.env` manualmente:
 ```bash
 LLM_PROVIDER=groq
-GROQ_API_KEY=gsk_tu_api_key_aqui
+GROQ_API_KEY=tu_api_key_de_groq
 ```
 
 ### 3. Inicializar base de datos
@@ -105,7 +105,7 @@ npm run dev
 ```bash
 # IA (Elige uno)
 LLM_PROVIDER=groq                    # "groq" (gratis) o "openai"
-GROQ_API_KEY=gsk_...                 # API key de Groq (gratis)
+GROQ_API_KEY=tu_api_key_de_groq                 # API key de Groq (gratis)
 
 # Base de datos
 DATABASE_URL=sqlite:///./cotizador.db  # SQLite local (default)
@@ -224,7 +224,7 @@ playwright>=1.57.0
    ```bash
    # Railway inyecta DATABASE_URL automáticamente
    LLM_PROVIDER=groq
-   GROQ_API_KEY=gsk_...
+   GROQ_API_KEY=tu_api_key_de_groq
    SECRET_KEY=tu-secreto-muy-seguro
    ```
 3. **Las tablas se crean automáticamente** al hacer deploy
@@ -237,7 +237,7 @@ playwright>=1.57.0
 ```bash
 # Variables de entorno necesarias:
 LLM_PROVIDER=groq
-GROQ_API_KEY=gsk_...
+GROQ_API_KEY=tu_api_key_de_groq
 DATABASE_URL=postgresql://...
 SECRET_KEY=...
 ```

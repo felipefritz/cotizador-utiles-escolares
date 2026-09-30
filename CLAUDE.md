@@ -57,8 +57,9 @@ npx vitest run src/utils/format.test.ts   # un solo archivo
 Lint: no hay linter configurado localmente. El CI corre `flake8 app --select=E9,F63,F7,F82`
 (`.github/workflows/backend-ci.yml`, bloqueante: antes tenía `continue-on-error` y así pasaron dos
 nombres indefinidos en `/parse-ai-quote/dimeiggs`) y `npm run lint --if-present` (que no existe) en el frontend.
-El job de seguridad falla si aparece `sk-proj-` o `gsk_` en cualquier `*.py` o `*.md`: no pegar
-API keys reales ni ejemplos con esos prefijos en documentación.
+El job de seguridad falla si aparece el prefijo de una API key de OpenAI (`sk-proj` seguido de
+guion) o de Groq (`gsk` seguido de guion bajo) en cualquier `*.py` o `*.md`, incluso como ejemplo:
+no escribir esos prefijos completos en documentación (ni siquiera para explicar esta regla).
 
 ## Arquitectura
 
