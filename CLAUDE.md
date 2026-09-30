@@ -28,8 +28,9 @@ python scripts/create_admin.py --email X --password Y --plan pro   # lo crea des
 python check_plans.py                 # imprime límites actuales de los planes
 ```
 
-Tests backend — no hay `pytest.ini`; `tests/` cubre parsers de tiendas, relevancia y el contrato del
-registro de fuentes (todo offline, con `monkeypatch`). Los `test_*.py` de la **raíz** son
+Tests backend — `pytest.ini` fija `pythonpath = .` y `testpaths = tests`; `tests/` cubre parsers de
+tiendas, relevancia, el orquestador, el flujo completo por API y el contrato del registro de fuentes
+(todo offline, con `monkeypatch`). Los `test_*.py` de la **raíz** son
 **scripts ejecutables**, no tests de pytest (hacen requests reales / tocan la BD real):
 
 ```bash
